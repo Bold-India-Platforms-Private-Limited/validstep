@@ -11,7 +11,7 @@ export function PublicLayout({ children }) {
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-600">
                 <Award className="h-4 w-4 text-white" />
               </div>
-              <span className="font-bold text-slate-800">ListedIndia Verify</span>
+              <span className="font-bold text-slate-800">Validstep.com</span>
             </Link>
           </div>
         </div>

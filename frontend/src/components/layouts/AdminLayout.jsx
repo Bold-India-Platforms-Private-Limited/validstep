@@ -67,7 +67,7 @@ export function AdminLayout({ children }) {
             <ShieldCheck className="h-5 w-5 text-white" />
           </div>
           <div>
-            <p className="text-sm font-bold text-white">ListedIndia</p>
+            <p className="text-sm font-bold text-white">Validstep.com</p>
             <p className="text-xs text-slate-400">Admin Panel</p>
           </div>
           <button

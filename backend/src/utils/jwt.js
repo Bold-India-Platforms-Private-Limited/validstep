@@ -9,7 +9,7 @@ const env = require('../config/env');
 function generateAccessToken(payload) {
   return jwt.sign(payload, env.JWT_ACCESS_SECRET, {
     expiresIn: env.JWT_ACCESS_EXPIRY,
-    issuer: 'verify.listedindia.com',
+    issuer: 'validstep.com',
   });
 }
 
@@ -19,7 +19,7 @@ function generateAccessToken(payload) {
 function generateRefreshToken(payload) {
   return jwt.sign(payload, env.JWT_REFRESH_SECRET, {
     expiresIn: env.JWT_REFRESH_EXPIRY,
-    issuer: 'verify.listedindia.com',
+    issuer: 'validstep.com',
   });
 }
 
@@ -29,7 +29,7 @@ function generateRefreshToken(payload) {
 function verifyAccessToken(token) {
   try {
     return jwt.verify(token, env.JWT_ACCESS_SECRET, {
-      issuer: 'verify.listedindia.com',
+      issuer: 'validstep.com',
     });
   } catch (err) {
     return null;
@@ -42,7 +42,7 @@ function verifyAccessToken(token) {
 function verifyRefreshToken(token) {
   try {
     return jwt.verify(token, env.JWT_REFRESH_SECRET, {
-      issuer: 'verify.listedindia.com',
+      issuer: 'validstep.com',
     });
   } catch (err) {
     return null;

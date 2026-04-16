@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { selectIsAuthenticated, selectUserRole } from '../../store/authSlice'
 import {
@@ -8,16 +8,23 @@ import {
   Building2, Users, FileCheck, QrCode, Mail,
   Lock, Layers, Sparkles, MoveRight,
   Check, TrendingUp, Clock, ExternalLink,
+  Search, Upload, AlertCircle, ChevronUp,
 } from 'lucide-react'
 
 /* ─────────────────────────────────────────────
    NAVBAR
 ───────────────────────────────────────────── */
 function Navbar() {
-  const [mobileOpen, setMobileOpen] = useState(false)
-  const [orgOpen, setOrgOpen] = useState(false)
-  const [scrolled, setScrolled] = useState(false)
-  const dropRef = useRef(null)
+  const [mobileOpen, setMobileOpen]   = useState(false)
+  const [orgOpen, setOrgOpen]         = useState(false)
+  const [verifyOpen, setVerifyOpen]   = useState(false)
+  const [scrolled, setScrolled]       = useState(false)
+  const [certId, setCertId]           = useState('')
+  const [uploadError, setUploadError] = useState(false)
+
+  const dropRef    = useRef(null)
+  const verifyRef  = useRef(null)
+  const navigate   = useNavigate()
 
   const isAuthenticated = useSelector(selectIsAuthenticated)
   const role = useSelector(selectUserRole)
@@ -29,11 +36,27 @@ function Navbar() {
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10)
-    const onClick  = (e) => { if (dropRef.current && !dropRef.current.contains(e.target)) setOrgOpen(false) }
+    const onClick  = (e) => {
+      if (dropRef.current   && !dropRef.current.contains(e.target))   setOrgOpen(false)
+      if (verifyRef.current && !verifyRef.current.contains(e.target)) { setVerifyOpen(false); setUploadError(false) }
+    }
     window.addEventListener('scroll', onScroll)
     document.addEventListener('mousedown', onClick)
     return () => { window.removeEventListener('scroll', onScroll); document.removeEventListener('mousedown', onClick) }
   }, [])
+
+  const handleVerify = (e) => {
+    e.preventDefault()
+    const id = certId.trim()
+    if (!id) return
+    setVerifyOpen(false)
+    setCertId('')
+    navigate(`/verify/${id}`)
+  }
+
+  const handleUpload = () => {
+    setUploadError(true)
+  }
 
   return (
     <header className={`fixed top-0 inset-x-0 z-50 transition-all duration-200 ${scrolled ? 'bg-white/98 backdrop-blur shadow-sm border-b border-gray-150' : 'bg-white/80 backdrop-blur'}`}>
@@ -46,7 +69,7 @@ function Navbar() {
               <Award className="w-4 h-4 text-white" />
             </div>
             <span className="font-bold text-gray-900 text-[15px] tracking-tight">
-              ListedIndia <span className="text-violet-600">Verify</span>
+              Validstep.com
             </span>
           </Link>
 
@@ -58,12 +81,126 @@ function Navbar() {
                 {label}
               </a>
             ))}
+
+            {/* Employer Verification dropdown */}
+            <div className="relative" ref={verifyRef}>
+              <button
+                onClick={() => { setVerifyOpen(v => !v); setUploadError(false) }}
+                className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${verifyOpen ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`}
+              >
+                <CheckCircle2 className={`w-3.5 h-3.5 ${verifyOpen ? 'text-emerald-600' : ''}`} />
+                Verify Certificate
+                <ChevronDown className={`w-3 h-3 transition-transform ${verifyOpen ? 'rotate-180 text-emerald-600' : ''}`} />
+              </button>
+
+              {verifyOpen && (
+                <div className="absolute left-1/2 -translate-x-1/2 mt-3 w-[520px] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50">
+
+                  {/* Top banner */}
+                  <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-4 flex items-center gap-3">
+                    <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <Shield className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-white text-sm">Employer Verification Portal</p>
+                      <p className="text-emerald-100 text-xs mt-0.5">Confirm any certificate's authenticity in seconds — no account required</p>
+                    </div>
+                    <button onClick={() => { setVerifyOpen(false); setUploadError(false) }} className="ml-auto text-white/60 hover:text-white transition-colors">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="p-6">
+                    {/* Search by ID */}
+                    <div className="mb-5">
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2.5">
+                        Enter Certificate ID
+                      </label>
+                      <form onSubmit={handleVerify} className="flex gap-2.5">
+                        <div className="relative flex-1">
+                          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <input
+                            type="text"
+                            value={certId}
+                            onChange={e => setCertId(e.target.value)}
+                            placeholder="e.g. LIV·2026·08XA"
+                            className="w-full pl-10 pr-4 py-3 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent placeholder-gray-300 font-mono bg-gray-50"
+                          />
+                        </div>
+                        <button type="submit"
+                          className="px-5 py-3 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center gap-2 whitespace-nowrap shadow-sm shadow-emerald-200">
+                          Verify
+                          <ArrowRight className="w-4 h-4" />
+                        </button>
+                      </form>
+                      <p className="mt-2 text-[11px] text-gray-400">
+                        The certificate ID is printed at the top-right of every Validstep certificate (e.g. <span className="font-mono bg-gray-100 px-1 rounded">LIV·2026·08XA</span>)
+                      </p>
+                    </div>
+
+                    {/* Divider */}
+                    <div className="flex items-center gap-3 mb-5">
+                      <div className="flex-1 h-px bg-gray-100" />
+                      <span className="text-xs text-gray-300 font-medium px-1">or scan certificate file</span>
+                      <div className="flex-1 h-px bg-gray-100" />
+                    </div>
+
+                    {/* Upload area */}
+                    <div className="mb-1">
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2.5">
+                        Upload Certificate PDF
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleUpload}
+                        className="w-full flex items-center gap-4 px-5 py-4 border-2 border-dashed border-gray-200 rounded-xl hover:border-emerald-300 hover:bg-emerald-50/40 transition-all group text-left"
+                      >
+                        <div className="w-10 h-10 bg-gray-100 group-hover:bg-emerald-100 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors">
+                          <Upload className="w-5 h-5 text-gray-400 group-hover:text-emerald-600 transition-colors" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-600 group-hover:text-gray-800 transition-colors">Click to upload or drag & drop</p>
+                          <p className="text-xs text-gray-400 mt-0.5">PDF files only · Max 10MB</p>
+                        </div>
+                      </button>
+                    </div>
+
+                    {/* Upload error */}
+                    {uploadError && (
+                      <div className="mt-3 flex items-start gap-3 bg-red-50 border border-red-100 rounded-xl px-4 py-3.5">
+                        <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-semibold text-red-600">Unable to detect Certificate ID</p>
+                          <p className="text-xs text-red-400 mt-0.5 leading-relaxed">We couldn't extract a valid Validstep ID from this file. Please copy the certificate ID printed on the certificate and enter it manually in the field above.</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Trust strip */}
+                    <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        {[
+                          { icon: Globe, label: 'No login required' },
+                          { icon: Zap, label: 'Instant result' },
+                          { icon: Lock, label: 'Free to verify' },
+                        ].map(({ icon: Icon, label }) => (
+                          <div key={label} className="flex items-center gap-1.5">
+                            <Icon className="w-3 h-3 text-emerald-500" />
+                            <span className="text-[11px] text-gray-400 font-medium">{label}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <span className="text-[10px] text-gray-300 font-medium">Powered by Validstep.com</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </nav>
 
           {/* Desktop CTA */}
           <div className="hidden md:flex items-center gap-2">
             {isAuthenticated ? (
-              /* Already logged in — show dashboard shortcut */
               <Link to={dashboardPath}
                 className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors shadow-sm shadow-violet-200">
                 <BarChart3 className="w-3.5 h-3.5" />
@@ -142,7 +279,29 @@ function Navbar() {
               {label}
             </a>
           ))}
-          <div className="pt-3 space-y-2 border-t border-gray-100 mt-2">
+
+          {/* Mobile verify section */}
+          <div className="pt-3 border-t border-gray-100 mt-2">
+            <p className="px-3 pb-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Verify Certificate</p>
+            <form onSubmit={handleVerify} className="flex gap-2 px-1 mb-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                <input
+                  type="text"
+                  value={certId}
+                  onChange={e => setCertId(e.target.value)}
+                  placeholder="Enter Certificate ID"
+                  className="w-full pl-9 pr-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 font-mono"
+                />
+              </div>
+              <button type="submit"
+                className="px-3 py-2.5 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition-colors">
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </form>
+          </div>
+
+          <div className="pt-2 space-y-2 border-t border-gray-100 mt-2">
             {isAuthenticated ? (
               <Link to={dashboardPath} onClick={() => setMobileOpen(false)}
                 className="block px-3 py-2.5 text-sm font-semibold bg-violet-600 text-white rounded-lg text-center">
@@ -379,7 +538,7 @@ function Hero() {
             {/* Pill badge */}
             <div className="inline-flex items-center gap-2 bg-violet-50 border border-violet-200 text-violet-700 text-xs font-semibold px-4 py-1.5 rounded-full mb-6">
               <span className="w-1.5 h-1.5 rounded-full bg-violet-500 animate-pulse" />
-              Digitally verifiable certificates — trusted by employers & HRs
+              Certificate Infrastructure Platform — built for serious organizations
             </div>
 
             {/* Headline */}
@@ -393,7 +552,7 @@ function Hero() {
 
             {/* Sub */}
             <p className="text-lg text-gray-500 leading-relaxed mb-5 max-w-lg">
-              Every certificate issued on ListedIndia Verify gets a <strong className="text-gray-700">unique public verification link</strong> — so employers, HRs, and recruiters can confirm authenticity instantly, without calling or emailing the issuing organization.
+              Every certificate issued on Validstep.com gets a <strong className="text-gray-700">unique public verification link</strong> — so employers, HRs, and recruiters can confirm authenticity instantly, without calling or emailing the issuing organization.
             </p>
 
             {/* Ideal for — org types */}
@@ -430,8 +589,8 @@ function Hero() {
             {/* Trust strip */}
             <div className="flex flex-wrap items-center gap-5">
               {[
-                { val: '500+', label: 'Organizations' },
-                { val: '50K+', label: 'Certs issued' },
+                { val: '55+', label: 'Organizations' },
+                { val: '2K+', label: 'Certs issued' },
                 { val: '< 1 min', label: 'Verify time' },
               ].map(({ val, label }) => (
                 <div key={label} className="flex items-center gap-2">
@@ -469,7 +628,7 @@ function Hero() {
                 <div className="w-2.5 h-2.5 rounded-full bg-red-400" />
                 <div className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
                 <div className="w-2.5 h-2.5 rounded-full bg-green-400" />
-                <span className="ml-3 text-xs text-gray-400 font-mono">verify.listedindia.com/company/certificates</span>
+                <span className="ml-3 text-xs text-gray-400 font-mono">validstep.com/company/certificates</span>
               </div>
 
               {/* Dashboard body */}
@@ -561,6 +720,37 @@ function Hero() {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─────────────────────────────────────────────
+   LOGO STRIP
+───────────────────────────────────────────── */
+function LogoStrip() {
+  const brands = [
+    'Tech startups',
+    'Training institutes',
+    'Colleges',
+    'Schools',
+    'NGOs',
+    'Communities',
+  ]
+
+  return (
+    <section className="border-y border-gray-100 bg-gray-50/70">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3">
+          <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">
+            Trusted by
+          </span>
+          {brands.map((brand) => (
+            <span key={brand} className="text-sm font-semibold text-gray-500">
+              {brand}
+            </span>
+          ))}
         </div>
       </div>
     </section>
@@ -661,7 +851,7 @@ function VerificationTrust() {
                 <p className="font-bold text-gray-900 text-sm">Built for HR teams & recruiters</p>
               </div>
               <p className="text-xs text-gray-500 leading-relaxed">
-                Traditional certificate verification means calling or emailing the issuing company — taking days and consuming valuable HR bandwidth. With ListedIndia Verify, any recruiter or employer can verify a candidate's certificate in under 10 seconds, directly on our platform, with no account needed.
+                Traditional certificate verification means calling or emailing the issuing company — taking days and consuming valuable HR bandwidth. With Validstep.com, any recruiter or employer can verify a candidate's certificate in under 10 seconds, directly on our platform, with no account needed.
               </p>
             </div>
           </div>
@@ -713,9 +903,89 @@ function VerificationTrust() {
             <div className="mt-8 p-4 bg-violet-50 border border-violet-200 rounded-xl flex items-center gap-3">
               <Globe className="w-5 h-5 text-violet-600 flex-shrink-0" />
               <p className="text-sm text-violet-700">
-                <span className="font-bold">verify.listedindia.com/verify/</span><span className="text-violet-500">{'<unique-certificate-id>'}</span> — open to anyone, no login required.
+                <span className="font-bold">validstep.com/verify/</span><span className="text-violet-500">{'<unique-certificate-id>'}</span> — open to anyone, no login required.
               </p>
             </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─────────────────────────────────────────────
+   ENTERPRISE TRUST
+───────────────────────────────────────────── */
+function EnterpriseTrust() {
+  const pillars = [
+    {
+      icon: Shield,
+      color: 'text-violet-600', bg: 'bg-violet-50', border: 'border-violet-100',
+      title: 'Tamper-proof by design',
+      desc: 'Every certificate is cryptographically hashed and linked to the issuing organization. Any modification — including AI-generated fakes — is detectable on the public verification page.',
+    },
+    {
+      icon: Lock,
+      color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100',
+      title: 'Secure payment processing',
+      desc: 'All transactions run through PayU — a PCI-DSS compliant payment gateway trusted by thousands of Indian businesses. We never store card data.',
+    },
+    {
+      icon: Globe,
+      color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100',
+      title: 'Permanently accessible',
+      desc: 'Verification links never expire. A certificate issued today remains publicly verifiable years from now — critical for employment background checks and alumni records.',
+    },
+    {
+      icon: TrendingUp,
+      color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-100',
+      title: 'Built to scale',
+      desc: 'Issue 10 certificates or 10,000 in a single batch. The platform handles bulk generation, email delivery, and verification load without breaking a sweat.',
+    },
+  ]
+
+  return (
+    <section className="py-24 bg-white border-t border-gray-100">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-2xl mx-auto text-center mb-16">
+          <span className="inline-block bg-violet-50 text-violet-700 text-xs font-semibold px-3 py-1.5 rounded-full uppercase tracking-wider mb-4">Enterprise-grade infrastructure</span>
+          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 leading-tight">
+            Infrastructure you can build your reputation on
+          </h2>
+          <p className="mt-4 text-gray-500 text-lg">
+            Validstep is not a certificate generator — it is credential infrastructure. Built with the same reliability expectations as payments, identity, and compliance systems.
+          </p>
+        </div>
+
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-14">
+          {pillars.map(({ icon: Icon, color, bg, border, title, desc }) => (
+            <div key={title} className={`p-6 rounded-2xl border ${border} ${bg}`}>
+              <div className={`inline-flex p-2.5 rounded-xl bg-white shadow-sm mb-4 border ${border}`}>
+                <Icon className={`w-5 h-5 ${color}`} />
+              </div>
+              <h3 className="font-semibold text-gray-900 mb-2 text-[15px]">{title}</h3>
+              <p className="text-sm text-gray-500 leading-relaxed">{desc}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Trust bar */}
+        <div className="bg-gray-950 rounded-2xl px-8 py-6 flex flex-col sm:flex-row items-center justify-between gap-6">
+          <p className="text-white font-semibold text-sm text-center sm:text-left">
+            Designed to sit alongside your organization's brand — not replace it.
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-6">
+            {[
+              { label: 'Cryptographic verification', dot: 'bg-emerald-400' },
+              { label: 'PCI-DSS payments', dot: 'bg-blue-400' },
+              { label: 'Permanent public links', dot: 'bg-violet-400' },
+              { label: 'Bulk issuance at scale', dot: 'bg-indigo-400' },
+            ].map(({ label, dot }) => (
+              <div key={label} className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${dot}`} />
+                <span className="text-gray-400 text-xs font-medium">{label}</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -733,10 +1003,10 @@ function PaymentModels() {
         <div className="max-w-2xl mx-auto text-center mb-16">
           <span className="inline-block bg-violet-50 text-violet-700 text-xs font-semibold px-3 py-1.5 rounded-full uppercase tracking-wider mb-4">Billing flexibility</span>
           <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 leading-tight">
-            Two ways to run your program
+            Two billing workflows. One platform.
           </h2>
           <p className="mt-4 text-lg text-gray-500">
-            Choose who bears the certificate cost — or let the market decide.
+            Whether your program is free or fee-based, Validstep handles the entire issuance pipeline.
           </p>
         </div>
 
@@ -776,14 +1046,14 @@ function PaymentModels() {
               </div>
               <div>
                 <p className="text-[11px] font-bold text-violet-600 uppercase tracking-wider">Model B</p>
-                <h3 className="text-lg font-bold text-gray-900">Participant Pays</h3>
+                <h3 className="text-lg font-bold text-gray-900">Fee-Based Programs</h3>
               </div>
             </div>
             <p className="text-gray-500 text-sm leading-relaxed mb-6">
-              Participants pay the certificate fee directly via our secure payment gateway. You set the price per certificate. Certificates are automatically issued upon payment — no manual steps.
+              Running a paid program? Think of this as <span className="font-medium text-gray-700">Stripe + credential issuance in one workflow.</span> Your organization sets the program fee. Participants pay securely. Their credential is issued automatically — zero manual effort on your end.
             </p>
             <ul className="space-y-2.5">
-              {['Organization sets per-certificate price','Payments via PayU — UPI, cards, netbanking','Auto-issuance on successful payment','Per-transaction revenue reporting'].map(item => (
+              {['Organization sets the program fee (full control)','Payments via PayU — UPI, cards, netbanking','Credential auto-issued on payment confirmation','Full revenue reporting & per-transaction ledger'].map(item => (
                 <li key={item} className="flex items-start gap-2.5 text-sm text-gray-600">
                   <div className="w-4 h-4 rounded-full bg-violet-100 flex items-center justify-center flex-shrink-0 mt-0.5">
                     <Check className="w-2.5 h-2.5 text-violet-600" />
@@ -793,6 +1063,15 @@ function PaymentModels() {
               ))}
             </ul>
           </div>
+        </div>
+
+        {/* SaaS billing note */}
+        <div className="mt-10 max-w-4xl mx-auto flex items-start gap-3 bg-white border border-gray-200 rounded-xl px-5 py-4 shadow-sm">
+          <Sparkles className="w-4 h-4 text-violet-500 flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-gray-500 leading-relaxed">
+            <span className="font-semibold text-gray-700">Both models are Validstep SaaS billing.</span>{' '}
+            Whether your organization absorbs the platform fee or your participants pay it as part of their program — Validstep charges for use of the platform, not for the certificate itself. You stay in full control of your program economics.
+          </p>
         </div>
       </div>
     </section>
@@ -900,17 +1179,86 @@ function HowItWorks() {
 ───────────────────────────────────────────── */
 function CertificateTypes() {
   const types = [
-    { label: 'Internship / Fellowship', colorBar: 'bg-blue-500', colorText: 'text-blue-700', colorBg: 'bg-blue-50', desc: 'For industry internships and fellowship programs' },
-    { label: 'Course Completion', colorBar: 'bg-emerald-500', colorText: 'text-emerald-700', colorBg: 'bg-emerald-50', desc: 'Online and offline training courses' },
-    { label: 'Participation', colorBar: 'bg-amber-500', colorText: 'text-amber-700', colorBg: 'bg-amber-50', desc: 'Events, seminars, and conferences' },
-    { label: 'Hackathon', colorBar: 'bg-rose-500', colorText: 'text-rose-700', colorBg: 'bg-rose-50', desc: 'Coding challenges and innovation sprints' },
-    { label: 'Other', colorBar: 'bg-violet-500', colorText: 'text-violet-700', colorBg: 'bg-violet-50', desc: 'Any custom certification need' },
+    {
+      label: 'Internship / Fellowship',
+      colorBar: 'bg-blue-500', colorText: 'text-blue-700', colorBg: 'bg-blue-50',
+      desc: 'For industry internships and fellowship programs',
+      certTitle: 'Internship Completion',
+      certName: 'Priya Sharma',
+      certProgram: 'Frontend Development Internship',
+      certOrg: 'TechCorp Solutions Pvt. Ltd.',
+      gradFrom: '#2563eb', gradTo: '#7c3aed',
+      accent: '#2563eb', accentBg: '#eff6ff',
+    },
+    {
+      label: 'Course Completion',
+      colorBar: 'bg-emerald-500', colorText: 'text-emerald-700', colorBg: 'bg-emerald-50',
+      desc: 'Online and offline training courses',
+      certTitle: 'Course Completion',
+      certName: 'Rahul Mehta',
+      certProgram: 'Advanced Data Science · 6 Months',
+      certOrg: 'SkillBridge Academy',
+      gradFrom: '#059669', gradTo: '#2563eb',
+      accent: '#059669', accentBg: '#ecfdf5',
+    },
+    {
+      label: 'Participation',
+      colorBar: 'bg-amber-500', colorText: 'text-amber-700', colorBg: 'bg-amber-50',
+      desc: 'Events, seminars, and conferences',
+      certTitle: 'Participation',
+      certName: 'Sneha Patel',
+      certProgram: 'National Tech Summit 2026',
+      certOrg: 'India Tech Foundation',
+      gradFrom: '#d97706', gradTo: '#dc2626',
+      accent: '#d97706', accentBg: '#fffbeb',
+    },
+    {
+      label: 'Hackathon',
+      colorBar: 'bg-rose-500', colorText: 'text-rose-700', colorBg: 'bg-rose-50',
+      desc: 'Coding challenges and innovation sprints',
+      certTitle: 'Hackathon Achievement',
+      certName: 'Amit Verma',
+      certProgram: 'BuildFast Hackathon · 1st Place',
+      certOrg: 'DevCircle India',
+      gradFrom: '#e11d48', gradTo: '#7c3aed',
+      accent: '#e11d48', accentBg: '#fff1f2',
+    },
+    {
+      label: 'Other / Custom',
+      colorBar: 'bg-violet-500', colorText: 'text-violet-700', colorBg: 'bg-violet-50',
+      desc: 'Any custom certification need',
+      certTitle: 'Excellence Award',
+      certName: 'Divya Krishnan',
+      certProgram: 'Leadership Development Program',
+      certOrg: 'Apex Corp Ltd.',
+      gradFrom: '#7c3aed', gradTo: '#4f46e5',
+      accent: '#7c3aed', accentBg: '#f5f3ff',
+    },
   ]
+
+  const [active, setActive] = useState(0)
+  const [animating, setAnimating] = useState(false)
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setAnimating(true)
+      setTimeout(() => {
+        setActive(i => (i + 1) % types.length)
+        setAnimating(false)
+      }, 350)
+    }, 3000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const t = types[active]
+
+  const QR_PATTERN = [1,1,1,0,1,1,1, 1,0,1,0,1,0,1, 1,0,1,1,1,0,1, 0,1,0,0,0,1,0, 1,1,0,1,0,0,1, 1,0,0,1,0,0,1, 1,1,1,0,1,0,0]
 
   return (
     <section className="py-24 bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
+
           {/* Left — text */}
           <div>
             <span className="inline-block bg-violet-50 text-violet-700 text-xs font-semibold px-3 py-1.5 rounded-full uppercase tracking-wider mb-4">Certificate types</span>
@@ -918,78 +1266,435 @@ function CertificateTypes() {
               One platform,<br />every certificate type
             </h2>
             <p className="text-gray-500 leading-relaxed mb-8">
-              Whether you run internship programs, coding bootcamps, or annual conferences — ListedIndia Verify handles all certificate types with the same streamlined workflow.
+              Whether you run internship programs, coding bootcamps, or annual conferences — Validstep.com handles all certificate types with the same streamlined workflow.
             </p>
-            <div className="space-y-3">
-              {types.map(({ label, colorBar, colorText, colorBg, desc }) => (
-                <div key={label} className={`flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-100 hover:border-gray-200 hover:shadow-sm transition-all`}>
-                  <div className={`w-1.5 h-10 rounded-full flex-shrink-0 ${colorBar}`} />
+            <div className="space-y-2.5">
+              {types.map(({ label, colorBar, colorText, colorBg, desc }, i) => (
+                <button
+                  key={label}
+                  onClick={() => { setAnimating(true); setTimeout(() => { setActive(i); setAnimating(false) }, 250) }}
+                  className={`w-full flex items-center gap-4 p-4 rounded-xl border transition-all text-left ${active === i ? 'bg-white border-gray-200 shadow-md scale-[1.01]' : 'bg-white border-gray-100 hover:border-gray-200 hover:shadow-sm'}`}
+                >
+                  <div className={`w-1.5 h-10 rounded-full flex-shrink-0 transition-all ${colorBar} ${active === i ? 'h-12' : ''}`} />
                   <div className="flex-1 min-w-0">
-                    <p className={`font-semibold text-sm ${colorText}`}>{label}</p>
+                    <p className={`font-semibold text-sm transition-colors ${active === i ? colorText : 'text-gray-700'}`}>{label}</p>
                     <p className="text-xs text-gray-400 mt-0.5">{desc}</p>
                   </div>
-                  <div className={`w-6 h-6 rounded-full ${colorBg} flex items-center justify-center flex-shrink-0`}>
-                    <Check className={`w-3.5 h-3.5 ${colorText}`} />
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${active === i ? colorBg : 'bg-gray-50'}`}>
+                    <Check className={`w-3.5 h-3.5 transition-colors ${active === i ? colorText : 'text-gray-300'}`} />
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           </div>
 
-          {/* Right — certificate preview */}
-          <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-violet-100 to-blue-100 blur-3xl opacity-60 rounded-3xl" />
-            <div className="relative bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden max-w-sm mx-auto">
-              <div className="h-1.5 bg-gradient-to-r from-violet-600 via-purple-500 to-blue-500" />
-              <div className="p-8">
-                <div className="flex items-center justify-between mb-8">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 bg-violet-600 rounded-lg flex items-center justify-center">
-                      <Award className="w-3.5 h-3.5 text-white" />
-                    </div>
-                    <span className="text-[11px] font-bold text-violet-700 uppercase tracking-wider">ListedIndia Verify</span>
-                  </div>
-                  <span className="text-[10px] text-gray-400 font-mono bg-gray-50 px-2 py-1 rounded-lg">LIV·2026·08XA</span>
+          {/* Right — animated certificate */}
+          <div className="relative flex items-center justify-center">
+            {/* Ambient glow — changes color with type */}
+            <div className="absolute -inset-6 rounded-[40px] blur-[60px] opacity-30 transition-all duration-700"
+              style={{ background: `linear-gradient(135deg, ${t.gradFrom}55, ${t.gradTo}55)` }} />
+
+            <div className="relative w-full max-w-[400px]">
+
+              {/* Shadow cards */}
+              <div className="absolute inset-0 translate-y-5 translate-x-3 rounded-3xl opacity-40 transition-all duration-700"
+                style={{ background: t.gradTo + '33', border: `1px solid ${t.gradTo}22` }} />
+              <div className="absolute inset-0 translate-y-2.5 translate-x-1.5 rounded-3xl opacity-60 transition-all duration-700"
+                style={{ background: t.gradFrom + '22', border: `1px solid ${t.gradFrom}22` }} />
+
+              {/* Main card */}
+              <div
+                className="relative bg-white rounded-3xl overflow-hidden shadow-[0_24px_60px_rgba(0,0,0,0.15)]"
+                style={{ animation: 'certFloat 4s ease-in-out infinite', transition: 'box-shadow 0.5s ease' }}
+              >
+                {/* Top shimmer bar */}
+                <div className="h-2 relative overflow-hidden transition-all duration-700"
+                  style={{ background: `linear-gradient(90deg, ${t.gradFrom}, ${t.gradTo})` }}>
+                  <div className="absolute inset-0 opacity-60"
+                    style={{ background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.4) 50%, transparent 100%)', animation: 'shimmer 2s linear infinite' }} />
                 </div>
 
-                <div className="text-center mb-7">
-                  <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-1.5">Certificate of</p>
-                  <h3 className="text-xl font-bold text-gray-900">Internship Completion</h3>
-                  <div className="w-12 h-0.5 bg-gradient-to-r from-violet-500 to-blue-500 mx-auto mt-3 rounded-full" />
-                </div>
+                {/* Corner dots decoration */}
+                <div className="absolute top-2 left-0 w-24 h-24 opacity-[0.035]"
+                  style={{ backgroundImage: `radial-gradient(circle, ${t.gradFrom} 1.5px, transparent 1.5px)`, backgroundSize: '9px 9px' }} />
+                <div className="absolute top-2 right-0 w-24 h-24 opacity-[0.035]"
+                  style={{ backgroundImage: `radial-gradient(circle, ${t.gradTo} 1.5px, transparent 1.5px)`, backgroundSize: '9px 9px' }} />
 
-                <div className="text-center mb-7">
-                  <p className="text-xs text-gray-400 mb-1">Awarded to</p>
-                  <p className="text-lg font-bold text-violet-700">Priya Sharma</p>
-                  <p className="text-xs text-gray-500 mt-1">Frontend Development Internship</p>
-                  <p className="text-xs text-gray-400 mt-0.5">TechCorp Solutions Pvt. Ltd.</p>
-                </div>
+                <div
+                  className="transition-all duration-300"
+                  style={{ opacity: animating ? 0 : 1, transform: animating ? 'translateY(8px)' : 'translateY(0)' }}
+                >
+                  <div className="px-8 pt-7 pb-7">
 
-                <div className="flex justify-between items-end pt-5 border-t border-gray-100">
-                  <div>
-                    <div className="w-20 h-px bg-gray-300 mb-1" />
-                    <p className="text-[10px] text-gray-400">Authorized by</p>
-                    <p className="text-[11px] font-semibold text-gray-600">TechCorp Solutions</p>
-                  </div>
-                  <div className="flex flex-col items-center gap-1">
-                    <div className="w-12 h-12 bg-gray-50 border border-gray-200 rounded-lg p-1.5">
-                      <div className="grid grid-cols-5 gap-px h-full">
-                        {Array.from({length:25}).map((_,i)=>(
-                          <div key={i} className={`rounded-[1px] ${[0,1,2,5,10,15,20,21,22,4,9,14,19,24,12,6,16,8,18][i%19]!==undefined&&(i*3+1)%3!==0?'bg-gray-800':'bg-transparent'}`}/>
-                        ))}
+                    {/* Header */}
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-xl flex items-center justify-center shadow-md transition-all duration-700"
+                          style={{ background: `linear-gradient(135deg, ${t.gradFrom}, ${t.gradTo})` }}>
+                          <Award className="w-4.5 h-4.5 text-white w-[18px] h-[18px]" />
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-widest transition-colors duration-500" style={{ color: t.accent }}>{t.certOrg.split(' ').slice(0,2).join(' ')}</p>
+                          <p className="text-[9px] text-gray-400">Powered by Validstep.com</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[8px] text-gray-400 uppercase tracking-wider mb-0.5">Cert ID</p>
+                        <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-md border transition-all duration-500"
+                          style={{ color: t.accent, background: t.accentBg, borderColor: t.accent + '33' }}>
+                          LIV·2026·08XA
+                        </span>
                       </div>
                     </div>
-                    <p className="text-[9px] text-gray-400">Scan to verify</p>
+
+                    {/* Ornamental rule with stars */}
+                    <div className="flex items-center gap-2.5 mb-5">
+                      <div className="flex-1 h-px transition-all duration-700" style={{ background: `linear-gradient(90deg, transparent, ${t.gradFrom}55)` }} />
+                      <div className="flex gap-1">
+                        {[...Array(3)].map((_, i) => (
+                          <svg key={i} className="w-2 h-2 transition-colors duration-700" style={{ fill: t.accent }} viewBox="0 0 24 24">
+                            <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/>
+                          </svg>
+                        ))}
+                      </div>
+                      <div className="flex-1 h-px transition-all duration-700" style={{ background: `linear-gradient(90deg, ${t.gradTo}55, transparent)` }} />
+                    </div>
+
+                    {/* Certificate type label */}
+                    <div className="text-center mb-5">
+                      <p className="text-[9px] font-semibold uppercase tracking-[0.22em] text-gray-400 mb-2">This certifies that</p>
+
+                      {/* Recipient name */}
+                      <p className="text-2xl font-black text-gray-900 tracking-tight mb-0.5">{t.certName}</p>
+                      <div className="w-16 h-0.5 mx-auto rounded-full mb-3 transition-all duration-700"
+                        style={{ background: `linear-gradient(90deg, ${t.gradFrom}, ${t.gradTo})` }} />
+
+                      <p className="text-[10px] text-gray-400 mb-1.5">has successfully completed</p>
+                      <p className="text-[15px] font-bold transition-colors duration-500" style={{ color: t.accent }}>{t.certTitle}</p>
+                      <p className="text-[11px] text-gray-500 mt-1">{t.certProgram}</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">{t.certOrg}</p>
+                    </div>
+
+                    {/* Details pills */}
+                    <div className="flex justify-center gap-2 mb-5">
+                      {['April 2026', 'Batch 2026', 'Distinction'].map((val, i) => (
+                        <span key={val} className="text-[9px] font-semibold px-2.5 py-1 rounded-full border transition-all duration-700"
+                          style={{ color: t.accent, background: t.accentBg, borderColor: t.accent + '30' }}>
+                          {val}
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="flex justify-between items-end pt-4 border-t border-gray-100">
+                      <div>
+                        {/* Stylized signature */}
+                        <svg width="68" height="22" viewBox="0 0 68 22" className="mb-1 opacity-60 transition-all duration-700">
+                          <path d={`M2 17 Q10 4 18 11 Q26 18 34 7 Q42 -1 50 9 Q57 17 66 13`}
+                            stroke={t.accent} strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                        <div className="w-20 h-px bg-gray-200 mb-1" />
+                        <p className="text-[9px] text-gray-400">Authorized Signatory</p>
+                        <p className="text-[10px] font-bold text-gray-600">{t.certOrg.split(' ').slice(0,2).join(' ')}</p>
+                      </div>
+
+                      {/* QR */}
+                      <div className="flex flex-col items-center gap-1.5">
+                        <div className="w-14 h-14 rounded-xl p-1.5 border-2 transition-all duration-700 shadow-sm"
+                          style={{ borderColor: t.accent + '33', background: t.accentBg }}>
+                          <div className="w-full h-full grid grid-cols-7 gap-[1.5px]">
+                            {QR_PATTERN.map((v, i) => (
+                              <div key={i} className="rounded-[1px] transition-colors duration-700"
+                                style={{ background: v ? t.accent : 'transparent' }} />
+                            ))}
+                          </div>
+                        </div>
+                        <p className="text-[9px] font-medium text-gray-400">Scan to verify</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="h-1.5 bg-gradient-to-r from-blue-500 via-violet-500 to-purple-600" />
 
-              <div className="absolute -top-2 -right-2 bg-emerald-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-lg flex items-center gap-1">
-                <CheckCircle2 className="w-2.5 h-2.5" />
+                {/* Bottom bar */}
+                <div className="h-2 transition-all duration-700"
+                  style={{ background: `linear-gradient(90deg, ${t.gradTo}, ${t.gradFrom})` }} />
+
+                {/* Watermark */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
+                  <p className="text-[72px] font-black uppercase tracking-widest select-none rotate-[-22deg] transition-colors duration-700"
+                    style={{ color: t.gradFrom + '08' }}>VALID</p>
+                </div>
+              </div>
+
+              {/* Verified badge — outside overflow-hidden card */}
+              <div className="absolute -top-3 -right-3 flex items-center gap-1.5 bg-emerald-500 text-white text-[10px] font-bold px-3 py-1.5 rounded-full shadow-lg shadow-emerald-500/25 z-10">
+                <CheckCircle2 className="w-3 h-3" />
                 Verified
               </div>
+
+              {/* Type indicator dots */}
+              <div className="mt-5 flex items-center justify-center gap-2">
+                {types.map((_, i) => (
+                  <button key={i} onClick={() => { setAnimating(true); setTimeout(() => { setActive(i); setAnimating(false) }, 250) }}
+                    className="rounded-full transition-all duration-500"
+                    style={{
+                      width: active === i ? '20px' : '6px',
+                      height: '6px',
+                      background: active === i ? types[i].accent : '#d1d5db',
+                    }}
+                  />
+                ))}
+              </div>
+              <p className="text-center text-xs text-gray-400 mt-2">
+                Auto-cycling · Click any type to preview
+              </p>
             </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─────────────────────────────────────────────
+   OLD WAY vs VALIDSTEP
+───────────────────────────────────────────── */
+function OldWayVsNew() {
+  const rows = [
+    {
+      before: 'Design certificates manually for every batch',
+      after:  'Bulk-generate and issue in under a minute',
+    },
+    {
+      before: 'Email PDFs one by one to each participant',
+      after:  'Certificates auto-delivered to participant inboxes',
+    },
+    {
+      before: 'Employers call or email to verify — wait days',
+      after:  'Employers verify via public link — instantly, no login',
+    },
+    {
+      before: 'No way to detect forged or tampered certificates',
+      after:  'Cryptographic tamper detection on every certificate',
+    },
+    {
+      before: 'Track enrollment on spreadsheets',
+      after:  'Built-in enrollment management & payment collection',
+    },
+    {
+      before: 'Zero visibility into who viewed or verified a cert',
+      after:  'Real-time dashboard: verifications, orders, revenue',
+    },
+  ]
+
+  return (
+    <section className="py-24 bg-white relative overflow-hidden">
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-72 bg-violet-50 blur-[100px] rounded-full pointer-events-none" />
+      <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+
+        {/* Header */}
+        <div className="max-w-2xl mx-auto text-center mb-14">
+          <span className="inline-block bg-violet-50 border border-violet-200 text-violet-700 text-xs font-semibold px-3 py-1.5 rounded-full uppercase tracking-wider mb-4">The difference</span>
+          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 leading-tight">
+            Before Validstep. After Validstep.
+          </h2>
+          <p className="mt-4 text-gray-500 text-lg">
+            See how organizations move from manual chaos to automated clarity.
+          </p>
+        </div>
+
+        {/* Column headers */}
+        <div className="grid grid-cols-[1fr_40px_1fr] gap-0 mb-3 px-2">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 bg-red-100 rounded-md flex items-center justify-center">
+              <X className="w-3 h-3 text-red-500" />
+            </div>
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Without Validstep</span>
+          </div>
+          <div />
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 bg-emerald-100 rounded-md flex items-center justify-center">
+              <Check className="w-3 h-3 text-emerald-600" />
+            </div>
+            <span className="text-xs font-bold text-violet-600 uppercase tracking-wider">With Validstep</span>
+          </div>
+        </div>
+
+        {/* Rows */}
+        <div className="space-y-2">
+          {rows.map(({ before, after }, i) => (
+            <div key={i} className="grid grid-cols-[1fr_40px_1fr] items-stretch gap-0 rounded-xl overflow-hidden border border-gray-100 hover:border-violet-100 hover:shadow-sm transition-all">
+              {/* Before cell */}
+              <div className="flex items-center gap-3 bg-gray-50 px-5 py-4">
+                <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                  <X className="w-2.5 h-2.5 text-red-400" />
+                </div>
+                <p className="text-sm text-gray-400 leading-snug line-through decoration-red-200">{before}</p>
+              </div>
+
+              {/* Arrow divider */}
+              <div className="flex items-center justify-center bg-white border-x border-gray-100">
+                <ArrowRight className="w-3.5 h-3.5 text-violet-300" />
+              </div>
+
+              {/* After cell */}
+              <div className="flex items-center gap-3 bg-violet-50/60 px-5 py-4">
+                <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                  <Check className="w-2.5 h-2.5 text-emerald-600" />
+                </div>
+                <p className="text-sm text-gray-800 font-medium leading-snug">{after}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+      </div>
+    </section>
+  )
+}
+
+/* ─────────────────────────────────────────────
+   TESTIMONIALS
+───────────────────────────────────────────── */
+function Testimonials() {
+  const reviews = [
+    {
+      quote: "We used to spend an entire day designing and emailing certificates after each internship batch. With Validstep, we issue 40 certificates in two minutes — and our interns love sharing the public link on LinkedIn.",
+      name: "Rohan Kapoor",
+      role: "Operations Head",
+      org: "EdTech Startup",
+      initials: "RK",
+      color: "from-violet-500 to-indigo-500",
+    },
+    {
+      quote: "As a college coordinator, the verification link has been a game-changer. Employers no longer call us to validate certificates — they just click the link. Our placement rate improved because HRs trust Validstep credentials.",
+      name: "Dr. Meera Iyer",
+      role: "Placement Coordinator",
+      org: "Engineering College",
+      initials: "MI",
+      color: "from-blue-500 to-cyan-500",
+    },
+    {
+      quote: "The participant-pays model let us launch our certification program with zero upfront cost. Students pay directly, certificates issue automatically, and I get a full revenue dashboard. It practically runs itself.",
+      name: "Arjun Nair",
+      role: "Founder",
+      org: "Training Institute",
+      initials: "AN",
+      color: "from-emerald-500 to-teal-500",
+    },
+  ]
+
+  return (
+    <section className="py-24 bg-gradient-to-b from-slate-50 to-white">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-2xl mx-auto text-center mb-16">
+          <span className="inline-block bg-violet-50 text-violet-700 text-xs font-semibold px-3 py-1.5 rounded-full uppercase tracking-wider mb-4">Trusted by organizations</span>
+          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 leading-tight">
+            What organizations say
+          </h2>
+          <p className="mt-4 text-gray-500 text-lg">
+            From colleges to startups — teams across India trust Validstep.com.
+          </p>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-6">
+          {reviews.map(({ quote, name, role, org, initials, color }) => (
+            <div key={name} className="bg-white border border-gray-100 rounded-2xl p-7 shadow-sm hover:shadow-md transition-all flex flex-col">
+              <div className="flex gap-1 mb-5">
+                {[...Array(5)].map((_, i) => (
+                  <svg key={i} className="w-4 h-4 fill-amber-400 text-amber-400" viewBox="0 0 20 20">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                  </svg>
+                ))}
+              </div>
+              <p className="text-sm text-gray-600 leading-relaxed flex-1 mb-6">"{quote}"</p>
+              <div className="flex items-center gap-3 pt-4 border-t border-gray-100">
+                <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${color} flex items-center justify-center flex-shrink-0`}>
+                  <span className="text-white text-xs font-bold">{initials}</span>
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-900 text-sm">{name}</p>
+                  <p className="text-xs text-gray-400">{role} · {org}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─────────────────────────────────────────────
+   FAQ
+───────────────────────────────────────────── */
+function FAQ() {
+  const [openIdx, setOpenIdx] = useState(null)
+
+  const faqs = [
+    {
+      q: "How does public certificate verification work?",
+      a: "Every certificate issued on Validstep.com gets a unique permanent URL (e.g. validstep.com/verify/abc123). Anyone — an employer, HR, or recruiter — can open that link without logging in and see the verified certificate details in real time, directly from our platform.",
+    },
+    {
+      q: "Can participants share their certificates on LinkedIn or resumes?",
+      a: "Yes. Participants receive their certificate link by email and can access it anytime from their dashboard. The public verification URL can be added to LinkedIn profiles, resumes, portfolios, or email signatures. The link never expires.",
+    },
+    {
+      q: "What happens if a certificate is forged or tampered?",
+      a: "Certificates are cryptographically tied to the issuing organization's account. If someone modifies a PDF or creates a fake, the public verification page will show it as invalid or not found — instantly detectable by any employer.",
+    },
+    {
+      q: "Which payment methods do participants use?",
+      a: "Participant payments are processed via PayU — supporting UPI, debit/credit cards, net banking, and wallets. Certificates are issued automatically on payment confirmation, with no manual steps needed from the organization.",
+    },
+    {
+      q: "Can we issue certificates without charging participants?",
+      a: "Absolutely. In the Organization Pays model, your organization covers the certificate fee. Participants enroll via a shared link and receive their certificates free of charge — ideal for colleges, NGOs, and internal training programs.",
+    },
+    {
+      q: "Is there a limit on programs or certificates we can issue?",
+      a: "No hard limits. You can create unlimited programs, batches, and certificates under your organization dashboard. Pricing is based on your use case and volume — contact us for organizational rates.",
+    },
+  ]
+
+  return (
+    <section className="py-24 bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid lg:grid-cols-3 gap-12 items-start">
+          <div className="lg:sticky lg:top-24">
+            <span className="inline-block bg-violet-50 text-violet-700 text-xs font-semibold px-3 py-1.5 rounded-full uppercase tracking-wider mb-4">FAQ</span>
+            <h2 className="text-3xl font-bold text-gray-900 leading-tight mb-4">
+              Questions we get a lot
+            </h2>
+            <p className="text-gray-500 text-sm leading-relaxed">
+              Everything you need to know about issuing and verifying certificates on Validstep.com.
+            </p>
+            <Link to="/auth/company/register"
+              className="inline-flex items-center gap-2 mt-8 px-5 py-3 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 transition-all shadow-sm shadow-violet-200 text-sm">
+              Get started free
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+
+          <div className="lg:col-span-2 space-y-3">
+            {faqs.map(({ q, a }, i) => (
+              <div key={q} className={`bg-white rounded-xl border transition-all ${openIdx === i ? 'border-violet-200 shadow-sm' : 'border-gray-100'}`}>
+                <button
+                  onClick={() => setOpenIdx(openIdx === i ? null : i)}
+                  className="w-full flex items-center justify-between px-6 py-4 text-left gap-4"
+                >
+                  <span className={`font-semibold text-sm leading-snug ${openIdx === i ? 'text-violet-700' : 'text-gray-900'}`}>{q}</span>
+                  <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform ${openIdx === i ? 'rotate-180 text-violet-600' : 'text-gray-400'}`} />
+                </button>
+                {openIdx === i && (
+                  <div className="px-6 pb-5">
+                    <p className="text-sm text-gray-500 leading-relaxed">{a}</p>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -1002,23 +1707,23 @@ function CertificateTypes() {
 ───────────────────────────────────────────── */
 function Pricing() {
   const plans = [
-    { type: 'Internship / Fellowship', price: '₹499', icon: '🎓', highlight: false, color: 'border-blue-200 bg-blue-50/40', labelColor: 'text-blue-700', badge: '' },
-    { type: 'Course Completion', price: '₹299', icon: '📘', highlight: true, color: 'border-violet-300 bg-white ring-2 ring-violet-200 shadow-lg', labelColor: 'text-violet-700', badge: 'Most popular' },
-    { type: 'Participation / Other', price: '₹199', icon: '🏅', highlight: false, color: 'border-gray-200 bg-gray-50/40', labelColor: 'text-gray-700', badge: '' },
+    { type: 'Internship / Fellowship', icon: '🎓', color: 'border-blue-200 bg-blue-50/40', labelColor: 'text-blue-700', badge: '' },
+    { type: 'Course Completion', icon: '📘', color: 'border-violet-300 bg-white ring-2 ring-violet-200 shadow-lg', labelColor: 'text-violet-700', badge: 'Most popular' },
+    { type: 'Participation / Other', icon: '🏅', color: 'border-gray-200 bg-gray-50/40', labelColor: 'text-gray-700', badge: '' },
   ]
   return (
     <section id="pricing" className="py-24 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="max-w-2xl mx-auto text-center mb-16">
           <span className="inline-block bg-violet-50 text-violet-700 text-xs font-semibold px-3 py-1.5 rounded-full uppercase tracking-wider mb-4">Pricing</span>
-          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">Simple, per-certificate pricing</h2>
+          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">Flexible organizational pricing</h2>
           <p className="mt-4 text-gray-500 text-lg">
-            No subscriptions. No setup fees. Pay only for certificates issued.
+            Plans are tailored by program scale and organization needs.
           </p>
         </div>
 
         <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-          {plans.map(({ type, price, icon, color, labelColor, badge }) => (
+          {plans.map(({ type, icon, color, labelColor, badge }) => (
             <div key={type} className={`rounded-2xl border p-7 relative transition-all hover:shadow-md ${color}`}>
               {badge && (
                 <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-violet-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow">
@@ -1027,20 +1732,269 @@ function Pricing() {
               )}
               <div className="text-3xl mb-5">{icon}</div>
               <p className={`font-bold text-sm mb-2 ${labelColor}`}>{type}</p>
-              <div className="flex items-end gap-1 mb-1">
-                <span className="text-4xl font-bold text-gray-900">{price}</span>
+              <div className="mb-5 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2.5">
+                <p className="text-sm font-semibold text-violet-700">Contact for organizational pricing</p>
               </div>
-              <p className="text-sm text-gray-400 mb-5">per certificate</p>
               <div className="border-t border-gray-200 pt-5">
-                <p className="text-xs text-gray-500">Both payment models supported. No platform subscription required.</p>
+                <p className="text-xs text-gray-500">Both payment models supported. Pricing is finalized based on your use case.</p>
               </div>
             </div>
           ))}
         </div>
 
         <p className="text-center text-sm text-gray-400 mt-8">
-          Prices configurable by platform admin. Custom pricing available for enterprise clients.
+          Contact our team for organizational pricing and enterprise onboarding.
         </p>
+      </div>
+    </section>
+  )
+}
+
+/* ─────────────────────────────────────────────
+   CUSTOM CERTIFICATE DESIGN
+───────────────────────────────────────────── */
+function CustomDesign() {
+  const features = [
+    {
+      icon: Sparkles,
+      color: 'text-violet-600', bg: 'bg-violet-50', border: 'border-violet-100',
+      title: 'Bespoke design for your brand',
+      desc: 'Our design team crafts certificates that carry your logo, brand colors, typography, and signature layout — indistinguishable from a premium printed credential.',
+    },
+    {
+      icon: Layers,
+      color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100',
+      title: 'Bulk production at scale',
+      desc: 'Whether it\'s 50 or 50,000 — once your template is approved, we generate the entire batch in one run. Every name, date, and program filled automatically.',
+    },
+    {
+      icon: QrCode,
+      color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100',
+      title: 'Verification built in, by design',
+      desc: 'Every custom certificate includes a Validstep QR code and public verification URL — embedded naturally into the design, not slapped on as an afterthought.',
+    },
+    {
+      icon: Zap,
+      color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100',
+      title: 'Fast turnaround',
+      desc: 'Template approved in 24–48 hrs. Full batch issued on your timeline. No waiting weeks for a designer or a printing vendor.',
+    },
+  ]
+
+  const types = ['Internship & Fellowship', 'Course Completion', 'Hackathon & Competitions', 'Seminars & Conferences', 'Corporate Training', 'Academic Achievement']
+
+  return (
+    <section className="py-24 bg-gray-950 relative overflow-hidden">
+      {/* Background glow blobs */}
+      <div className="absolute -top-32 -left-32 w-96 h-96 bg-violet-600/15 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-indigo-600/15 rounded-full blur-[120px] pointer-events-none" />
+
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid lg:grid-cols-2 gap-16 items-center">
+
+          {/* Left — copy */}
+          <div>
+            <span className="inline-flex items-center gap-2 bg-violet-500/10 border border-violet-500/20 text-violet-400 text-xs font-semibold px-3 py-1.5 rounded-full uppercase tracking-wider mb-6">
+              <Sparkles className="w-3 h-3" />
+              Premium design service
+            </span>
+            <h2 className="text-3xl sm:text-4xl font-bold text-white leading-tight mb-5">
+              We design your certificates.<br />
+              <span className="bg-gradient-to-r from-violet-400 to-indigo-400 bg-clip-text text-transparent">
+                You issue them in bulk.
+              </span>
+            </h2>
+            <p className="text-gray-400 leading-relaxed mb-8 text-lg">
+              We're experts at producing <strong className="text-gray-200">custom-branded, professionally designed</strong> certificates at scale — combined with Validstep's instant public verification infrastructure.
+            </p>
+
+            {/* Feature list */}
+            <div className="grid sm:grid-cols-2 gap-4 mb-10">
+              {features.map(({ icon: Icon, color, bg, border, title, desc }) => (
+                <div key={title} className="bg-white/5 border border-white/10 rounded-xl p-4 hover:bg-white/8 transition-all">
+                  <div className={`inline-flex p-2 rounded-lg ${bg} mb-3`}>
+                    <Icon className={`w-4 h-4 ${color}`} />
+                  </div>
+                  <p className="font-semibold text-white text-sm mb-1">{title}</p>
+                  <p className="text-xs text-gray-400 leading-relaxed">{desc}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Certificate types we cover */}
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">We cover all types</p>
+              <div className="flex flex-wrap gap-2">
+                {types.map(t => (
+                  <span key={t} className="inline-flex items-center gap-1.5 bg-white/5 border border-white/10 text-gray-300 text-xs font-medium px-3 py-1.5 rounded-full">
+                    <Check className="w-3 h-3 text-violet-400" />
+                    {t}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Right — animated certificate canvas */}
+          <div className="relative flex items-center justify-center lg:justify-end">
+            {/* Ambient glow */}
+            <div className="absolute -inset-8 bg-gradient-to-br from-violet-600/25 via-purple-600/15 to-indigo-600/25 blur-[80px] rounded-[40px]" />
+
+            <div className="relative w-full max-w-[420px]">
+
+              {/* Stacked shadow cards */}
+              <div className="absolute inset-0 translate-y-8 translate-x-5 bg-indigo-800/40 border border-indigo-600/20 rounded-3xl blur-sm" />
+              <div className="absolute inset-0 translate-y-4 translate-x-2.5 bg-violet-800/50 border border-violet-600/30 rounded-3xl" />
+
+              {/* Main certificate card */}
+              <div
+                className="relative bg-white rounded-3xl shadow-[0_32px_80px_rgba(0,0,0,0.35)] overflow-hidden"
+                style={{ animation: 'certFloat 4s ease-in-out infinite' }}
+              >
+                {/* Top gradient bar */}
+                <div className="h-2 bg-gradient-to-r from-violet-600 via-purple-500 to-indigo-500" />
+
+                {/* Decorative corner pattern */}
+                <div className="absolute top-2 left-0 w-28 h-28 opacity-[0.04]"
+                  style={{ backgroundImage: 'radial-gradient(circle, #7c3aed 1.5px, transparent 1.5px)', backgroundSize: '10px 10px' }} />
+                <div className="absolute top-2 right-0 w-28 h-28 opacity-[0.04]"
+                  style={{ backgroundImage: 'radial-gradient(circle, #4f46e5 1.5px, transparent 1.5px)', backgroundSize: '10px 10px' }} />
+
+                <div className="px-8 pt-7 pb-7">
+
+                  {/* Header row */}
+                  <div className="flex items-center justify-between mb-7">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-violet-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-md shadow-violet-300">
+                        <Award className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-black text-violet-700 uppercase tracking-widest">TechCorp Solutions</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">Powered by Validstep.com</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[9px] text-gray-400 mb-0.5">Certificate ID</p>
+                      <span className="text-[10px] text-violet-600 font-mono font-bold bg-violet-50 border border-violet-100 px-2 py-0.5 rounded-md">LIV·2026·08XA</span>
+                    </div>
+                  </div>
+
+                  {/* Decorative divider with stars */}
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-violet-200 to-transparent" />
+                    <div className="flex items-center gap-1">
+                      {[...Array(3)].map((_, i) => (
+                        <svg key={i} className="w-2.5 h-2.5 fill-violet-400" viewBox="0 0 24 24">
+                          <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/>
+                        </svg>
+                      ))}
+                    </div>
+                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-violet-200 to-transparent" />
+                  </div>
+
+                  {/* Certificate of */}
+                  <div className="text-center mb-5">
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-[0.25em] mb-2">This is to certify that</p>
+
+                    {/* Recipient name with animated underline */}
+                    <div className="relative inline-block mb-1">
+                      <p className="text-2xl font-black text-gray-900 tracking-tight">Priya Sharma</p>
+                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-violet-500 to-indigo-500 rounded-full"
+                        style={{ animation: 'expandWidth 2s ease-out forwards' }} />
+                    </div>
+
+                    <p className="text-[11px] text-gray-400 mt-3 mb-1">has successfully completed</p>
+                    <p className="text-base font-bold text-violet-700">Frontend Development Internship</p>
+                    <p className="text-[11px] text-gray-400 mt-1">at TechCorp Solutions Pvt. Ltd.</p>
+                  </div>
+
+                  {/* Details row */}
+                  <div className="grid grid-cols-3 gap-2 mb-6">
+                    {[
+                      { label: 'Duration', value: '3 Months' },
+                      { label: 'Batch', value: '2026' },
+                      { label: 'Grade', value: 'Excellent' },
+                    ].map(({ label, value }) => (
+                      <div key={label} className="bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-center">
+                        <p className="text-[9px] text-gray-400 uppercase tracking-wider mb-0.5">{label}</p>
+                        <p className="text-[11px] font-bold text-gray-700">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Footer — signature + QR */}
+                  <div className="flex justify-between items-end pt-5 border-t border-gray-100">
+                    <div>
+                      {/* Signature scribble simulation */}
+                      <svg width="72" height="24" viewBox="0 0 72 24" className="mb-1 opacity-70">
+                        <path d="M2 18 Q12 4 20 12 Q28 20 36 8 Q44 -2 52 10 Q58 18 70 14" stroke="#7c3aed" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      <div className="w-24 h-px bg-gray-200 mb-1" />
+                      <p className="text-[9px] text-gray-400">Authorized Signatory</p>
+                      <p className="text-[10px] font-bold text-gray-600">TechCorp Solutions</p>
+                    </div>
+
+                    {/* QR code */}
+                    <div className="flex flex-col items-center gap-1.5">
+                      <div className="w-14 h-14 bg-white border-2 border-gray-100 rounded-xl p-1.5 shadow-sm">
+                        <div className="w-full h-full grid grid-cols-7 gap-[1.5px]">
+                          {[1,1,1,0,1,1,1, 1,0,1,0,1,0,1, 1,0,1,1,1,0,1, 0,0,0,1,0,0,0, 1,0,1,0,0,1,1, 1,0,0,1,0,0,1, 1,1,1,0,1,0,0].map((v,i) => (
+                            <div key={i} className={`rounded-[1px] ${v ? 'bg-gray-900' : 'bg-transparent'}`} />
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-[9px] text-gray-400 font-medium">Scan to verify</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bottom gradient bar */}
+                <div className="h-2 bg-gradient-to-r from-indigo-500 via-violet-500 to-purple-600" />
+
+                {/* Watermark */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <p className="text-[80px] font-black text-gray-900/[0.025] uppercase tracking-widest select-none rotate-[-20deg]">VALID</p>
+                </div>
+              </div>
+
+              {/* Verified floating badge — outside overflow-hidden card */}
+              <div className="absolute -top-3 -right-3 flex items-center gap-1.5 bg-emerald-500 text-white text-[10px] font-bold px-3 py-1.5 rounded-full shadow-lg shadow-emerald-500/30 z-10"
+                style={{ animation: 'badgePop 0.5s cubic-bezier(0.175,0.885,0.32,1.275) both' }}>
+                <CheckCircle2 className="w-3 h-3" />
+                Verified
+              </div>
+
+              {/* Floating info chips */}
+              <div className="absolute -left-5 top-1/3 bg-white border border-gray-100 rounded-2xl shadow-lg px-3.5 py-2.5 flex items-center gap-2.5"
+                style={{ animation: 'chipFloat 3s ease-in-out infinite 0.5s' }}>
+                <div className="w-7 h-7 bg-violet-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Sparkles className="w-3.5 h-3.5 text-violet-600" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-gray-800">Custom branded</p>
+                  <p className="text-[9px] text-gray-400">Your logo & colors</p>
+                </div>
+              </div>
+
+              <div className="absolute -right-5 bottom-1/3 bg-white border border-gray-100 rounded-2xl shadow-lg px-3.5 py-2.5 flex items-center gap-2.5"
+                style={{ animation: 'chipFloat 3s ease-in-out infinite 1.2s' }}>
+                <div className="w-7 h-7 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Zap className="w-3.5 h-3.5 text-emerald-600" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-gray-800">Bulk ready</p>
+                  <p className="text-[9px] text-gray-400">1 to 50,000+</p>
+                </div>
+              </div>
+
+              {/* Label below */}
+              <div className="mt-6 flex items-center justify-center gap-2">
+                <Sparkles className="w-3.5 h-3.5 text-violet-400" />
+                <span className="text-xs text-gray-500">Custom designed · Your brand · Bulk ready</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   )
@@ -1065,7 +2019,7 @@ function CTA() {
           Give your certificates<br />the credibility they deserve
         </h2>
         <p className="text-violet-200 text-lg mb-4 max-w-xl mx-auto">
-          Stop issuing certificates that no one can verify. Every certificate on ListedIndia Verify comes with a permanent public link — so employers and HRs can confirm authenticity in seconds.
+          Stop issuing certificates that no one can verify. Every certificate on Validstep.com comes with a permanent public link — so employers and HRs can confirm authenticity in seconds.
         </p>
         <p className="text-violet-300 text-sm mb-10">
           Companies · Startups · Colleges · Schools · NGOs · Training Institutes
@@ -1106,7 +2060,7 @@ function Footer() {
               <div className="w-8 h-8 bg-violet-600 rounded-lg flex items-center justify-center">
                 <Award className="w-4 h-4 text-white" />
               </div>
-              <span className="font-bold text-white text-sm">ListedIndia Verify</span>
+              <span className="font-bold text-white text-sm">Validstep.com</span>
             </div>
             <p className="text-xs leading-relaxed text-gray-500">
               Certificate infrastructure for modern organizations. Issue, manage, and verify digital certificates at scale.
@@ -1132,7 +2086,7 @@ function Footer() {
 
         <div className="mt-10 pt-6 border-t border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-gray-600">
-            © {new Date().getFullYear()} ListedIndia Verify. All rights reserved.
+            © {new Date().getFullYear()} Validstep.com. All rights reserved.
           </p>
           <div className="flex items-center gap-4 text-xs text-gray-600">
             <span>Digital certificates only — no physical delivery</span>
@@ -1142,6 +2096,32 @@ function Footer() {
         </div>
       </div>
     </footer>
+  )
+}
+
+/* ─────────────────────────────────────────────
+   BACK TO TOP
+───────────────────────────────────────────── */
+function BackToTop() {
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    const onScroll = () => setVisible(window.scrollY > 400)
+    window.addEventListener('scroll', onScroll)
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  return (
+    <button
+      onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+      aria-label="Back to top"
+      className={`fixed bottom-6 right-6 z-50 flex items-center gap-2 pl-3 pr-4 py-2.5 bg-gray-900 text-white text-xs font-semibold rounded-full shadow-lg hover:bg-violet-600 transition-all duration-300 group ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}
+    >
+      <div className="w-5 h-5 bg-white/10 rounded-full flex items-center justify-center group-hover:bg-white/20 transition-colors">
+        <ChevronUp className="w-3 h-3" />
+      </div>
+      Back to top
+    </button>
   )
 }
 
@@ -1156,12 +2136,18 @@ export default function Home() {
       <LogoStrip />
       <Features />
       <VerificationTrust />
+      <OldWayVsNew />
+      <EnterpriseTrust />
       <PaymentModels />
       <HowItWorks />
       <CertificateTypes />
+      <Testimonials />
       <Pricing />
+      <FAQ />
+      <CustomDesign />
       <CTA />
       <Footer />
+      <BackToTop />
     </div>
   )
 }

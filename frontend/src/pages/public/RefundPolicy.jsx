@@ -10,9 +10,7 @@ function PolicyLayout({ title, effectiveDate, children }) {
             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
               <Award className="w-4 h-4 text-white" />
             </div>
-            <span className="font-bold text-gray-900 text-base">
-              ListedIndia<span className="text-indigo-600"> Verify</span>
-            </span>
+            <span className="font-bold text-gray-900 text-base">Validstep.com</span>
           </Link>
           <Link
             to="/"
@@ -65,7 +63,7 @@ export default function RefundPolicy() {
           <div>
             <p className="font-bold text-red-800 text-lg mb-1">No Refund Policy</p>
             <p className="text-red-700 text-sm leading-relaxed">
-              All payments made on the ListedIndia Verify platform are <strong>strictly non-refundable</strong>.
+              All payments made on the Validstep.com platform are <strong>strictly non-refundable</strong>.
               By completing a payment, you acknowledge and agree to this policy. Please read all details below
               before making a purchase.
             </p>
@@ -75,7 +73,7 @@ export default function RefundPolicy() {
         <section>
           <h2 className="text-xl font-bold text-gray-900 mb-3">1. General No-Refund Policy</h2>
           <p>
-            ListedIndia Verify provides a digital service — the issuance and delivery of digital certificates.
+            Validstep.com provides a digital service — the issuance and delivery of digital certificates.
             All fees paid for certificate services are <strong>non-refundable</strong> once the payment has
             been successfully processed. This policy applies to all users, including both individual participants
             and registered organizations.
@@ -107,8 +105,8 @@ export default function RefundPolicy() {
           </ul>
           <p className="mt-3">
             If you entered incorrect details, please contact us promptly at{' '}
-            <a href="mailto:support@listedindia.com" className="text-indigo-600 hover:underline">
-              support@listedindia.com
+            <a href="mailto:support@validstep.com" className="text-indigo-600 hover:underline">
+              support@validstep.com
             </a>{' '}
             — we may be able to correct information on an already-issued certificate in certain circumstances,
             at our sole discretion, but no refund will be issued.
@@ -118,7 +116,7 @@ export default function RefundPolicy() {
         <section>
           <h2 className="text-xl font-bold text-gray-900 mb-3">3. Digital Product — No Physical Return</h2>
           <p>
-            All certificates issued on the ListedIndia Verify platform are purely digital. We do not offer
+            All certificates issued on the Validstep.com platform are purely digital. We do not offer
             any physical delivery of certificates, printed materials, or any tangible product. As a digital
             product, once issued, the certificate cannot be "returned" in any conventional sense.
           </p>
@@ -148,8 +146,8 @@ export default function RefundPolicy() {
           <p className="mt-3">
             If you believe you have been incorrectly charged for a failed transaction that was not
             automatically reversed, please contact us at{' '}
-            <a href="mailto:support@listedindia.com" className="text-indigo-600 hover:underline">
-              support@listedindia.com
+            <a href="mailto:support@validstep.com" className="text-indigo-600 hover:underline">
+              support@validstep.com
             </a>{' '}
             with your transaction reference number. We will investigate and coordinate with PayU to resolve
             the issue.
@@ -159,7 +157,7 @@ export default function RefundPolicy() {
             <p className="text-sm text-green-800">
               <strong>Note:</strong> Refunds for payment gateway errors (duplicate charges or payment
               debited without service delivery) are handled as exceptions and are processed through PayU's
-              dispute resolution mechanism, not as voluntary refunds by ListedIndia Verify.
+              dispute resolution mechanism, not as voluntary refunds by Validstep.com.
             </p>
           </div>
         </section>
@@ -168,7 +166,7 @@ export default function RefundPolicy() {
           <h2 className="text-xl font-bold text-gray-900 mb-3">5. Organization / Company Account Fees</h2>
           <p>
             Any fees paid by organizations for account setup, subscription plans, or service activation on
-            the ListedIndia Verify platform are strictly non-refundable. This includes:
+            the Validstep.com platform are strictly non-refundable. This includes:
           </p>
           <ul className="list-disc pl-6 mt-2 space-y-1.5">
             <li>One-time account setup or onboarding fees (if applicable)</li>
@@ -210,11 +208,11 @@ export default function RefundPolicy() {
           <div className="mt-4 p-5 bg-gray-50 rounded-xl border border-gray-200 flex gap-3">
             <Mail className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="font-semibold text-gray-900 text-sm">ListedIndia Verify Support</p>
+              <p className="font-semibold text-gray-900 text-sm">Validstep.com Support</p>
               <p className="text-sm text-gray-600 mt-1">
                 Email:{' '}
-                <a href="mailto:support@listedindia.com" className="text-indigo-600 hover:underline">
-                  support@listedindia.com
+                <a href="mailto:support@validstep.com" className="text-indigo-600 hover:underline">
+                  support@validstep.com
                 </a>
               </p>
               <p className="text-sm text-gray-500 mt-1">

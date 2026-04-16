@@ -32,8 +32,8 @@ function getTransporter() {
   return transporter;
 }
 
-const FROM_NAME = process.env.SMTP_FROM_NAME || 'ListedIndia Verify';
-const FROM_EMAIL = process.env.SMTP_USER || 'noreply@listedindia.com';
+const FROM_NAME  = process.env.SMTP_FROM_NAME || 'Validstep.com';
+const FROM_EMAIL = process.env.SENDER_EMAIL || process.env.SMTP_USER || 'noreply@validstep.com';
 
 async function sendEmail({ to, subject, html }) {
   try {
@@ -81,12 +81,12 @@ function baseLayout(content) {
 <body>
 <div class="wrapper">
   <div class="header">
-    <h1>🎓 ListedIndia Verify</h1>
+    <h1>🎓 Validstep.com</h1>
     <p>Digital Certificate Platform</p>
   </div>
   <div class="body">${content}</div>
   <div class="footer">
-    <p>© ${new Date().getFullYear()} ListedIndia. All rights reserved.</p>
+    <p>© ${new Date().getFullYear()} Validstep.com. All rights reserved.</p>
     <p>This email was sent automatically. Please do not reply.</p>
   </div>
 </div>
@@ -178,8 +178,46 @@ async function sendPaymentConfirmationEmail({ userName, userEmail, batchName, co
   });
 }
 
+/**
+ * Send password reset email
+ */
+async function sendPasswordResetEmail({ name, email, resetUrl, accountType }) {
+  const typeLabel = accountType === 'company' ? 'Organization' : 'Participant';
+  const html = baseLayout(`
+    <h2 style="margin:0 0 8px;color:#1e293b;">🔒 Reset Your Password</h2>
+    <p style="color:#64748b;margin:0 0 24px;">Hi <strong>${name}</strong>, we received a request to reset the password for your <strong>${typeLabel}</strong> account on Validstep.com.</p>
+
+    <div style="text-align:center;margin:32px 0;">
+      <a href="${resetUrl}" class="btn" style="background:#4F46E5;color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:600;font-size:15px;display:inline-block;">
+        Reset My Password
+      </a>
+    </div>
+
+    <div class="info-box">
+      <p style="margin:0 0 8px;font-size:13px;color:#64748b;">
+        <strong>⏱ This link expires in 1 hour.</strong> After that you'll need to request a new reset link.
+      </p>
+      <p style="margin:0;font-size:12px;color:#94a3b8;word-break:break-all;">
+        Or copy this URL into your browser:<br>
+        <a href="${resetUrl}" style="color:#4F46E5;">${resetUrl}</a>
+      </p>
+    </div>
+
+    <p style="font-size:13px;color:#94a3b8;margin-top:24px;">
+      If you didn't request a password reset, you can safely ignore this email. Your password will not be changed.
+    </p>
+  `);
+
+  return sendEmail({
+    to: email,
+    subject: '🔒 Reset your Validstep.com password',
+    html,
+  });
+}
+
 module.exports = {
   sendEmail,
   sendCertificateIssuedEmail,
   sendPaymentConfirmationEmail,
+  sendPasswordResetEmail,
 };

@@ -54,7 +54,7 @@ export default function UserLogin() {
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-600">
               <Award className="h-5 w-5 text-white" />
             </div>
-            <span className="text-xl font-bold text-slate-900">ListedIndia Verify</span>
+            <span className="text-xl font-bold text-slate-900">Validstep.com</span>
           </div>
           <h1 className="mt-4 text-2xl font-bold text-slate-900">My Certificates</h1>
           <p className="mt-1 text-sm text-slate-500">Sign in to view and download your certificates</p>
@@ -80,6 +80,15 @@ export default function UserLogin() {
               required
               {...register('password')}
             />
+
+            <div className="flex justify-end">
+              <Link
+                to="/auth/forgot-password?type=user"
+                className="text-xs text-primary-600 hover:text-primary-700 font-medium"
+              >
+                Forgot password?
+              </Link>
+            </div>
 
             <Button type="submit" className="w-full" isLoading={isLoading} size="lg">
               Sign In

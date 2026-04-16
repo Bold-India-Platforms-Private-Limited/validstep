@@ -1,9 +1,13 @@
 'use strict';
 
+const crypto = require('crypto');
 const { db } = require('../../config/database');
 const { hashPassword, comparePassword } = require('../../utils/hash');
 const { generateTokenPair } = require('../../utils/jwt');
 const { redisGet, redisSet, redisDel, redisExists } = require('../../config/redis');
+const { sendPasswordResetEmail } = require('../../utils/email');
+
+const env = require('../../config/env');
 
 /**
  * Register a new company
@@ -245,6 +249,90 @@ async function logout(refreshToken) {
   }
 }
 
+/**
+ * Send forgot password email (company or user)
+ */
+async function forgotPassword(email, accountType) {
+  // Look up entity
+  let entity = null;
+  if (accountType === 'company') {
+    entity = await db.company.findUnique({ where: { email } });
+  } else {
+    entity = await db.user.findUnique({ where: { email } });
+  }
+
+  // Always return success — don't leak whether email exists
+  if (!entity) return;
+
+  // Generate a secure random token (raw = in the URL, hashed = stored in DB)
+  const rawToken   = crypto.randomBytes(32).toString('hex');
+  const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+  const expires    = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+  if (accountType === 'company') {
+    await db.company.update({
+      where: { email },
+      data: { reset_token: hashedToken, reset_token_expires: expires },
+    });
+  } else {
+    await db.user.update({
+      where: { email },
+      data: { reset_token: hashedToken, reset_token_expires: expires },
+    });
+  }
+
+  const resetUrl = `${env.FRONTEND_URL}/auth/reset-password?token=${rawToken}&type=${accountType}`;
+
+  await sendPasswordResetEmail({
+    name: entity.name,
+    email: entity.email,
+    resetUrl,
+    accountType,
+  });
+}
+
+/**
+ * Reset password using token
+ */
+async function resetPassword(rawToken, newPassword, accountType) {
+  const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+  let entity = null;
+  if (accountType === 'company') {
+    entity = await db.company.findFirst({
+      where: {
+        reset_token: hashedToken,
+        reset_token_expires: { gt: new Date() },
+      },
+    });
+  } else {
+    entity = await db.user.findFirst({
+      where: {
+        reset_token: hashedToken,
+        reset_token_expires: { gt: new Date() },
+      },
+    });
+  }
+
+  if (!entity) {
+    throw Object.assign(new Error('Reset link is invalid or has expired'), { statusCode: 400 });
+  }
+
+  const password_hash = await hashPassword(newPassword);
+
+  if (accountType === 'company') {
+    await db.company.update({
+      where: { id: entity.id },
+      data: { password_hash, reset_token: null, reset_token_expires: null },
+    });
+  } else {
+    await db.user.update({
+      where: { id: entity.id },
+      data: { password_hash, reset_token: null, reset_token_expires: null },
+    });
+  }
+}
+
 module.exports = {
   registerCompany,
   loginCompany,
@@ -253,4 +341,6 @@ module.exports = {
   loginSuperAdmin,
   refreshAccessToken,
   logout,
+  forgotPassword,
+  resetPassword,
 };

@@ -27,6 +27,8 @@ import CompanyRegister from './pages/auth/CompanyRegister'
 import UserLogin from './pages/auth/UserLogin'
 import UserRegister from './pages/auth/UserRegister'
 import AdminLogin from './pages/auth/AdminLogin'
+import ForgotPassword from './pages/auth/ForgotPassword'
+import ResetPassword from './pages/auth/ResetPassword'
 
 // Company pages
 import CompanyDashboard from './pages/company/Dashboard'
@@ -116,6 +118,8 @@ export default function App() {
       <Route path="/auth/user/login" element={<UserLogin />} />
       <Route path="/auth/user/register" element={<UserRegister />} />
       <Route path="/auth/admin/login" element={<AdminLogin />} />
+      <Route path="/auth/forgot-password" element={<ForgotPassword />} />
+      <Route path="/auth/reset-password" element={<ResetPassword />} />
       {/* Legacy redirect */}
       <Route path="/auth/login" element={<Navigate to="/auth/user/login" replace />} />
 

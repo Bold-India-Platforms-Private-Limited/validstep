@@ -52,18 +52,20 @@ model SuperAdmin {
 }
 
 model Company {
-  id            String    @id @default(uuid())
-  name          String
-  email         String    @unique
-  password_hash String
-  phone         String?
-  logo_url      String?
-  website       String?
-  description   String?
-  is_active     Boolean   @default(true)
-  is_verified   Boolean   @default(false)
-  created_at    DateTime  @default(now())
-  updated_at    DateTime  @updatedAt
+  id                   String    @id @default(uuid())
+  name                 String
+  email                String    @unique
+  password_hash        String
+  phone                String?
+  logo_url             String?
+  website              String?
+  description          String?
+  is_active            Boolean   @default(true)
+  is_verified          Boolean   @default(false)
+  reset_token          String?
+  reset_token_expires  DateTime?
+  created_at           DateTime  @default(now())
+  updated_at           DateTime  @updatedAt
 
   programs     Program[]
   batches      Batch[]
@@ -145,14 +147,16 @@ model CertificateTemplate {
 }
 
 model User {
-  id            String   @id @default(uuid())
-  name          String
-  email         String   @unique
-  phone         String?
-  password_hash String
-  is_verified   Boolean  @default(false)
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
+  id                   String    @id @default(uuid())
+  name                 String
+  email                String    @unique
+  phone                String?
+  password_hash        String
+  is_verified          Boolean   @default(false)
+  reset_token          String?
+  reset_token_expires  DateTime?
+  created_at           DateTime  @default(now())
+  updated_at           DateTime  @updatedAt
 
   orders       Order[]
   certificates Certificate[]

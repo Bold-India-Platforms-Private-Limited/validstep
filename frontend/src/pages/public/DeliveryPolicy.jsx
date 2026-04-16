@@ -10,9 +10,7 @@ function PolicyLayout({ title, effectiveDate, children }) {
             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
               <Award className="w-4 h-4 text-white" />
             </div>
-            <span className="font-bold text-gray-900 text-base">
-              ListedIndia<span className="text-indigo-600"> Verify</span>
-            </span>
+            <span className="font-bold text-gray-900 text-base">Validstep.com</span>
           </Link>
           <Link
             to="/"
@@ -65,7 +63,7 @@ export default function DeliveryPolicy() {
           <div>
             <p className="font-bold text-indigo-800 text-lg mb-1">100% Online Delivery</p>
             <p className="text-indigo-700 text-sm leading-relaxed">
-              ListedIndia Verify is a fully digital platform. All certificates are delivered electronically —
+              Validstep.com is a fully digital platform. All certificates are delivered electronically —
               via email and the participant dashboard. <strong>No physical certificates, printed documents,
               or courier deliveries are provided under any circumstances.</strong>
             </p>
@@ -75,7 +73,7 @@ export default function DeliveryPolicy() {
         <section>
           <h2 className="text-xl font-bold text-gray-900 mb-3">1. Nature of Delivery — Digital Only</h2>
           <p>
-            ListedIndia Verify delivers exclusively digital certificates. We are a Software-as-a-Service
+            Validstep.com delivers exclusively digital certificates. We are a Software-as-a-Service
             (SaaS) platform and do not produce, print, ship, or courier any physical goods. All certificate
             products are intangible, digital assets delivered through electronic means.
           </p>
@@ -137,7 +135,7 @@ export default function DeliveryPolicy() {
           <p>
             Certificate issuance is controlled by the organization's administrator. The timeline from program
             completion to certificate issuance depends on when the organization's admin approves and issues
-            the certificates on the platform. This is outside ListedIndia Verify's direct control.
+            the certificates on the platform. This is outside Validstep.com's direct control.
           </p>
           <p className="mt-2">
             Once an organization admin clicks "Issue Certificate" for a participant or batch of participants,
@@ -183,21 +181,21 @@ export default function DeliveryPolicy() {
               <div className="w-8 h-8 bg-indigo-100 text-indigo-700 rounded-lg font-bold text-sm flex items-center justify-center flex-shrink-0">1</div>
               <div>
                 <p className="font-semibold text-gray-900 text-sm">Via Email</p>
-                <p className="text-sm text-gray-600 mt-0.5">Check your registered email inbox for a message from ListedIndia Verify. The email contains your certificate as a PDF attachment and includes a direct verification link.</p>
+                <p className="text-sm text-gray-600 mt-0.5">Check your registered email inbox for a message from Validstep.com. The email contains your certificate as a PDF attachment and includes a direct verification link.</p>
               </div>
             </div>
             <div className="flex gap-4 p-4 border border-gray-200 rounded-xl">
               <div className="w-8 h-8 bg-indigo-100 text-indigo-700 rounded-lg font-bold text-sm flex items-center justify-center flex-shrink-0">2</div>
               <div>
                 <p className="font-semibold text-gray-900 text-sm">Via Participant Dashboard</p>
-                <p className="text-sm text-gray-600 mt-0.5">Log in at <Link to="/auth/user/login" className="text-indigo-600 hover:underline">verify.listedindia.com</Link> with your registered account. Navigate to your Certificates section to view and download all your certificates.</p>
+                <p className="text-sm text-gray-600 mt-0.5">Log in at <Link to="/auth/user/login" className="text-indigo-600 hover:underline">validstep.com</Link> with your registered account. Navigate to your Certificates section to view and download all your certificates.</p>
               </div>
             </div>
             <div className="flex gap-4 p-4 border border-gray-200 rounded-xl">
               <div className="w-8 h-8 bg-indigo-100 text-indigo-700 rounded-lg font-bold text-sm flex items-center justify-center flex-shrink-0">3</div>
               <div>
                 <p className="font-semibold text-gray-900 text-sm">Via Verification Link</p>
-                <p className="text-sm text-gray-600 mt-0.5">Each certificate has a unique public verification URL (e.g., verify.listedindia.com/verify/[hash]) that can be accessed without login for verification purposes.</p>
+                <p className="text-sm text-gray-600 mt-0.5">Each certificate has a unique public verification URL (e.g., validstep.com/verify/[hash]) that can be accessed without login for verification purposes.</p>
               </div>
             </div>
           </div>
@@ -223,7 +221,7 @@ export default function DeliveryPolicy() {
             take the following steps before contacting support:
           </p>
           <ul className="list-disc pl-6 mt-2 space-y-1.5">
-            <li>Check your spam or junk email folder for an email from ListedIndia Verify</li>
+            <li>Check your spam or junk email folder for an email from Validstep.com</li>
             <li>Verify the email address registered with your account is correct</li>
             <li>Log in to your participant dashboard to check if the certificate is available there</li>
             <li>Confirm with your organization that your certificate has been issued</li>
@@ -241,8 +239,8 @@ export default function DeliveryPolicy() {
             <p className="font-semibold text-gray-900 text-sm">Contact Support</p>
             <p className="text-sm text-gray-600 mt-1">
               Email:{' '}
-              <a href="mailto:support@listedindia.com" className="text-indigo-600 hover:underline">
-                support@listedindia.com
+              <a href="mailto:support@validstep.com" className="text-indigo-600 hover:underline">
+                support@validstep.com
               </a>
             </p>
             <p className="text-sm text-gray-500 mt-1">Response time: Within 24–48 business hours.</p>

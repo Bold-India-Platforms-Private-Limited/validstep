@@ -27,7 +27,7 @@ export default function VerifyCertificate() {
             <Award className="h-8 w-8 text-primary-600" />
           </div>
           <h1 className="mt-4 text-2xl font-bold text-slate-900">Certificate Verification</h1>
-          <p className="mt-1 text-sm text-slate-500">Powered by ListedIndia Verify</p>
+          <p className="mt-1 text-sm text-slate-500">Powered by Validstep.com</p>
         </div>
 
         {error || !cert ? (

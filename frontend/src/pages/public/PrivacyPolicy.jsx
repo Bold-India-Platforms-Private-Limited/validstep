@@ -10,9 +10,7 @@ function PolicyLayout({ title, effectiveDate, children }) {
             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
               <Award className="w-4 h-4 text-white" />
             </div>
-            <span className="font-bold text-gray-900 text-base">
-              ListedIndia<span className="text-indigo-600"> Verify</span>
-            </span>
+            <span className="font-bold text-gray-900 text-base">Validstep.com</span>
           </Link>
           <Link
             to="/"
@@ -61,9 +59,9 @@ export default function PrivacyPolicy() {
 
         <section>
           <p className="text-gray-600 text-base leading-relaxed border-l-4 border-indigo-200 pl-4 py-1 bg-indigo-50 rounded-r-lg">
-            At ListedIndia Verify, we are committed to protecting your personal information and your right to
+            At Validstep.com, we are committed to protecting your personal information and your right to
             privacy. This Privacy Policy explains how we collect, use, store, and protect your information
-            when you use our platform at <strong>verify.listedindia.com</strong>.
+            when you use our platform at <strong>validstep.com</strong>.
           </p>
         </section>
 
@@ -133,7 +131,7 @@ export default function PrivacyPolicy() {
         <section>
           <h2 className="text-xl font-bold text-gray-900 mb-3">3. Data Storage and Security</h2>
           <p>
-            All personal data collected through the ListedIndia Verify platform is stored on secure servers
+            All personal data collected through the Validstep.com platform is stored on secure servers
             located in <strong>India</strong>. We implement industry-standard security measures to protect
             your data including:
           </p>
@@ -202,7 +200,7 @@ export default function PrivacyPolicy() {
             <li>With the organization that issued your certificate (they are the data controller for their programs)</li>
             <li>With our authorized service providers as described above</li>
             <li>When required by law, court order, or lawful request from a government authority</li>
-            <li>To protect the rights, property, or safety of ListedIndia Verify, our users, or others</li>
+            <li>To protect the rights, property, or safety of Validstep.com, our users, or others</li>
             <li>In connection with a merger, acquisition, or sale of business assets (with prior notice)</li>
           </ul>
         </section>
@@ -210,7 +208,7 @@ export default function PrivacyPolicy() {
         <section>
           <h2 className="text-xl font-bold text-gray-900 mb-3">7. Your Rights</h2>
           <p>
-            As a user of the ListedIndia Verify platform, you have the following rights regarding your
+            As a user of the Validstep.com platform, you have the following rights regarding your
             personal data:
           </p>
           <ul className="list-disc pl-6 mt-3 space-y-2">
@@ -222,8 +220,8 @@ export default function PrivacyPolicy() {
           </ul>
           <p className="mt-3">
             To exercise any of these rights, please contact us at{' '}
-            <a href="mailto:support@listedindia.com" className="text-indigo-600 hover:underline">
-              support@listedindia.com
+            <a href="mailto:support@validstep.com" className="text-indigo-600 hover:underline">
+              support@validstep.com
             </a>. We will respond within 30 days of your request.
           </p>
         </section>
@@ -254,17 +252,17 @@ export default function PrivacyPolicy() {
             of your personal data, please contact us:
           </p>
           <div className="mt-3 p-4 bg-gray-50 rounded-xl border border-gray-200">
-            <p className="font-semibold text-gray-900">ListedIndia Verify — Privacy Team</p>
+            <p className="font-semibold text-gray-900">Validstep.com — Privacy Team</p>
             <p className="text-sm mt-1">
               Email:{' '}
-              <a href="mailto:support@listedindia.com" className="text-indigo-600 hover:underline">
-                support@listedindia.com
+              <a href="mailto:support@validstep.com" className="text-indigo-600 hover:underline">
+                support@validstep.com
               </a>
             </p>
             <p className="text-sm">
               Website:{' '}
-              <a href="https://verify.listedindia.com" className="text-indigo-600 hover:underline">
-                verify.listedindia.com
+              <a href="https://validstep.com" className="text-indigo-600 hover:underline">
+                validstep.com
               </a>
             </p>
           </div>

@@ -1,5 +1,5 @@
 {
-  "name": "verify-listedindia-backend",
+  "name": "validstep-backend",
   "version": "1.0.0",
   "description": "B2B Certificate/Credential SaaS Backend",
   "main": "server.js",

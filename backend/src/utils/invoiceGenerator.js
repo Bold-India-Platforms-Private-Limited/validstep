@@ -53,7 +53,7 @@ async function generateInvoicePDF(data) {
   page.drawRectangle({ x: 0, y: height - 100, width, height: 100, color: primary });
 
   // Logo / Brand
-  page.drawText('ListedIndia Verify', { x: marginX, y: height - 45, size: 20, font: bold, color: white });
+  page.drawText('Validstep.com', { x: marginX, y: height - 45, size: 20, font: bold, color: white });
   page.drawText('Digital Certificate Platform', { x: marginX, y: height - 65, size: 10, font: regular, color: rgb(0.8, 0.8, 1) });
 
   // INVOICE label (right)
@@ -94,7 +94,7 @@ async function generateInvoicePDF(data) {
   y2 -= 18;
   page.drawText(companyName, { x: col2X, y: y2, size: 13, font: bold, color: dark });
   y2 -= 16;
-  page.drawText('via ListedIndia Verify Platform', { x: col2X, y: y2, size: 10, font: oblique, color: gray });
+  page.drawText('via Validstep.com Platform', { x: col2X, y: y2, size: 10, font: oblique, color: gray });
 
   y = Math.min(y, y2) - 32;
 

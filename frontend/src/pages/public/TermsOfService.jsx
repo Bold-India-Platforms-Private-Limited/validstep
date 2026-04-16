@@ -11,9 +11,7 @@ function PolicyLayout({ title, effectiveDate, children }) {
             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
               <Award className="w-4 h-4 text-white" />
             </div>
-            <span className="font-bold text-gray-900 text-base">
-              ListedIndia<span className="text-indigo-600"> Verify</span>
-            </span>
+            <span className="font-bold text-gray-900 text-base">Validstep.com</span>
           </Link>
           <Link
             to="/"
@@ -66,9 +64,9 @@ export default function TermsOfService() {
         <section>
           <h2 className="text-xl font-bold text-gray-900 mb-3">1. Acceptance of Terms</h2>
           <p>
-            By accessing or using the ListedIndia Verify platform (the "Service"), available at{' '}
-            <strong>verify.listedindia.com</strong>, you agree to be bound by these Terms of Service ("Terms").
-            These Terms constitute a legally binding agreement between you and ListedIndia Verify ("we", "us",
+            By accessing or using the Validstep.com platform (the "Service"), available at{' '}
+            <strong>validstep.com</strong>, you agree to be bound by these Terms of Service ("Terms").
+            These Terms constitute a legally binding agreement between you and Validstep.com ("we", "us",
             or "our"). If you do not agree to these Terms, please do not use the Service.
           </p>
           <p className="mt-3">
@@ -82,7 +80,7 @@ export default function TermsOfService() {
         <section>
           <h2 className="text-xl font-bold text-gray-900 mb-3">2. Description of Services</h2>
           <p>
-            ListedIndia Verify is a B2B Software-as-a-Service (SaaS) platform that enables organizations —
+            Validstep.com is a B2B Software-as-a-Service (SaaS) platform that enables organizations —
             including companies, educational institutions, training providers, and event organizers — to
             create, issue, manage, and deliver digital certificates to participants, employees, interns,
             students, and other program participants.
@@ -142,19 +140,19 @@ export default function TermsOfService() {
           <h2 className="text-xl font-bold text-gray-900 mb-3">4. Certificate Issuance</h2>
           <p>
             Certificates are issued at the sole discretion and authorization of the registered organization.
-            ListedIndia Verify acts only as a technology intermediary and does not independently validate,
+            Validstep.com acts only as a technology intermediary and does not independently validate,
             certify, accredit, or endorse the content, duration, quality, or legitimacy of any program
             described in a certificate.
           </p>
           <p className="mt-3">
             Organizations are fully responsible for the accuracy of information included in certificates,
-            including participant names, program titles, dates, and any descriptive content. ListedIndia
+            including participant names, program titles, dates, and any descriptive content. Validstep.com
             Verify shall not be held liable for errors, omissions, or misrepresentations in certificate
             content provided by the issuing organization.
           </p>
           <p className="mt-3">
             Once issued, certificates are assigned a unique verification hash and are permanently accessible
-            via our public verification system at <strong>verify.listedindia.com/verify/[hash]</strong>.
+            via our public verification system at <strong>validstep.com/verify/[hash]</strong>.
             Organizations may revoke certificate visibility through administrative controls, but historical
             issuance records are retained in accordance with our data retention policies.
           </p>
@@ -176,7 +174,7 @@ export default function TermsOfService() {
             In this model, individual participants are responsible for paying the certificate fee set by the
             organization. Payments are collected via our integrated payment gateway (PayU). Upon successful
             payment confirmation, the certificate is automatically issued and delivered to the participant.
-            The organization configures the pricing; ListedIndia Verify processes the transaction.
+            The organization configures the pricing; Validstep.com processes the transaction.
           </p>
 
           <h3 className="text-lg font-semibold text-gray-800 mt-4 mb-2">5.3 Taxes</h3>
@@ -190,9 +188,9 @@ export default function TermsOfService() {
         <section>
           <h2 className="text-xl font-bold text-gray-900 mb-3">6. Intellectual Property</h2>
           <p>
-            All content, design, software, trademarks, and materials on the ListedIndia Verify platform —
+            All content, design, software, trademarks, and materials on the Validstep.com platform —
             including but not limited to certificate templates, design systems, logos, interface design, and
-            documentation — are the exclusive intellectual property of ListedIndia Verify and are protected
+            documentation — are the exclusive intellectual property of Validstep.com and are protected
             by applicable Indian and international copyright and trademark laws.
           </p>
           <p className="mt-3">
@@ -225,7 +223,7 @@ export default function TermsOfService() {
         <section>
           <h2 className="text-xl font-bold text-gray-900 mb-3">8. Limitation of Liability</h2>
           <p>
-            To the maximum extent permitted by applicable law, ListedIndia Verify shall not be liable for
+            To the maximum extent permitted by applicable law, Validstep.com shall not be liable for
             any indirect, incidental, special, consequential, or punitive damages, including loss of profits,
             data, goodwill, or business opportunities, arising from your use of or inability to use the
             Service, even if advised of the possibility of such damages.
@@ -236,7 +234,7 @@ export default function TermsOfService() {
             the event giving rise to the claim.
           </p>
           <p className="mt-3">
-            ListedIndia Verify does not guarantee the continuous, uninterrupted, or error-free availability
+            Validstep.com does not guarantee the continuous, uninterrupted, or error-free availability
             of the platform. We shall not be liable for any loss arising from system downtime, email delivery
             failures caused by third-party providers, or payment processing delays.
           </p>
@@ -273,9 +271,9 @@ export default function TermsOfService() {
             For any questions, concerns, or notices regarding these Terms of Service, please contact us at:
           </p>
           <div className="mt-3 p-4 bg-gray-50 rounded-xl border border-gray-200">
-            <p className="font-semibold text-gray-900">ListedIndia Verify</p>
-            <p className="text-sm mt-1">Email: <a href="mailto:support@listedindia.com" className="text-indigo-600 hover:underline">support@listedindia.com</a></p>
-            <p className="text-sm">Website: <a href="https://verify.listedindia.com" className="text-indigo-600 hover:underline">verify.listedindia.com</a></p>
+            <p className="font-semibold text-gray-900">Validstep.com</p>
+            <p className="text-sm mt-1">Email: <a href="mailto:support@validstep.com" className="text-indigo-600 hover:underline">support@validstep.com</a></p>
+            <p className="text-sm">Website: <a href="https://validstep.com" className="text-indigo-600 hover:underline">validstep.com</a></p>
           </div>
         </section>
 

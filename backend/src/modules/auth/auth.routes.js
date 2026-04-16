@@ -81,4 +81,29 @@ router.post('/refresh', controller.refreshToken);
 
 router.post('/logout', controller.logout);
 
+const forgotPasswordSchema = z.object({
+  email: z.string().email(),
+  type: z.enum(['company', 'user']),
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  password: z.string().min(8).max(128),
+  type: z.enum(['company', 'user']),
+});
+
+router.post(
+  '/forgot-password',
+  authLimiter,
+  validate({ body: forgotPasswordSchema }),
+  controller.forgotPassword
+);
+
+router.post(
+  '/reset-password',
+  authLimiter,
+  validate({ body: resetPasswordSchema }),
+  controller.resetPassword
+);
+
 module.exports = router;

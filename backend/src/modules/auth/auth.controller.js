@@ -90,6 +90,27 @@ async function logout(req, res) {
   }
 }
 
+async function forgotPassword(req, res) {
+  try {
+    const { email, type } = req.body; // type: 'company' | 'user'
+    await authService.forgotPassword(email, type);
+    // Always respond success — never reveal if email exists
+    return sendSuccess(res, null, 'If that email is registered, a reset link has been sent.');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function resetPassword(req, res) {
+  try {
+    const { token, password, type } = req.body;
+    await authService.resetPassword(token, password, type);
+    return sendSuccess(res, null, 'Password reset successfully. You can now log in.');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
 module.exports = {
   companyRegister,
   companyLogin,
@@ -98,4 +119,6 @@ module.exports = {
   superAdminLogin,
   refreshToken,
   logout,
+  forgotPassword,
+  resetPassword,
 };

@@ -60,6 +60,12 @@ export const authApi = createApi({
     logout: builder.mutation({
       query: () => ({ url: '/auth/logout', method: 'POST' }),
     }),
+    forgotPassword: builder.mutation({
+      query: (data) => ({ url: '/auth/forgot-password', method: 'POST', body: data }),
+    }),
+    resetPassword: builder.mutation({
+      query: (data) => ({ url: '/auth/reset-password', method: 'POST', body: data }),
+    }),
   }),
 })
 
@@ -71,4 +77,6 @@ export const {
   useAdminLoginMutation,
   useRefreshTokenMutation,
   useLogoutMutation,
+  useForgotPasswordMutation,
+  useResetPasswordMutation,
 } = authApi

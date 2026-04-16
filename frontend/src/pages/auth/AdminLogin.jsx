@@ -54,7 +54,7 @@ export default function AdminLogin() {
             <ShieldCheck className="h-8 w-8 text-white" />
           </div>
           <h1 className="mt-4 text-2xl font-bold text-white">Admin Panel</h1>
-          <p className="mt-1 text-sm text-slate-400">ListedIndia Verify — Super Admin</p>
+          <p className="mt-1 text-sm text-slate-400">Validstep.com — Super Admin</p>
         </div>
 
         <div className="rounded-2xl border border-slate-700 bg-slate-800 p-8 shadow-xl">
@@ -67,7 +67,7 @@ export default function AdminLogin() {
                 </div>
                 <input
                   type="email"
-                  placeholder="admin@listedindia.com"
+                  placeholder="admin@validstep.com"
                   className="block w-full rounded-lg border border-slate-600 bg-slate-700/50 py-2.5 pl-9 pr-3 text-sm text-white placeholder-slate-500 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
                   {...register('email')}
                 />

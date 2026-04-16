@@ -69,7 +69,7 @@ export function CompanyLayout({ children }) {
             <Award className="h-5 w-5 text-white" />
           </div>
           <div>
-            <p className="text-sm font-bold text-slate-900">ListedIndia</p>
+            <p className="text-sm font-bold text-slate-900">Validstep.com</p>
             <p className="text-xs text-slate-500">Verify</p>
           </div>
           <button

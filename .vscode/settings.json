@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^files=\\$\\(grep -RIl --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=\\.git \"ListedIndia\\\\\\|listedindia\\\\\\|verify\\\\\\.listedindia\\\\\\.com\\\\\\|verify-listedindia\" frontend backend\\) && perl -pi -e 's/ListedIndia Verify/Validstep\\.com/g; s/verify\\\\\\.listedindia\\\\\\.com/validstep\\.com/g; s/listedindia\\\\\\.com/validstep\\.com/g; s/ListedIndia/Validstep\\.com/g; s/verify-listedindia/validstep/g' \\$files$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

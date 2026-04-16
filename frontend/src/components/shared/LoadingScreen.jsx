@@ -126,7 +126,7 @@ export function LoadingScreen() {
 
       {/* ── Brand name ── */}
       <p className="text-sm font-bold text-gray-400 uppercase tracking-[0.2em] mb-8 select-none">
-        ListedIndia <span className="text-violet-500">Verify</span>
+        Validstep.com
       </p>
 
       {/* ── Rotating quote ── */}

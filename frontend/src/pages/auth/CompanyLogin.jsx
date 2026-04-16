@@ -54,7 +54,7 @@ export default function CompanyLogin() {
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20">
             <Award className="h-5 w-5 text-white" />
           </div>
-          <span className="text-lg font-bold text-white">ListedIndia Verify</span>
+          <span className="text-lg font-bold text-white">Validstep.com</span>
         </div>
         <div>
           <h2 className="text-4xl font-bold leading-tight text-white">
@@ -66,12 +66,12 @@ export default function CompanyLogin() {
         </div>
         <div className="flex items-center gap-6">
           <div className="text-center">
-            <p className="text-3xl font-bold text-white">500+</p>
+            <p className="text-3xl font-bold text-white">55+</p>
             <p className="text-sm text-primary-200">Companies</p>
           </div>
           <div className="h-12 w-px bg-white/20" />
           <div className="text-center">
-            <p className="text-3xl font-bold text-white">50K+</p>
+            <p className="text-3xl font-bold text-white">2K+</p>
             <p className="text-sm text-primary-200">Certificates Issued</p>
           </div>
           <div className="h-12 w-px bg-white/20" />
@@ -89,7 +89,7 @@ export default function CompanyLogin() {
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-600">
               <Award className="h-5 w-5 text-white" />
             </div>
-            <span className="text-lg font-bold text-slate-900">ListedIndia Verify</span>
+            <span className="text-lg font-bold text-slate-900">Validstep.com</span>
           </div>
 
           <h1 className="text-2xl font-bold text-slate-900">Company Login</h1>
@@ -114,6 +114,15 @@ export default function CompanyLogin() {
               error={errors.password?.message}
               {...register('password')}
             />
+
+            <div className="flex justify-end">
+              <Link
+                to="/auth/forgot-password?type=company"
+                className="text-xs text-primary-600 hover:text-primary-700 font-medium"
+              >
+                Forgot password?
+              </Link>
+            </div>
 
             <Button type="submit" className="w-full" isLoading={isLoading} size="lg">
               Sign In
