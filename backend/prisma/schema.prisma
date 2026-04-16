@@ -1,0 +1,263 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ProgramType {
+  INTERNSHIP
+  COURSE
+  PARTICIPATION
+  HACKATHON
+  OTHER
+}
+
+enum BatchStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+}
+
+enum TemplateType {
+  CLASSIC
+  MODERN
+  MINIMAL
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  INITIATED
+  SUCCESS
+  FAILURE
+  PENDING
+}
+
+model SuperAdmin {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  password_hash String
+  name          String
+  created_at    DateTime @default(now())
+
+  @@map("super_admins")
+}
+
+model Company {
+  id            String    @id @default(uuid())
+  name          String
+  email         String    @unique
+  password_hash String
+  phone         String?
+  logo_url      String?
+  website       String?
+  description   String?
+  is_active     Boolean   @default(true)
+  is_verified   Boolean   @default(false)
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  programs     Program[]
+  batches      Batch[]
+  orders       Order[]
+  certificates Certificate[]
+  templates    CertificateTemplate[]
+
+  @@index([email])
+  @@map("companies")
+}
+
+model Program {
+  id          String      @id @default(uuid())
+  company_id  String
+  type        ProgramType
+  name        String
+  description String?
+  created_at  DateTime    @default(now())
+
+  company Company @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  batches Batch[]
+
+  @@index([company_id])
+  @@map("programs")
+}
+
+model Batch {
+  id                  String      @id @default(uuid())
+  program_id          String
+  company_id          String
+  name                String
+  start_date          DateTime
+  end_date            DateTime
+  role                String?
+  id_prefix           String      @default("CERT")
+  id_counter          Int         @default(0)
+  certificate_price   Decimal     @db.Decimal(10, 2)
+  currency            String      @default("INR")
+  is_active           Boolean     @default(true)
+  unique_slug         String      @unique
+  status              BatchStatus @default(DRAFT)
+  created_at          DateTime    @default(now())
+  updated_at          DateTime    @updatedAt
+
+  program      Program               @relation(fields: [program_id], references: [id], onDelete: Cascade)
+  company      Company               @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  orders       Order[]
+  certificates Certificate[]
+  templates    CertificateTemplate[]
+
+  @@index([company_id])
+  @@index([unique_slug])
+  @@map("batches")
+}
+
+model CertificateTemplate {
+  id               String       @id @default(uuid())
+  batch_id         String
+  company_id       String
+  template_name    String
+  template_type    TemplateType @default(CLASSIC)
+  background_color String       @default("#FFFFFF")
+  accent_color     String       @default("#1a237e")
+  font_family      String       @default("Helvetica")
+  show_logo        Boolean      @default(true)
+  show_signature   Boolean      @default(false)
+  signature_url    String?
+  custom_text      String?
+  is_active        Boolean      @default(true)
+  created_at       DateTime     @default(now())
+
+  batch        Batch         @relation(fields: [batch_id], references: [id], onDelete: Cascade)
+  company      Company       @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  certificates Certificate[]
+
+  @@index([batch_id])
+  @@index([company_id])
+  @@map("certificate_templates")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  name          String
+  email         String   @unique
+  phone         String?
+  password_hash String
+  is_verified   Boolean  @default(false)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  orders       Order[]
+  certificates Certificate[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model Order {
+  id                 String      @id @default(uuid())
+  user_id            String
+  batch_id           String
+  company_id         String
+  certificate_serial String      @unique
+  amount             Decimal     @db.Decimal(10, 2)
+  currency           String      @default("INR")
+  status             OrderStatus @default(PENDING)
+  payu_txn_id        String?
+  payu_order_id      String?
+  created_at         DateTime    @default(now())
+  updated_at         DateTime    @updatedAt
+
+  user        User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  batch       Batch         @relation(fields: [batch_id], references: [id], onDelete: Cascade)
+  company     Company       @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  payments    Payment[]
+  certificate Certificate?
+
+  @@index([user_id])
+  @@index([batch_id])
+  @@index([company_id])
+  @@index([certificate_serial])
+  @@map("orders")
+}
+
+model Payment {
+  id               String        @id @default(uuid())
+  order_id         String
+  payu_txn_id      String
+  payu_payment_id  String?
+  amount           Decimal       @db.Decimal(10, 2)
+  currency         String        @default("INR")
+  status           PaymentStatus @default(INITIATED)
+  gateway_response Json          @db.JsonB
+  webhook_payload  Json?         @db.JsonB
+  created_at       DateTime      @default(now())
+
+  order Order @relation(fields: [order_id], references: [id], onDelete: Cascade)
+
+  @@index([order_id])
+  @@index([payu_txn_id])
+  @@map("payments")
+}
+
+model Certificate {
+  id                 String    @id @default(uuid())
+  order_id           String    @unique
+  user_id            String
+  batch_id           String
+  company_id         String
+  certificate_serial String
+  certificate_url    String?
+  template_id        String?
+  is_issued          Boolean   @default(false)
+  issued_at          DateTime?
+  download_count     Int       @default(0)
+  verification_hash  String    @unique
+  created_at         DateTime  @default(now())
+
+  order    Order               @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  user     User                @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  batch    Batch               @relation(fields: [batch_id], references: [id], onDelete: Cascade)
+  company  Company             @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  template CertificateTemplate? @relation(fields: [template_id], references: [id])
+
+  verification_logs VerificationLog[]
+
+  @@index([user_id])
+  @@index([batch_id])
+  @@index([company_id])
+  @@index([order_id])
+  @@index([certificate_serial])
+  @@index([verification_hash])
+  @@map("certificates")
+}
+
+model VerificationLog {
+  id             String   @id @default(uuid())
+  certificate_id String
+  verified_at    DateTime @default(now())
+  ip_address     String?
+  user_agent     String?
+
+  certificate Certificate @relation(fields: [certificate_id], references: [id], onDelete: Cascade)
+
+  @@index([certificate_id])
+  @@map("verification_logs")
+}
+
+model PricingConfig {
+  id           String      @id @default(uuid())
+  program_type ProgramType @unique
+  default_price Decimal    @db.Decimal(10, 2)
+  created_at   DateTime    @default(now())
+  updated_at   DateTime    @updatedAt
+
+  @@map("pricing_configs")
+}
