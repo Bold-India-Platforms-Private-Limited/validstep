@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect, useRef } from 'react'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import axios from 'axios'
 import { useDispatch, useSelector } from 'react-redux'
 import { setCredentials, finishLoading, selectIsLoading, selectUserRole, selectIsAuthenticated } from './store/authSlice'
@@ -20,6 +20,8 @@ import VerifyCertificate from './pages/public/VerifyCertificate'
 import PaymentSuccess from './pages/public/PaymentSuccess'
 import PaymentFailure from './pages/public/PaymentFailure'
 import NotFound from './pages/public/NotFound'
+import About from './pages/public/About'
+import Contact from './pages/public/Contact'
 
 // Auth pages
 import CompanyLogin from './pages/auth/CompanyLogin'
@@ -53,20 +55,38 @@ import AdminPricing from './pages/admin/Pricing'
 import AdminPayments from './pages/admin/Payments'
 import AdminBatchDetail from './pages/admin/BatchDetail'
 
-// Always show Home — logged-in users can navigate to dashboard via the navbar
 function RootRedirect() {
   const isLoading = useSelector(selectIsLoading)
+  const isAuthenticated = useSelector(selectIsAuthenticated)
+  const role = useSelector(selectUserRole)
+
   if (isLoading) return <LoadingScreen />
-  return <Home />
+  if (!isAuthenticated) return <Home />
+
+  const dashboardPath =
+    role === 'COMPANY' ? '/company/dashboard'
+    : role === 'SUPERADMIN' ? '/admin/dashboard'
+    : '/dashboard'
+
+  return <Navigate to={dashboardPath} replace />
 }
 
 export default function App() {
   const dispatch = useDispatch()
-  const isLoading = useSelector(selectIsLoading)
+  const location = useLocation()
+  const hasAttemptedSessionRestore = useRef(false)
 
-  // On mount: try to restore session via refresh token cookie.
-  // Use plain axios (not axiosClient) to avoid the 401 interceptor looping.
+  // Restore session in the background — does NOT block public page rendering.
+  // Skip backend calls on landing page for a faster, static-first experience.
   useEffect(() => {
+    if (location.pathname === '/') {
+      dispatch(finishLoading())
+      return
+    }
+
+    if (hasAttemptedSessionRestore.current) return
+    hasAttemptedSessionRestore.current = true
+
     let cancelled = false
     const restoreSession = async () => {
       try {
@@ -79,7 +99,6 @@ export default function App() {
         const data = response.data?.data ?? response.data
         const { accessToken, user } = data
         if (accessToken && user) {
-          // Normalize role to uppercase to match frontend role checks (COMPANY, USER, SUPERADMIN)
           const normalizedUser = { ...user, role: user.role?.toUpperCase() }
           dispatch(setCredentials({ accessToken, user: normalizedUser }))
         } else {
@@ -91,9 +110,7 @@ export default function App() {
     }
     restoreSession()
     return () => { cancelled = true }
-  }, [dispatch])
-
-  if (isLoading) return <LoadingScreen />
+  }, [dispatch, location.pathname])
 
   return (
     <Routes>
@@ -105,6 +122,10 @@ export default function App() {
       <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/refund" element={<RefundPolicy />} />
       <Route path="/delivery" element={<DeliveryPolicy />} />
+
+      {/* Company info */}
+      <Route path="/about" element={<About />} />
+      <Route path="/contact" element={<Contact />} />
 
       {/* Public */}
       <Route path="/order/:slug" element={<OrderCertificate />} />

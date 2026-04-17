@@ -7,20 +7,29 @@ import { useVerifyCertificateQuery } from '../../store/api/publicApi'
 import { formatDate } from '../../utils/formatDate'
 import { PageSpinner } from '../../components/ui/Spinner'
 import { Badge } from '../../components/ui/Badge'
+import { PublicLayout } from '../../components/layouts/PublicLayout'
 
 export default function VerifyCertificate() {
   const { hash } = useParams()
   const { data, isLoading, error } = useVerifyCertificateQuery(hash)
 
-  if (isLoading) return <PageSpinner />
+  if (isLoading) {
+    return (
+      <PublicLayout showBackToHome>
+        <div className="px-4 py-20">
+          <PageSpinner />
+        </div>
+      </PublicLayout>
+    )
+  }
 
   // Backend returns { valid, certificate: { serial, holder_name, batch_name, company, issued_at, is_issued, role, start_date, end_date, program_type, program_name } }
   const cert = data?.certificate
   const isValid = data?.valid && cert?.is_issued
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 px-4 py-12">
-      <div className="mx-auto max-w-xl">
+    <PublicLayout showBackToHome mainClassName="bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="mx-auto max-w-xl px-4 py-12">
         {/* Header */}
         <div className="mb-8 text-center">
           <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-white shadow-lg">
@@ -181,6 +190,6 @@ export default function VerifyCertificate() {
           <span className="text-slate-600">{import.meta.env.VITE_APP_URL}</span>
         </p>
       </div>
-    </div>
+    </PublicLayout>
   )
 }

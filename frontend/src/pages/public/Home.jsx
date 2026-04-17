@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import HeroBg from '../../components/shared/HeroBg'
 import { Link, useNavigate } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { selectIsAuthenticated, selectUserRole } from '../../store/authSlice'
@@ -24,6 +25,7 @@ function Navbar() {
 
   const dropRef    = useRef(null)
   const verifyRef  = useRef(null)
+  const fileRef    = useRef(null)
   const navigate   = useNavigate()
 
   const isAuthenticated = useSelector(selectIsAuthenticated)
@@ -55,7 +57,12 @@ function Navbar() {
   }
 
   const handleUpload = () => {
-    setUploadError(true)
+    fileRef.current?.click()
+  }
+
+  const handleFileChange = (e) => {
+    if (e.target.files?.length) setUploadError(true)
+    e.target.value = ''
   }
 
   return (
@@ -64,13 +71,8 @@ function Navbar() {
         <div className="flex items-center justify-between h-16">
 
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2.5 flex-shrink-0">
-            <div className="w-8 h-8 bg-violet-600 rounded-lg flex items-center justify-center shadow-sm">
-              <Award className="w-4 h-4 text-white" />
-            </div>
-            <span className="font-bold text-gray-900 text-[15px] tracking-tight">
-              Validstep.com
-            </span>
+          <Link to="/" className="flex-shrink-0">
+            <img src="/logo.webp" alt="Validstep" className="h-8 w-auto" />
           </Link>
 
           {/* Desktop Nav */}
@@ -81,6 +83,14 @@ function Navbar() {
                 {label}
               </a>
             ))}
+            <Link to="/about"
+              className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
+              About
+            </Link>
+            <Link to="/contact"
+              className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
+              Contact
+            </Link>
 
             {/* Employer Verification dropdown */}
             <div className="relative" ref={verifyRef}>
@@ -148,8 +158,15 @@ function Navbar() {
                     {/* Upload area */}
                     <div className="mb-1">
                       <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2.5">
-                        Upload Certificate PDF
+                        Upload Certificate PDF or Image
                       </label>
+                      <input
+                        ref={fileRef}
+                        type="file"
+                        accept="application/pdf,image/*"
+                        className="hidden"
+                        onChange={handleFileChange}
+                      />
                       <button
                         type="button"
                         onClick={handleUpload}
@@ -160,7 +177,7 @@ function Navbar() {
                         </div>
                         <div>
                           <p className="text-sm font-semibold text-gray-600 group-hover:text-gray-800 transition-colors">Click to upload or drag & drop</p>
-                          <p className="text-xs text-gray-400 mt-0.5">PDF files only · Max 10MB</p>
+                          <p className="text-xs text-gray-400 mt-0.5">PDF or image · Max 10MB</p>
                         </div>
                       </button>
                     </div>
@@ -279,6 +296,14 @@ function Navbar() {
               {label}
             </a>
           ))}
+          <Link to="/about" onClick={() => setMobileOpen(false)}
+            className="block px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-lg">
+            About
+          </Link>
+          <Link to="/contact" onClick={() => setMobileOpen(false)}
+            className="block px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-lg">
+            Contact
+          </Link>
 
           {/* Mobile verify section */}
           <div className="pt-3 border-t border-gray-100 mt-2">
@@ -330,19 +355,24 @@ function Navbar() {
   )
 }
 
+/* HeroBg is imported from ../../components/shared/HeroBg */
+
 /* ─────────────────────────────────────────────
-   HERO BACKGROUND — PARTICLE NETWORK
+   HERO
 ───────────────────────────────────────────── */
-function HeroBg() {
-  const canvasRef = useRef(null)
-  const mouse = useRef({ x: -9999, y: -9999 })
-  const tick  = useRef(0)
+function _unused() {
+  const canvasRef   = useRef(null)
+  const sectionRef  = useRef(null)
+  const mouse       = useRef({ x: -9999, y: -9999 })
+  const smooth      = useRef({ x: -9999, y: -9999 })
 
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
+    const canvas  = canvasRef.current
+    const section = sectionRef.current
+    if (!canvas || !section) return
     const ctx = canvas.getContext('2d')
     let raf
+    let t = 0
 
     const resize = () => {
       canvas.width  = canvas.offsetWidth
@@ -351,142 +381,99 @@ function HeroBg() {
     resize()
     window.addEventListener('resize', resize)
 
+    /* Track mouse relative to the section element */
     const onMove = (e) => {
-      const r = canvas.getBoundingClientRect()
+      const r = section.getBoundingClientRect()
       mouse.current = { x: e.clientX - r.left, y: e.clientY - r.top }
     }
     const onLeave = () => { mouse.current = { x: -9999, y: -9999 } }
     window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseleave', onLeave)
+    section.addEventListener('mouseleave', onLeave)
 
-    /* ── palette ── */
-    const PALETTE = [
-      [124, 58, 237],   // violet-600
-      [79,  70, 229],   // indigo-600
-      [37,  99, 235],   // blue-600
-      [168, 85, 247],   // purple-500
-      [99, 102, 241],   // indigo-500
+    /* Aurora orbs — large soft drifting blobs */
+    const orbs = [
+      { bx: 0.78, by: 0.22, r: 0.50, col: [124, 58, 237], sx: 0.06, sy: 0.04, spd: 0.9 },
+      { bx: 0.16, by: 0.68, r: 0.42, col: [79,  70, 229], sx: 0.05, sy: 0.07, spd: 0.7 },
+      { bx: 0.48, by: 0.50, r: 0.35, col: [168, 85, 247], sx: 0.09, sy: 0.05, spd: 1.1 },
+      { bx: 0.88, by: 0.72, r: 0.28, col: [99, 102, 241], sx: 0.04, sy: 0.08, spd: 0.8 },
+      { bx: 0.28, by: 0.18, r: 0.26, col: [139, 92, 246], sx: 0.07, sy: 0.04, spd: 1.2 },
     ]
-    const COUNT       = 90
-    const LINK_DIST   = 160
-    const ATTRACT_R   = 160   // mouse attracts within this radius
-    const REPEL_R     = 80    // mouse repels within this tighter radius
-    const ATTRACT_STR = 0.08
-    const REPEL_STR   = 0.22
-
-    const particles = Array.from({ length: COUNT }, () => {
-      const col = PALETTE[Math.floor(Math.random() * PALETTE.length)]
-      return {
-        x:  Math.random() * canvas.width,
-        y:  Math.random() * canvas.height,
-        vx: (Math.random() - 0.5) * 0.6,
-        vy: (Math.random() - 0.5) * 0.6,
-        r:  Math.random() * 2.2 + 0.8,
-        col,
-        base: Math.random() * 0.3 + 0.12,
-        phase: Math.random() * Math.PI * 2,   // for pulse
-        speed: 0.6 + Math.random() * 0.8,     // individual speed multiplier
-      }
-    })
 
     const draw = () => {
-      tick.current++
-      const t  = tick.current
-      const W  = canvas.width
-      const H  = canvas.height
-      const mx = mouse.current.x
-      const my = mouse.current.y
-
+      t += 0.007
+      const W = canvas.width
+      const H = canvas.height
       ctx.clearRect(0, 0, W, H)
 
-      /* ── update positions ── */
-      for (const p of particles) {
-        const dx   = p.x - mx
-        const dy   = p.y - my
-        const dist = Math.sqrt(dx * dx + dy * dy)
-
-        if (dist < REPEL_R && dist > 0.1) {
-          /* hard repulsion close to cursor */
-          const f = ((REPEL_R - dist) / REPEL_R) ** 1.5
-          p.vx += (dx / dist) * f * REPEL_STR
-          p.vy += (dy / dist) * f * REPEL_STR
-        } else if (dist < ATTRACT_R && dist > REPEL_R) {
-          /* gentle pull toward cursor outside repel zone */
-          const f = ((ATTRACT_R - dist) / (ATTRACT_R - REPEL_R)) * ATTRACT_STR
-          p.vx -= (dx / dist) * f
-          p.vy -= (dy / dist) * f
-        }
-
-        /* dampen */
-        p.vx *= 0.985
-        p.vy *= 0.985
-
-        /* nudge particles gently so they never fully stop */
-        if (Math.abs(p.vx) < 0.1) p.vx += (Math.random() - 0.5) * 0.04
-        if (Math.abs(p.vy) < 0.1) p.vy += (Math.random() - 0.5) * 0.04
-
-        p.x += p.vx * p.speed
-        p.y += p.vy * p.speed
-
-        /* wrap */
-        if (p.x < -20)    p.x = W + 20
-        if (p.x > W + 20) p.x = -20
-        if (p.y < -20)    p.y = H + 20
-        if (p.y > H + 20) p.y = -20
-      }
-
-      /* ── draw connections ── */
-      for (let i = 0; i < particles.length; i++) {
-        for (let j = i + 1; j < particles.length; j++) {
-          const a  = particles[i], b = particles[j]
-          const dx = a.x - b.x, dy = a.y - b.y
-          const d  = Math.sqrt(dx * dx + dy * dy)
-          if (d < LINK_DIST) {
-            const alpha = (1 - d / LINK_DIST) * 0.22
-            const [r, g, bl] = a.col
-            ctx.beginPath()
-            ctx.moveTo(a.x, a.y)
-            ctx.lineTo(b.x, b.y)
-            ctx.strokeStyle = `rgba(${r},${g},${bl},${alpha})`
-            ctx.lineWidth = 0.9
-            ctx.stroke()
-          }
-        }
-      }
-
-      /* ── draw dots with pulse ── */
-      for (const p of particles) {
-        /* pulse opacity with sin wave */
-        const pulse   = 0.5 + 0.5 * Math.sin(t * 0.025 + p.phase)
-        const opacity = p.base * (0.6 + 0.4 * pulse)
-        /* radius breathes slightly */
-        const radius  = p.r * (0.85 + 0.2 * pulse)
-
-        const [r, g, b] = p.col
-        /* glow halo */
-        const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, radius * 3.5)
-        grad.addColorStop(0, `rgba(${r},${g},${b},${opacity * 0.9})`)
-        grad.addColorStop(1, `rgba(${r},${g},${b},0)`)
+      /* ── aurora orbs ── */
+      for (const o of orbs) {
+        const x = (o.bx + Math.sin(t * o.spd)       * o.sx) * W
+        const y = (o.by + Math.cos(t * o.spd * 0.8) * o.sy) * H
+        const r = o.r * Math.min(W, H)
+        const [cr, cg, cb] = o.col
+        const g = ctx.createRadialGradient(x, y, 0, x, y, r)
+        g.addColorStop(0,    `rgba(${cr},${cg},${cb},0.18)`)
+        g.addColorStop(0.40, `rgba(${cr},${cg},${cb},0.07)`)
+        g.addColorStop(1,    `rgba(${cr},${cg},${cb},0)`)
         ctx.beginPath()
-        ctx.arc(p.x, p.y, radius * 3.5, 0, Math.PI * 2)
-        ctx.fillStyle = grad
-        ctx.fill()
-
-        /* solid core */
-        ctx.beginPath()
-        ctx.arc(p.x, p.y, radius, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(${r},${g},${b},${Math.min(opacity * 1.4, 0.7)})`
+        ctx.arc(x, y, r, 0, Math.PI * 2)
+        ctx.fillStyle = g
         ctx.fill()
       }
 
-      /* ── cursor glow ── */
-      if (mx > 0 && my > 0) {
-        const cg = ctx.createRadialGradient(mx, my, 0, mx, my, 120)
-        cg.addColorStop(0, 'rgba(124,58,237,0.07)')
-        cg.addColorStop(1, 'rgba(124,58,237,0)')
+      /* ── smooth cursor lerp ── */
+      const tx = mouse.current.x
+      const ty = mouse.current.y
+      const inView = tx > -500
+      if (inView) {
+        if (smooth.current.x < -500) {
+          smooth.current.x = tx
+          smooth.current.y = ty
+        } else {
+          smooth.current.x += (tx - smooth.current.x) * 0.10
+          smooth.current.y += (ty - smooth.current.y) * 0.10
+        }
+      } else {
+        smooth.current.x = -9999
+        smooth.current.y = -9999
+      }
+      const mx = smooth.current.x
+      const my = smooth.current.y
+
+      if (inView && mx > -200) {
+        /* outer halo */
+        const halo = ctx.createRadialGradient(mx, my, 0, mx, my, 340)
+        halo.addColorStop(0,    'rgba(124,58,237,0.22)')
+        halo.addColorStop(0.30, 'rgba(124,58,237,0.10)')
+        halo.addColorStop(0.65, 'rgba(99,102,241,0.04)')
+        halo.addColorStop(1,    'rgba(99,102,241,0)')
         ctx.beginPath()
-        ctx.arc(mx, my, 120, 0, Math.PI * 2)
-        ctx.fillStyle = cg
+        ctx.arc(mx, my, 340, 0, Math.PI * 2)
+        ctx.fillStyle = halo
+        ctx.fill()
+
+        /* inner bright core */
+        const core = ctx.createRadialGradient(mx, my, 0, mx, my, 55)
+        core.addColorStop(0,   'rgba(196,167,255,0.55)')
+        core.addColorStop(0.5, 'rgba(124,58,237,0.18)')
+        core.addColorStop(1,   'rgba(124,58,237,0)')
+        ctx.beginPath()
+        ctx.arc(mx, my, 55, 0, Math.PI * 2)
+        ctx.fillStyle = core
+        ctx.fill()
+
+        /* animated ring */
+        const ringR = 22 + 6 * Math.sin(t * 4)
+        ctx.beginPath()
+        ctx.arc(mx, my, ringR, 0, Math.PI * 2)
+        ctx.strokeStyle = `rgba(167,139,250,${0.45 + 0.2 * Math.sin(t * 3)})`
+        ctx.lineWidth = 1.5
+        ctx.stroke()
+
+        /* tiny centre dot */
+        ctx.beginPath()
+        ctx.arc(mx, my, 3, 0, Math.PI * 2)
+        ctx.fillStyle = 'rgba(196,167,255,0.9)'
         ctx.fill()
       }
 
@@ -499,26 +486,25 @@ function HeroBg() {
       cancelAnimationFrame(raf)
       window.removeEventListener('resize', resize)
       window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseleave', onLeave)
+      section.removeEventListener('mouseleave', onLeave)
     }
   }, [])
 
   return (
-    <>
-      {/* Ambient gradient wash */}
+    <div ref={sectionRef} className="absolute inset-0">
+      {/* Dot grid */}
       <div className="absolute inset-0 pointer-events-none"
-        style={{ background: 'radial-gradient(ellipse 75% 55% at 75% 35%, #ede9fe60 0%, transparent 65%)' }} />
+        style={{
+          backgroundImage: 'radial-gradient(circle, #c4b5fd 1px, transparent 1px)',
+          backgroundSize: '30px 30px',
+          opacity: 0.30,
+        }} />
+      {/* Edge vignette to fade grid into white */}
       <div className="absolute inset-0 pointer-events-none"
-        style={{ background: 'radial-gradient(ellipse 55% 50% at 15% 75%, #dbeafe50 0%, transparent 65%)' }} />
-      <div className="absolute inset-0 pointer-events-none"
-        style={{ background: 'radial-gradient(ellipse 40% 40% at 50% 50%, #f3e8ff30 0%, transparent 70%)' }} />
-
-      {/* Particle canvas — pointer-events on window, not canvas, so clicks pass through */}
-      <canvas
-        ref={canvasRef}
-        className="absolute inset-0 w-full h-full pointer-events-none"
-      />
-    </>
+        style={{ background: 'radial-gradient(ellipse 85% 70% at 50% 50%, transparent 45%, white 100%)' }} />
+      {/* Aurora canvas */}
+      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
+    </div>
   )
 }
 
@@ -2048,19 +2034,17 @@ function Footer() {
     { heading: 'Platform', links: [{ label:'Features', href:'#features' },{ label:'How it Works', href:'#how-it-works' },{ label:'Pricing', href:'#pricing' }] },
     { heading: 'Organizations', links: [{ label:'Register', to:'/auth/company/register' },{ label:'Login', to:'/auth/company/login' }] },
     { heading: 'Participants', links: [{ label:'Login', to:'/auth/user/login' },{ label:'Register', to:'/auth/user/register' },{ label:'Verify Certificate', to:'/verify/demo' }] },
+    { heading: 'Company', links: [{ label:'About', to:'/about' },{ label:'Contact', to:'/contact' }] },
     { heading: 'Legal', links: [{ label:'Terms & Conditions', to:'/terms' },{ label:'Privacy Policy', to:'/privacy' },{ label:'Refund Policy', to:'/refund' },{ label:'Delivery Policy', to:'/delivery' }] },
   ]
 
   return (
     <footer className="bg-gray-900 text-gray-400">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-8">
           <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 bg-violet-600 rounded-lg flex items-center justify-center">
-                <Award className="w-4 h-4 text-white" />
-              </div>
-              <span className="font-bold text-white text-sm">Validstep.com</span>
+              <img src="/logo.webp" alt="Validstep" className="h-8 w-auto" />
             </div>
             <p className="text-xs leading-relaxed text-gray-500">
               Certificate infrastructure for modern organizations. Issue, manage, and verify digital certificates at scale.
@@ -2084,14 +2068,35 @@ function Footer() {
           ))}
         </div>
 
-        <div className="mt-10 pt-6 border-t border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-xs text-gray-600">
-            © {new Date().getFullYear()} Validstep.com. All rights reserved.
-          </p>
-          <div className="flex items-center gap-4 text-xs text-gray-600">
-            <span>Digital certificates only — no physical delivery</span>
-            <span>·</span>
-            <Link to="/auth/admin/login" className="hover:text-gray-400 transition-colors">Admin</Link>
+        <div className="mt-10 pt-6 border-t border-gray-800 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs text-gray-600">
+            <div>
+              <p className="text-gray-500 font-semibold mb-1">Parent Legal Company</p>
+              <p>Bold India Platforms Private Limited</p>
+              <p>CIN: U85499PN2025PTC246360</p>
+              <p>Incorporated 2025 · Pune, Maharashtra, India</p>
+            </div>
+            <div>
+              <p className="text-gray-500 font-semibold mb-1">Office Address</p>
+              <p>Sn 242/1/2 Baner, Tejaswini Soc,</p>
+              <p>DP Road, N.I.A., Pune,</p>
+              <p>Maharashtra 411045</p>
+            </div>
+            <div>
+              <p className="text-gray-500 font-semibold mb-1">Contact</p>
+              <p>Email: <a href="mailto:hello@boldindia.in" className="hover:text-gray-400 transition-colors">hello@boldindia.in</a></p>
+              <p>Web: <a href="https://www.boldindia.in" target="_blank" rel="noopener noreferrer" className="hover:text-gray-400 transition-colors">www.boldindia.in</a></p>
+            </div>
+          </div>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-gray-800">
+            <p className="text-xs text-gray-600">
+              © {new Date().getFullYear()} Validstep.com. All rights reserved.
+            </p>
+            <div className="flex items-center gap-4 text-xs text-gray-600">
+              <span>Digital certificates only — no physical delivery</span>
+              <span>·</span>
+              <Link to="/auth/admin/login" className="hover:text-gray-400 transition-colors">Admin</Link>
+            </div>
           </div>
         </div>
       </div>

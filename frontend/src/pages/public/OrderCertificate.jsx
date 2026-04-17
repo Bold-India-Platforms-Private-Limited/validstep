@@ -18,6 +18,7 @@ import { Badge } from '../../components/ui/Badge'
 import { formatDate } from '../../utils/formatDate'
 import axiosClient from '../../api/axiosClient'
 import { PageSpinner } from '../../components/ui/Spinner'
+import { PublicLayout } from '../../components/layouts/PublicLayout'
 
 const registerSchema = z.object({
   name: z.string().min(2, 'Name is required'),
@@ -93,22 +94,32 @@ export default function OrderCertificate() {
     }
   }
 
-  if (isLoading) return <PageSpinner />
+  if (isLoading) {
+    return (
+      <PublicLayout showBackToHome>
+        <div className="px-4 py-20">
+          <PageSpinner />
+        </div>
+      </PublicLayout>
+    )
+  }
 
   if (error || !batch) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-4">
-        <div className="text-center">
-          <div className="mb-4 text-6xl">🔍</div>
-          <h1 className="text-2xl font-bold text-slate-800">Batch Not Found</h1>
-          <p className="mt-2 text-slate-500">
-            This certificate link may be expired or invalid.
-          </p>
-          <Link to="/" className="mt-6 inline-block text-sm text-primary-600 hover:underline">
-            Go to homepage
-          </Link>
+      <PublicLayout showBackToHome>
+        <div className="flex min-h-[60vh] flex-col items-center justify-center px-4">
+          <div className="text-center">
+            <div className="mb-4 text-6xl">🔍</div>
+            <h1 className="text-2xl font-bold text-slate-800">Batch Not Found</h1>
+            <p className="mt-2 text-slate-500">
+              This certificate link may be expired or invalid.
+            </p>
+            <Link to="/" className="mt-6 inline-block text-sm text-primary-600 hover:underline">
+              Go to homepage
+            </Link>
+          </div>
         </div>
-      </div>
+      </PublicLayout>
     )
   }
 
@@ -119,8 +130,8 @@ export default function OrderCertificate() {
   }[batch.program?.type] || batch.program?.type
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary-50 px-4 py-12">
-      <div className="mx-auto max-w-2xl">
+    <PublicLayout showBackToHome mainClassName="bg-gradient-to-br from-slate-50 to-primary-50">
+      <div className="mx-auto max-w-2xl px-4 py-12">
         {/* Certificate card */}
         <div className="mb-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
           {/* Header */}
@@ -332,6 +343,6 @@ export default function OrderCertificate() {
           </div>
         )}
       </div>
-    </div>
+    </PublicLayout>
   )
 }

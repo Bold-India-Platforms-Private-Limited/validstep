@@ -7,6 +7,7 @@ import {
   ShieldAlert,
   ArrowRight,
 } from 'lucide-react'
+import { PublicLayout } from '../../components/layouts/PublicLayout'
 
 const COMPANY = {
   name: 'Bold India Platforms Private Limited',
@@ -43,16 +44,8 @@ export default function PaymentFailure() {
     : null
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-slate-50 flex flex-col items-center justify-center px-4 py-12">
-      {/* Logo */}
-      <div className="mb-8">
-        <Link to="/" className="text-2xl font-black tracking-tight text-slate-800">
-          valid<span className="text-emerald-600">step</span>
-          <span className="ml-1 text-xs font-semibold text-slate-400 tracking-widest uppercase">by Bold India</span>
-        </Link>
-      </div>
-
-      <div className="w-full max-w-lg">
+    <PublicLayout showBackToHome mainClassName="bg-gradient-to-br from-red-50 via-white to-slate-50">
+      <div className="w-full max-w-lg mx-auto px-4 py-12">
         <div className="rounded-2xl border border-red-200 bg-white shadow-xl overflow-hidden">
           {/* Red header */}
           <div className="bg-gradient-to-r from-red-500 to-rose-500 px-8 py-8 text-center">
@@ -141,6 +134,6 @@ export default function PaymentFailure() {
           </p>
         </div>
       </div>
-    </div>
+    </PublicLayout>
   )
 }
