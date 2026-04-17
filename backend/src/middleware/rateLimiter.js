@@ -13,6 +13,7 @@ function createRateLimiter(options = {}) {
     message = 'Too many requests, please try again later',
     keyPrefix = 'rl',
     skipSuccessfulRequests = false,
+    keyGenerator = (req) => req.user?.id || req.ip,
   } = options;
 
   // Build store only when Redis is actually available at request time
@@ -29,7 +30,7 @@ function createRateLimiter(options = {}) {
       standardHeaders: true,
       legacyHeaders: false,
       skipSuccessfulRequests,
-      keyGenerator: (req) => req.user?.id || req.ip,
+      keyGenerator,
     };
 
     if (isRedisAvailable()) {
@@ -73,12 +74,23 @@ const authLimiter = createRateLimiter({
   keyPrefix: 'rl:auth',
 });
 
-// Payment rate limiter - 5 payment attempts per 10 minutes
+// Payment initiation rate limiter - 10 attempts per 10 minutes per user
+// Prevents a user from flooding payment initiations
 const paymentLimiter = createRateLimiter({
   windowMs: 10 * 60 * 1000,
-  max: 5,
+  max: 10,
   message: 'Too many payment attempts, please try again after 10 minutes',
   keyPrefix: 'rl:payment',
+});
+
+// Webhook rate limiter — PayU sends from known IPs but we add IP-based protection
+// 200 webhooks per minute from same IP (PayU may batch-retry)
+const webhookLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 200,
+  message: 'Webhook rate limit exceeded',
+  keyPrefix: 'rl:webhook',
+  keyGenerator: (req) => req.ip, // always use IP (no auth on webhook)
 });
 
 // Strict rate limiter for sensitive operations - 5 per 15 minutes
@@ -93,5 +105,6 @@ module.exports = {
   generalLimiter,
   authLimiter,
   paymentLimiter,
+  webhookLimiter,
   strictLimiter,
 };

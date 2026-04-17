@@ -42,6 +42,8 @@ const env = {
   PAYU_MID: process.env.PAYU_MID,
   PAYU_KEY: process.env.PAYU_KEY,
   PAYU_SALT: process.env.PAYU_SALT,
+  // Salt2 is the newer IPN/webhook salt issued from PayU dashboard (optional, but recommended)
+  PAYU_SALT2: process.env.PAYU_SALT2 || '',
   PAYU_BASE_URL: process.env.PAYU_BASE_URL || 'https://test.payu.in',
 
   SUPERADMIN_EMAIL: process.env.SUPERADMIN_EMAIL || 'admin@example.com',

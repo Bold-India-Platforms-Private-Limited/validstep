@@ -4,8 +4,18 @@ import { updateAccessToken, logout } from '../store/authSlice'
 
 const BASE_URL = import.meta.env.VITE_API_URL
 
+// Catch misconfigured deployments early — this surfaces in the browser console
+// rather than cryptic network errors all over the app
+if (!BASE_URL) {
+  console.error(
+    '[Validstep] VITE_API_URL is not set!\n' +
+    'Local dev: add VITE_API_URL=http://localhost:5001/api to frontend/.env\n' +
+    'Cloudflare Pages: add it in Settings → Variables and Secrets'
+  )
+}
+
 const axiosClient = axios.create({
-  baseURL: BASE_URL,
+  baseURL: BASE_URL || '/api', // fallback prevents complete crash
   withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
 })

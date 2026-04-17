@@ -189,6 +189,8 @@ model Order {
   @@index([batch_id])
   @@index([company_id])
   @@index([certificate_serial])
+  @@index([payu_txn_id])      // for reconcile & webhook lookup
+  @@index([status])           // for finding PENDING orders quickly
   @@map("orders")
 }
 
@@ -203,11 +205,13 @@ model Payment {
   gateway_response Json          @db.JsonB
   webhook_payload  Json?         @db.JsonB
   created_at       DateTime      @default(now())
+  updated_at       DateTime      @updatedAt
 
   order Order @relation(fields: [order_id], references: [id], onDelete: Cascade)
 
   @@index([order_id])
   @@index([payu_txn_id])
+  @@index([status])
   @@map("payments")
 }
 
