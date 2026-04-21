@@ -185,6 +185,9 @@ async function processCertificateJob(jobData) {
  * Start the BullMQ worker for certificate generation
  */
 function startCertificateWorker() {
+  // Skip in HTTP cluster workers — only run in the dedicated worker.js process
+  if (parseInt(process.env.PAYMENT_WORKER_CONCURRENCY || '10', 10) === 0) return null;
+
   if (!isRedisAvailable()) {
     console.log('[Worker] Redis not available — certificate worker skipped (sync fallback active)');
     return null;

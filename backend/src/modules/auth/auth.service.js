@@ -82,11 +82,18 @@ async function loginCompany(email, password) {
 async function registerUser(data) {
   const { name, email, password, phone, batch_slug } = data;
 
-  // Validate batch exists and is active
-  const batch = await db.batch.findUnique({
-    where: { unique_slug: batch_slug },
-    include: { company: { select: { id: true, name: true, is_active: true } } },
-  });
+  // Try Redis cache first (same cache used by the public landing page endpoint)
+  let batch = null;
+  const cacheKey = `public:batch:${batch_slug}`;
+  const cached = await redisGet(cacheKey);
+  if (cached) {
+    batch = JSON.parse(cached);
+  } else {
+    batch = await db.batch.findUnique({
+      where: { unique_slug: batch_slug },
+      include: { company: { select: { id: true, name: true, is_active: true } } },
+    });
+  }
 
   if (!batch) {
     throw Object.assign(new Error('Invalid batch link'), { statusCode: 404 });
@@ -96,7 +103,7 @@ async function registerUser(data) {
     throw Object.assign(new Error('This batch is no longer accepting registrations'), { statusCode: 400 });
   }
 
-  if (!batch.company.is_active) {
+  if (!batch.company?.is_active) {
     throw Object.assign(new Error('This company account is inactive'), { statusCode: 400 });
   }
 
@@ -190,50 +197,49 @@ async function refreshAccessToken(refreshToken) {
     throw Object.assign(new Error('Token has been revoked'), { statusCode: 401 });
   }
 
-  // Verify the entity still exists and is active
-  let entityExists = false;
+  // Single DB query per role: verify exists + fetch name in one round-trip
+  let entity = null;
   if (decoded.role === 'company') {
-    const company = await db.company.findUnique({ where: { id: decoded.id } });
-    entityExists = company && company.is_active;
+    entity = await db.company.findUnique({
+      where: { id: decoded.id },
+      select: { id: true, name: true, is_active: true },
+    });
+    if (!entity || !entity.is_active) {
+      throw Object.assign(new Error('Account not found or inactive'), { statusCode: 401 });
+    }
   } else if (decoded.role === 'user') {
-    const user = await db.user.findUnique({ where: { id: decoded.id } });
-    entityExists = !!user;
+    entity = await db.user.findUnique({
+      where: { id: decoded.id },
+      select: { id: true, name: true },
+    });
+    if (!entity) {
+      throw Object.assign(new Error('Account not found or inactive'), { statusCode: 401 });
+    }
   } else if (decoded.role === 'superadmin') {
-    const admin = await db.superAdmin.findUnique({ where: { id: decoded.id } });
-    entityExists = !!admin;
-  }
-
-  if (!entityExists) {
-    throw Object.assign(new Error('Account not found or inactive'), { statusCode: 401 });
+    entity = await db.superAdmin.findUnique({
+      where: { id: decoded.id },
+      select: { id: true, name: true },
+    });
+    if (!entity) {
+      throw Object.assign(new Error('Account not found or inactive'), { statusCode: 401 });
+    }
   }
 
   const tokenPayload = { id: decoded.id, email: decoded.email, role: decoded.role };
   const accessToken = generateAccessToken(tokenPayload);
 
-  // Return user info so frontend can restore session state
   const user = {
     id: decoded.id,
     email: decoded.email,
     role: decoded.role,
+    name: entity?.name,
   };
-
-  // Fetch name from DB based on role
-  if (decoded.role === 'company') {
-    const company = await db.company.findUnique({ where: { id: decoded.id }, select: { name: true } });
-    if (company) user.name = company.name;
-  } else if (decoded.role === 'user') {
-    const u = await db.user.findUnique({ where: { id: decoded.id }, select: { name: true } });
-    if (u) user.name = u.name;
-  } else if (decoded.role === 'superadmin') {
-    const admin = await db.superAdmin.findUnique({ where: { id: decoded.id }, select: { name: true } });
-    if (admin) user.name = admin.name;
-  }
 
   return { accessToken, user };
 }
 
 /**
- * Logout - blacklist the refresh token
+ * Logout — blacklist the refresh token
  */
 async function logout(refreshToken) {
   if (!refreshToken) return;

@@ -1,103 +1,83 @@
 'use strict';
 
 const rateLimit = require('express-rate-limit');
-const { isRedisAvailable, getRedisClient } = require('../config/redis');
+const { RedisStore } = require('rate-limit-redis');
+const { getRedisClient, isRedisAvailable } = require('../config/redis');
 
-/**
- * Create a rate limiter — uses Redis store if available, falls back to in-memory
- */
 function createRateLimiter(options = {}) {
   const {
     windowMs = 15 * 60 * 1000,
     max = 100,
     message = 'Too many requests, please try again later',
-    keyPrefix = 'rl',
     skipSuccessfulRequests = false,
     keyGenerator = (req) => req.user?.id || req.ip,
+    prefix = 'rl',
   } = options;
 
-  // Build store only when Redis is actually available at request time
-  const getLimiter = () => {
-    const limiterOptions = {
-      windowMs,
-      max,
-      message: {
-        success: false,
-        message,
-        data: null,
-        error: 'RATE_LIMIT_EXCEEDED',
-      },
-      standardHeaders: true,
-      legacyHeaders: false,
-      skipSuccessfulRequests,
-      keyGenerator,
-    };
-
-    if (isRedisAvailable()) {
-      try {
-        const { RedisStore } = require('rate-limit-redis');
-        const client = getRedisClient();
-        limiterOptions.store = new RedisStore({
-          sendCommand: (...args) => client.call(...args),
-          prefix: `${keyPrefix}:`,
-        });
-      } catch {
-        // Fall through to memory store
-      }
-    }
-
-    return rateLimit(limiterOptions);
+  const limiterOptions = {
+    windowMs,
+    max,
+    message: {
+      success: false,
+      message,
+      data: null,
+      error: 'RATE_LIMIT_EXCEEDED',
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+    skipSuccessfulRequests,
+    keyGenerator,
   };
 
-  // Return a middleware that creates the appropriate limiter dynamically
-  let _limiter = null;
-  return (req, res, next) => {
-    if (!_limiter) {
-      _limiter = getLimiter();
-    }
-    _limiter(req, res, next);
-  };
+  // Use Redis store in production so limits are shared across cluster workers
+  if (isRedisAvailable()) {
+    limiterOptions.store = new RedisStore({
+      sendCommand: (...args) => getRedisClient().call(...args),
+      prefix: `${prefix}:`,
+    });
+  }
+
+  return rateLimit(limiterOptions);
 }
 
-// General API rate limiter - 100 requests per 15 minutes
+// General API: 300 req / 15 min per user/IP
 const generalLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000,
-  max: 100,
-  keyPrefix: 'rl:general',
+  max: 300,
+  prefix: 'rl:general',
 });
 
-// Auth rate limiter - 10 attempts per 15 minutes
+// Auth: 30 failed attempts / 15 min — only failed attempts count
 const authLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 30,
   message: 'Too many login attempts, please try again after 15 minutes',
-  keyPrefix: 'rl:auth',
+  skipSuccessfulRequests: true,
+  prefix: 'rl:auth',
 });
 
-// Payment initiation rate limiter - 10 attempts per 10 minutes per user
-// Prevents a user from flooding payment initiations
+// Payment initiation: 20 / 10 min
 const paymentLimiter = createRateLimiter({
   windowMs: 10 * 60 * 1000,
-  max: 10,
+  max: 20,
   message: 'Too many payment attempts, please try again after 10 minutes',
-  keyPrefix: 'rl:payment',
+  prefix: 'rl:payment',
 });
 
-// Webhook rate limiter — PayU sends from known IPs but we add IP-based protection
-// 200 webhooks per minute from same IP (PayU may batch-retry)
+// Webhook: 500 / min per IP — PayU may batch-retry during outage recovery
 const webhookLimiter = createRateLimiter({
   windowMs: 60 * 1000,
-  max: 200,
+  max: 500,
   message: 'Webhook rate limit exceeded',
-  keyPrefix: 'rl:webhook',
-  keyGenerator: (req) => req.ip, // always use IP (no auth on webhook)
+  keyGenerator: (req) => req.ip,
+  prefix: 'rl:webhook',
 });
 
-// Strict rate limiter for sensitive operations - 5 per 15 minutes
+// Strict: 10 / 15 min — password reset, sensitive ops
 const strictLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000,
-  max: 5,
-  keyPrefix: 'rl:strict',
+  max: 10,
+  prefix: 'rl:strict',
 });
 
 module.exports = {

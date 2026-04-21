@@ -118,6 +118,22 @@ async function getBatchCertificates(req, res) {
 async function getPublicBatch(req, res) {
   try {
     const batch = await batchService.getPublicBatchBySlug(req.params.slug);
+
+    // ETag based on batch id + status — changes only when company updates the batch
+    const etag = `"${batch.id}-${batch.status}"`;
+    if (req.headers['if-none-match'] === etag) {
+      return res.status(304).end();
+    }
+
+    // Cache at CDN/browser for 15 min — same as Redis TTL.
+    // stale-while-revalidate: serve stale for 60s while fetching fresh in background.
+    // stale-if-error: serve stale for 1h if origin is down.
+    res.set({
+      'Cache-Control': 'public, max-age=900, stale-while-revalidate=60, stale-if-error=3600',
+      'ETag': etag,
+      'Vary': 'Accept-Encoding',
+    });
+
     return sendSuccess(res, batch, 'Batch info retrieved');
   } catch (err) {
     return sendError(res, err.message, err.statusCode || 500);

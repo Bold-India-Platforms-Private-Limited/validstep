@@ -34,6 +34,11 @@ async function start() {
     }
 
     server = app.listen(PORT, () => {
+      // Keep-alive must exceed nginx's keepalive_timeout (default 75s).
+      // 65s ensures nginx closes first, preventing 502s on idle connections.
+      server.keepAliveTimeout = 65_000;
+      server.headersTimeout = 66_000;
+
       console.log(`
 ┌─────────────────────────────────────────────────┐
 │         Certificate SaaS Backend Server          │

@@ -9,6 +9,7 @@ const cookieParser = require('cookie-parser');
 const path = require('path');
 
 const env = require('./config/env');
+const { isRedisAvailable } = require('./config/redis');
 const { notFoundHandler, globalErrorHandler } = require('./middleware/errorHandler');
 const { generalLimiter } = require('./middleware/rateLimiter');
 
@@ -39,7 +40,6 @@ app.use(helmet({
 // ─── CORS ───────────────────────────────────────────────────────────────────
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps, curl, etc.)
     if (!origin) return callback(null, true);
     if (env.ALLOWED_ORIGINS.includes(origin)) {
       return callback(null, true);
@@ -52,25 +52,34 @@ app.use(cors({
 }));
 
 // ─── Body Parsing ───────────────────────────────────────────────────────────
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// 1mb is sufficient for all auth/payment/batch JSON payloads
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(cookieParser());
 
 // ─── Compression ────────────────────────────────────────────────────────────
-app.use(compression());
+// Only compress responses larger than 1kb — small payloads not worth the CPU
+app.use(compression({ threshold: 1024 }));
 
 // ─── Logging ────────────────────────────────────────────────────────────────
 if (env.isDev) {
   app.use(morgan('dev'));
 } else {
-  app.use(morgan('combined'));
+  // In production: skip health-check spam, log only non-200 or slow requests
+  app.use(morgan('combined', {
+    skip: (req, res) => req.path === '/health' && res.statusCode === 200,
+  }));
 }
 
 // ─── Trust Proxy (for accurate IP behind nginx/load balancer) ───────────────
 app.set('trust proxy', 1);
 
 // ─── Static Files (certificate PDFs) ────────────────────────────────────────
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use('/uploads', express.static(path.join(__dirname, '../uploads'), {
+  maxAge: '1d',      // browser caches static assets for 1 day
+  etag: true,
+  lastModified: true,
+}));
 
 // ─── Health Check ───────────────────────────────────────────────────────────
 app.get('/health', (req, res) => {
@@ -81,6 +90,7 @@ app.get('/health', (req, res) => {
       status: 'healthy',
       timestamp: new Date().toISOString(),
       environment: env.NODE_ENV,
+      redis: isRedisAvailable() ? 'connected' : 'unavailable',
     },
     error: null,
   });
@@ -88,29 +98,14 @@ app.get('/health', (req, res) => {
 
 // ─── API Routes ─────────────────────────────────────────────────────────────
 
-// Auth routes (no global auth required)
 app.use('/api/auth', authRoutes);
-
-// Company routes (requires company auth)
 app.use('/api/company', companyRoutes);
-
-// Company batch management routes (requires company auth)
 app.use('/api/company/batches', batchCompanyRoutes);
-
-// User routes (requires user auth)
 app.use('/api/user', userRoutes);
-
-// User certificate routes (requires user auth)
 app.use('/api/user/certificates', certUserRoutes);
-
-// Payment routes
 app.use('/api/payment', paymentRoutes);
-
-// Public routes (no auth required)
 app.use('/api/public', batchPublicRoutes);
 app.use('/api/public', certPublicRoutes);
-
-// Admin routes (requires superadmin auth)
 app.use('/api/admin', adminRoutes);
 
 // ─── Error Handling ──────────────────────────────────────────────────────────

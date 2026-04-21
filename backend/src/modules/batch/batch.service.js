@@ -4,7 +4,9 @@ const { db } = require('../../config/database');
 const { redisGet, redisSet, redisDel } = require('../../config/redis');
 const { generateBatchSlug } = require('../../utils/slugGenerator');
 
-const BATCH_CACHE_TTL = 300; // 5 minutes
+const BATCH_CACHE_TTL = 900; // 15 minutes base TTL
+// Jitter ±60s prevents cache stampede when many slugs expire simultaneously
+const batchCacheTTL = () => BATCH_CACHE_TTL + Math.floor(Math.random() * 120) - 60;
 
 /**
  * Create a new batch
@@ -534,7 +536,7 @@ async function getPublicBatchBySlug(slug) {
     template: batch.templates[0] || null,
   };
 
-  await redisSet(cacheKey, JSON.stringify(publicBatch), BATCH_CACHE_TTL);
+  await redisSet(cacheKey, JSON.stringify(publicBatch), batchCacheTTL());
   return publicBatch;
 }
 

@@ -195,6 +195,9 @@ async function processVerificationJob(job) {
 let worker = null;
 
 function startPaymentVerificationWorker() {
+  // CONCURRENCY=0 means this is an HTTP cluster worker — skip BullMQ entirely
+  if (CONCURRENCY === 0) return null;
+
   if (!isRedisAvailable()) {
     console.warn('[Worker] Redis unavailable — payment-verification worker not started');
     return null;
@@ -205,8 +208,10 @@ function startPaymentVerificationWorker() {
   worker = new Worker('payment-verification', processVerificationJob, {
     connection: getRedisClient(),
     concurrency: CONCURRENCY,
-    // Stalled job detection: if a job doesn't heartbeat in 60s, mark stalled
-    stalledInterval: 60_000,
+    // Check for stalled jobs every 5 min instead of 60s.
+    // Reduces idle Redis round-trips from 1/min → 1/5min — the queue
+    // is empty most of the time, so frequent checks waste resources.
+    stalledInterval: 300_000,
     maxStalledCount: 2,
   });
 

@@ -1,62 +1,67 @@
 'use strict';
 
 /**
- * PM2 Cluster Configuration for Validstep Backend
- * ─────────────────────────────────────────────────
- * Production command: pm2 start ecosystem.config.js --env production
- * Development:        pm2 start ecosystem.config.js --env development
+ * PM2 Cluster Configuration — Validstep Backend
+ * ───────────────────────────────────────────────
+ * Production: pm2 start ecosystem.config.js --env production --update-env
  *
- * At 10k tx/5min on a 4-core server:
- *   - 4 HTTP worker processes handle incoming requests
- *   - 1 dedicated worker process runs the BullMQ payment + cert workers
- *   - Each HTTP process: 5 Prisma connections × 4 = 20 DB connections total
+ * Architecture (2-core server targeting 50k users):
+ *   2 × HTTP workers  — handle all incoming requests (shared port, OS load-balances)
+ *   1 × BullMQ worker — async payment verification + certificate generation
+ *
+ * DB connections: 2 workers × 5 = 10 (Neon paid tier handles this fine)
  */
 
 module.exports = {
   apps: [
-    /* ── HTTP API Server (clustered across all CPU cores) ── */
+    /* ── HTTP API Server ── */
     {
-      name: 'validstep-api',
+      name: 'validstep',
       script: 'server.js',
-      instances: 'max',       // = number of CPU cores (e.g., 4 on a 4-core VPS)
-      exec_mode: 'cluster',   // Node.js cluster — shared port, OS load-balances
+      instances: 2,             // match CPU core count — avoid over-subscribing
+      exec_mode: 'cluster',
       watch: false,
-      max_memory_restart: '512M',
+      max_memory_restart: '400M',
 
       env: {
         NODE_ENV: 'development',
         PORT: 5001,
-        // Each cluster instance gets its own DB pool slice
-        // Neon free: set connection_limit=2, paid: 5
-        PAYMENT_WORKER_CONCURRENCY: '0', // HTTP workers: don't run payment worker
+        PAYMENT_WORKER_CONCURRENCY: '0',
       },
 
       env_production: {
         NODE_ENV: 'production',
         PORT: 5001,
-        PAYMENT_WORKER_CONCURRENCY: '0', // dedicated worker process handles this
+        PAYMENT_WORKER_CONCURRENCY: '0',
+        UV_THREADPOOL_SIZE: '16',
       },
 
-      // PM2 merge logs from all instances
+      // Cap V8 heap at 150MB per worker.
+      // Without a limit, V8 may grow to 500MB+ before GC kicks in.
+      // 150MB is enough for the request workload and lets GC run more aggressively.
+      node_args: '--max-old-space-size=150',
+
       combine_logs: true,
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-      error_file: './logs/api-error.log',
-      out_file: './logs/api-out.log',
+      error_file: '/home/ec2-user/logs/validstep-error.log',
+      out_file: '/home/ec2-user/logs/validstep-out.log',
 
-      // Graceful restart
-      kill_timeout: 10_000,   // 10s for in-flight requests to drain
-      listen_timeout: 5_000,
+      kill_timeout: 15_000,    // 15s to drain in-flight requests before SIGKILL
+      listen_timeout: 8_000,
       shutdown_with_message: true,
+
+      // Exponential restart delay — prevents CPU burn on repeated crash loops
+      exp_backoff_restart_delay: 100,
     },
 
-    /* ── Payment + Certificate Worker (single process) ── */
+    /* ── Payment + Certificate Worker ── */
     {
       name: 'validstep-worker',
-      script: 'worker.js',    // see worker.js entry point below
+      script: 'worker.js',
       instances: 1,
-      exec_mode: 'fork',      // single process — BullMQ manages its own concurrency
+      exec_mode: 'fork',        // single process — BullMQ manages concurrency internally
       watch: false,
-      max_memory_restart: '256M',
+      max_memory_restart: '300M',
 
       env: {
         NODE_ENV: 'development',
@@ -65,15 +70,20 @@ module.exports = {
 
       env_production: {
         NODE_ENV: 'production',
-        PAYMENT_WORKER_CONCURRENCY: '20', // 20 concurrent PayU API calls
+        PAYMENT_WORKER_CONCURRENCY: '50',
+        UV_THREADPOOL_SIZE: '16',
       },
+
+      // Worker is memory-lighter than HTTP — 100MB cap is sufficient
+      node_args: '--max-old-space-size=100',
 
       combine_logs: true,
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-      error_file: './logs/worker-error.log',
-      out_file: './logs/worker-out.log',
+      error_file: '/home/ec2-user/logs/validstep-worker-error.log',
+      out_file: '/home/ec2-user/logs/validstep-worker-out.log',
 
-      kill_timeout: 30_000,   // workers need more time to finish in-flight jobs
+      kill_timeout: 60_000,    // 60s — let in-flight PayU API calls complete before kill
+      exp_backoff_restart_delay: 100,
     },
   ],
 };

@@ -8,18 +8,27 @@ let redisAvailable = false;
 
 function createRedisClient() {
   const client = new Redis(env.REDIS_URL, {
-    maxRetriesPerRequest: 0,       // Don't retry commands — fail fast
-    enableReadyCheck: false,
-    lazyConnect: true,             // Don't connect immediately
+    // BullMQ requires null — lets commands retry on reconnect instead of throwing immediately
+    maxRetriesPerRequest: null,
+    enableReadyCheck: true,
+    lazyConnect: true,
+    // Keep retrying forever with exponential backoff capped at 30s
     retryStrategy(times) {
-      if (times > 3) return null;  // Stop retrying after 3 attempts
-      return Math.min(times * 500, 2000);
+      const delay = Math.min(Math.pow(2, times) * 500, 30_000);
+      return delay;
     },
-    reconnectOnError: () => false, // Don't reconnect on command errors
+    // Reconnect when server returns READONLY (failover) or LOADING errors
+    reconnectOnError(err) {
+      const targetErrors = ['READONLY', 'LOADING', 'NOAUTH'];
+      return targetErrors.some((e) => err.message.includes(e));
+    },
+    // Keep connection alive through idle periods
+    keepAlive: 10_000,
+    connectTimeout: 10_000,
+    // No commandTimeout — BullMQ uses long-blocking commands (BRPOP, XREAD)
   });
 
   client.on('connect', () => {
-    redisAvailable = true;
     console.log('[Redis] Connected');
   });
 
@@ -29,10 +38,7 @@ function createRedisClient() {
 
   client.on('error', (err) => {
     redisAvailable = false;
-    // Only log once, not every retry
-    if (err.code === 'ECONNREFUSED') {
-      // Suppress repeated ECONNREFUSED noise
-    } else {
+    if (err.code !== 'ECONNREFUSED') {
       console.warn('[Redis] Error:', err.message);
     }
   });
@@ -41,14 +47,18 @@ function createRedisClient() {
     redisAvailable = false;
   });
 
+  client.on('reconnecting', (delay) => {
+    console.log(`[Redis] Reconnecting in ${delay}ms...`);
+  });
+
   client.on('end', () => {
     redisAvailable = false;
+    console.warn('[Redis] Connection ended — will not reconnect');
   });
 
   return client;
 }
 
-// Attempt connection — but don't crash if Redis is unavailable
 async function initRedis() {
   try {
     redisClient = createRedisClient();
@@ -120,7 +130,6 @@ async function disconnectRedis() {
   }
 }
 
-// Singleton export — call initRedis() once at startup
 module.exports = {
   initRedis,
   getRedisClient,

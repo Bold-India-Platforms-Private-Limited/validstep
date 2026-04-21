@@ -26,13 +26,13 @@ function getPaymentQueue() {
     paymentQueue = new Queue('payment-verification', {
       connection: getRedisClient(),
       defaultJobOptions: {
-        attempts: 5,
+        attempts: 7,            // 7 retries: 3s, 6s, 12s, 24s, 48s, 96s, 192s (~5.5min total)
         backoff: {
           type: 'exponential',
-          delay: 3_000, // 3s, 6s, 12s, 24s, 48s
+          delay: 3_000,
         },
-        removeOnComplete: { count: 500 },  // keep last 500 completed jobs for audit
-        removeOnFail: { count: 200 },
+        removeOnComplete: { count: 1000 }, // audit trail for last 1000 settled payments
+        removeOnFail: { count: 500 },      // keep failed jobs for manual reconciliation
       },
     });
 
@@ -60,12 +60,14 @@ async function enqueuePaymentVerification(data) {
     return null;
   }
 
-  const { txnid } = data;
+  const { txnid, source } = data;
   const jobId = `payu:${txnid}`;
 
-  // BullMQ deduplication: if a job with same jobId already exists
-  // in waiting/active/delayed state, this is a no-op.
-  const job = await queue.add('verify-and-settle', data, { jobId });
+  // Redirect jobs (user is waiting on the page) get higher priority than webhooks
+  const priority = source === 'redirect' ? 1 : 2;
+
+  // BullMQ deduplication: same jobId is a no-op if already waiting/active
+  const job = await queue.add('verify-and-settle', data, { jobId, priority });
   return job;
 }
 
