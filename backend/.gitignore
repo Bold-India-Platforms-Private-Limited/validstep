@@ -1,9 +1,12 @@
+# Dependencies
 node_modules/
 
+# Environment
 .env
 .env.*
 !.env.example
 
+# Logs
 logs/
 *.log
 npm-debug.log*
@@ -11,11 +14,30 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# Coverage
 coverage/
 
+# Prisma local DB
 prisma/*.db
 prisma/*.db-journal
 prisma/dev.db
 prisma/dev.db-journal
 
+# Build
 dist/
+
+# Uploads (generated files)
+uploads/
+
+# Editor
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# PM2
+ecosystem.config.local.js
+
+# Nginx (server config, not for repo)
+*.conf
