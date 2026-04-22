@@ -38,12 +38,16 @@ app.use(helmet({
 }));
 
 // ─── CORS ───────────────────────────────────────────────────────────────────
+// PayU POSTs to /api/payment/success and /api/payment/failure from its own
+// domain. These are browser form POSTs (not XHR), so we allow them separately
+// before the strict CORS policy runs.
+const PAYU_ORIGINS = ['https://secure.payu.in', 'https://test.payu.in'];
+
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
-    if (env.ALLOWED_ORIGINS.includes(origin)) {
-      return callback(null, true);
-    }
+    if (env.ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    if (PAYU_ORIGINS.includes(origin)) return callback(null, true);
     return callback(new Error(`CORS policy violation: ${origin} is not allowed`));
   },
   credentials: true,
@@ -74,9 +78,9 @@ if (env.isDev) {
 // ─── Trust Proxy (for accurate IP behind nginx/load balancer) ───────────────
 app.set('trust proxy', 1);
 
-// ─── Static Files (certificate PDFs) ────────────────────────────────────────
+// ─── Static Files (certificates + template backgrounds) ─────────────────────
 app.use('/uploads', express.static(path.join(__dirname, '../uploads'), {
-  maxAge: '1d',      // browser caches static assets for 1 day
+  maxAge: '7d',
   etag: true,
   lastModified: true,
 }));

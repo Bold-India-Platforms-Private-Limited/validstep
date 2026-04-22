@@ -99,8 +99,11 @@ async function registerUser(data) {
     throw Object.assign(new Error('Invalid batch link'), { statusCode: 404 });
   }
 
-  if (!batch.is_active || batch.status === 'COMPLETED') {
-    throw Object.assign(new Error('This batch is no longer accepting registrations'), { statusCode: 400 });
+  if (!batch.is_active || batch.status === 'COMPLETED' || batch.status === 'HOLD') {
+    const msg = batch.status === 'HOLD'
+      ? 'Registrations for this batch are temporarily paused'
+      : 'This batch is no longer accepting registrations';
+    throw Object.assign(new Error(msg), { statusCode: 400 });
   }
 
   if (!batch.company?.is_active) {

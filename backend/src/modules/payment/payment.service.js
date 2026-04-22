@@ -204,8 +204,11 @@ async function initiatePayment(userId, data) {
   if (!user) throw Object.assign(new Error('User not found'), { statusCode: 404 });
   if (!batch) throw Object.assign(new Error('Batch not found'), { statusCode: 404 });
 
-  if (!batch.is_active || batch.status === 'COMPLETED') {
-    throw Object.assign(new Error('This batch is not accepting payments'), { statusCode: 400 });
+  if (!batch.is_active || batch.status === 'COMPLETED' || batch.status === 'HOLD') {
+    const msg = batch.status === 'HOLD'
+      ? 'Payments for this batch are temporarily paused'
+      : 'This batch is not accepting payments';
+    throw Object.assign(new Error(msg), { statusCode: 400 });
   }
 
   const existingPaid = await db.order.findFirst({

@@ -205,6 +205,8 @@ async function createOrUpdateTemplate(companyId, batchId, data) {
     show_signature = false,
     signature_url,
     custom_text,
+    layout_config,
+    background_image_url,
   } = data;
 
   // Deactivate existing templates for this batch
@@ -226,11 +228,31 @@ async function createOrUpdateTemplate(companyId, batchId, data) {
       show_signature,
       signature_url: signature_url || null,
       custom_text: custom_text || null,
+      layout_config: layout_config || null,
+      background_image_url: background_image_url || null,
       is_active: true,
     },
   });
 
+  // Invalidate public batch cache so new template is reflected
+  await redisDel(`public:batch:${batch.unique_slug}`);
+
   return template;
+}
+
+/**
+ * Upload a background image for a batch template
+ */
+async function uploadTemplateBackground(companyId, batchId, file) {
+  const batch = await db.batch.findFirst({
+    where: { id: batchId, company_id: companyId },
+  });
+  if (!batch) throw Object.assign(new Error('Batch not found'), { statusCode: 404 });
+  if (!file) throw Object.assign(new Error('No file uploaded'), { statusCode: 400 });
+
+  const env = require('../../config/env');
+  const url = `${env.BACKEND_URL}/uploads/templates/${file.filename}`;
+  return { url };
 }
 
 /**
@@ -516,8 +538,11 @@ async function getPublicBatchBySlug(slug) {
     throw Object.assign(new Error('Batch not found'), { statusCode: 404 });
   }
 
-  if (!batch.is_active) {
+  if (!batch.is_active || batch.status === 'COMPLETED') {
     throw Object.assign(new Error('This batch is no longer active'), { statusCode: 410 });
+  }
+  if (batch.status === 'HOLD') {
+    throw Object.assign(new Error('This batch is temporarily paused'), { statusCode: 503 });
   }
 
   // Remove sensitive fields

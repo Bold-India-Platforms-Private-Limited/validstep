@@ -140,6 +140,15 @@ async function getPublicBatch(req, res) {
   }
 }
 
+async function uploadTemplateBackground(req, res) {
+  try {
+    const result = await batchService.uploadTemplateBackground(req.user.id, req.params.id, req.file);
+    return sendSuccess(res, result, 'Background uploaded successfully');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
 module.exports = {
   createBatch,
   getBatches,
@@ -147,6 +156,7 @@ module.exports = {
   updateBatch,
   createOrUpdateTemplate,
   getTemplates,
+  uploadTemplateBackground,
   issueCertificates,
   getBatchOrders,
   exportBatchOrders,

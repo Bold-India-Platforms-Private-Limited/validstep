@@ -6,6 +6,7 @@ const controller = require('./batch.controller');
 const { validate } = require('../../middleware/validate');
 const { requireCompany } = require('../../middleware/auth');
 const { generalLimiter } = require('../../middleware/rateLimiter');
+const { uploadTemplateBackground } = require('../../middleware/upload');
 
 const router = Router();
 
@@ -35,12 +36,12 @@ const updateBatchSchema = z.object({
   certificate_price: z.number().min(0).optional(),
   currency: z.string().length(3).optional(),
   is_active: z.boolean().optional(),
-  status: z.enum(['DRAFT', 'ACTIVE', 'COMPLETED']).optional(),
+  status: z.enum(['DRAFT', 'ACTIVE', 'HOLD', 'COMPLETED']).optional(),
 });
 
 const templateSchema = z.object({
   template_name: z.string().min(2).max(100),
-  template_type: z.enum(['CLASSIC', 'MODERN', 'MINIMAL']).optional(),
+  template_type: z.enum(['CLASSIC', 'MODERN', 'MINIMAL', 'CUSTOM']).optional(),
   background_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
   accent_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
   font_family: z.string().optional(),
@@ -48,6 +49,8 @@ const templateSchema = z.object({
   show_signature: z.boolean().optional(),
   signature_url: z.string().url().optional().or(z.literal('')),
   custom_text: z.string().max(500).optional(),
+  layout_config: z.record(z.any()).optional(),
+  background_image_url: z.string().optional(),
 });
 
 const issueCertificatesSchema = z.object({
@@ -57,7 +60,7 @@ const issueCertificatesSchema = z.object({
 const listQuerySchema = z.object({
   page: z.string().optional().transform(v => v ? parseInt(v) : 1),
   limit: z.string().optional().transform(v => v ? Math.min(parseInt(v), 100) : 20),
-  status: z.enum(['DRAFT', 'ACTIVE', 'COMPLETED']).optional(),
+  status: z.enum(['DRAFT', 'ACTIVE', 'HOLD', 'COMPLETED']).optional(),
   program_id: z.string().uuid().optional(),
 });
 
@@ -74,6 +77,7 @@ companyRouter.get('/:id', controller.getBatchById);
 companyRouter.put('/:id', validate({ body: updateBatchSchema }), controller.updateBatch);
 companyRouter.post('/:id/templates', validate({ body: templateSchema }), controller.createOrUpdateTemplate);
 companyRouter.get('/:id/templates', controller.getTemplates);
+companyRouter.post('/:id/templates/upload-background', uploadTemplateBackground, controller.uploadTemplateBackground);
 companyRouter.post('/:id/issue-certificates', validate({ body: issueCertificatesSchema }), controller.issueCertificates);
 companyRouter.get('/:id/orders', validate({ query: ordersQuerySchema }), controller.getBatchOrders);
 companyRouter.get('/:id/orders/export', controller.exportBatchOrders);

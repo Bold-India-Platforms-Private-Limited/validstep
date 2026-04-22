@@ -2,6 +2,8 @@
 
 const { PDFDocument, rgb, StandardFonts, degrees } = require('pdf-lib');
 const QRCode = require('qrcode');
+const https = require('https');
+const http = require('http');
 const env = require('../../config/env');
 
 /**
@@ -609,6 +611,153 @@ async function generateMinimalTemplate(data, template) {
 }
 
 /**
+ * Fetch remote URL as Buffer (for loading uploaded background images)
+ */
+function fetchBuffer(url) {
+  return new Promise((resolve, reject) => {
+    const client = url.startsWith('https') ? https : http;
+    client.get(url, (res) => {
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
+      res.on('end', () => resolve(Buffer.concat(chunks)));
+      res.on('error', reject);
+    }).on('error', reject);
+  });
+}
+
+const DEFAULT_LAYOUT = {
+  companyName: { x: 50, y: 20, fontSize: 22, color: '#1a237e', align: 'center', bold: true, visible: true },
+  programType: { x: 50, y: 30, fontSize: 14, color: '#555555', align: 'center', bold: false, visible: true },
+  subtitle:    { x: 50, y: 42, fontSize: 11, color: '#777777', align: 'center', bold: false, visible: true },
+  name:        { x: 50, y: 55, fontSize: 38, color: '#111111', align: 'center', bold: true,  visible: true },
+  dates:       { x: 50, y: 67, fontSize: 13, color: '#444444', align: 'center', bold: false, visible: true },
+  serial:      { x: 8,  y: 91, fontSize: 9,  color: '#888888', align: 'left',   bold: false, visible: true },
+  verification:{ x: 50, y: 94, fontSize: 8,  color: '#999999', align: 'center', bold: false, visible: true },
+  qrCode:      { x: 90, y: 82, size: 70, visible: true },
+  logo:        { x: 50, y: 10, width: 80, height: 50, visible: false },
+};
+
+/**
+ * CUSTOM Template: JPG/PNG background + configurable element positions
+ */
+async function generateCustomTemplate(data, template) {
+  const { userName, companyName, role, batchName, startDate, endDate,
+          certificateSerial, programType, verificationHash, companyLogoUrl } = data;
+  const { background_image_url, layout_config, custom_text } = template;
+
+  const layout = { ...DEFAULT_LAYOUT };
+  if (layout_config && typeof layout_config === 'object') {
+    for (const [key, val] of Object.entries(layout_config)) {
+      layout[key] = { ...layout[key], ...val };
+    }
+  }
+
+  const pdfDoc = await PDFDocument.create();
+  const page = pdfDoc.addPage([841.89, 595.28]);
+  const { width, height } = page.getSize();
+
+  const helvetica      = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const helveticaBold  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  // Background image
+  if (background_image_url) {
+    try {
+      const imgBytes = await fetchBuffer(background_image_url);
+      let bgImage;
+      const lc = background_image_url.toLowerCase();
+      if (lc.endsWith('.png') || lc.includes('png')) {
+        bgImage = await pdfDoc.embedPng(imgBytes);
+      } else {
+        bgImage = await pdfDoc.embedJpg(imgBytes);
+      }
+      page.drawImage(bgImage, { x: 0, y: 0, width, height });
+    } catch (e) {
+      console.warn('[Generator] Background image load failed:', e.message);
+      page.drawRectangle({ x: 0, y: 0, width, height, color: rgb(1, 1, 1) });
+    }
+  } else {
+    page.drawRectangle({ x: 0, y: 0, width, height, color: rgb(1, 1, 1) });
+  }
+
+  // Helper: resolve position (x/y as % of page, origin PDF bottom-left)
+  const px  = (pct) => (pct / 100) * width;
+  const py  = (pct) => height - (pct / 100) * height;
+
+  function drawEl(el, text, opts = {}) {
+    if (!el?.visible || !text) return;
+    const font  = el.bold ? helveticaBold : helvetica;
+    const size  = el.fontSize || 12;
+    const color = hexToRgb(el.color || '#000000');
+    const xPos  = px(el.x);
+    const yPos  = py(el.y);
+
+    let drawX = xPos;
+    const textW = font.widthOfTextAtSize(text, size);
+    if (el.align === 'center') drawX = xPos - textW / 2;
+    else if (el.align === 'right') drawX = xPos - textW;
+
+    page.drawText(text, { x: Math.max(0, drawX), y: yPos, size, font, color, ...opts });
+  }
+
+  const programLabel = {
+    INTERNSHIP: 'Certificate of Internship',
+    COURSE: 'Certificate of Completion',
+    PARTICIPATION: 'Certificate of Participation',
+    HACKATHON: 'Certificate of Achievement',
+    OTHER: 'Certificate',
+  }[programType] || 'Certificate';
+
+  const roleText = role ? `${programLabel} — ${role}` : programLabel;
+  const datesText = `${formatDate(startDate)} — ${formatDate(endDate)}`;
+  const verifyUrl = `${env.FRONTEND_URL}/verify/${verificationHash}`;
+
+  drawEl(layout.companyName, companyName);
+  drawEl(layout.programType, roleText);
+  drawEl(layout.subtitle, 'This is to certify that');
+  drawEl(layout.name, truncateText(userName, layout.name.bold ? helveticaBold : helvetica, layout.name.fontSize || 38, width * 0.7));
+  drawEl(layout.dates, datesText);
+  if (custom_text) drawEl({ ...layout.dates, y: (layout.dates?.y || 67) + 7, fontSize: 11 }, custom_text);
+  drawEl(layout.serial, `Certificate ID: ${certificateSerial}`);
+  drawEl(layout.verification, `Verify: ${verifyUrl}`);
+
+  // Company logo
+  if (layout.logo?.visible && companyLogoUrl) {
+    try {
+      const logoBytes = await fetchBuffer(companyLogoUrl);
+      const logoImg = await pdfDoc.embedJpg(logoBytes).catch(() => pdfDoc.embedPng(logoBytes));
+      const lW = ((layout.logo.width || 80) / 100) * width * 0.3;
+      const lH = ((layout.logo.height || 50) / 100) * height * 0.3;
+      page.drawImage(logoImg, {
+        x: px(layout.logo.x) - lW / 2,
+        y: py(layout.logo.y) - lH / 2,
+        width: lW,
+        height: lH,
+      });
+    } catch { /* skip logo on error */ }
+  }
+
+  // QR Code
+  const qr = layout.qrCode;
+  if (qr?.visible) {
+    const qrDataUrl = await generateQRCode(verifyUrl);
+    if (qrDataUrl) {
+      const qrSize = qr.size || 70;
+      const qrBytes = Buffer.from(qrDataUrl.split(',')[1], 'base64');
+      const qrImage = await pdfDoc.embedPng(qrBytes);
+      page.drawImage(qrImage, {
+        x: px(qr.x) - qrSize / 2,
+        y: py(qr.y) - qrSize / 2,
+        width: qrSize,
+        height: qrSize,
+      });
+    }
+  }
+
+  const pdfBytes = await pdfDoc.save();
+  return Buffer.from(pdfBytes);
+}
+
+/**
  * Main certificate generator - dispatch to correct template
  */
 async function generateCertificate(data, template) {
@@ -619,6 +768,8 @@ async function generateCertificate(data, template) {
       return generateModernTemplate(data, template);
     case 'MINIMAL':
       return generateMinimalTemplate(data, template);
+    case 'CUSTOM':
+      return generateCustomTemplate(data, template);
     case 'CLASSIC':
     default:
       return generateClassicTemplate(data, template);
