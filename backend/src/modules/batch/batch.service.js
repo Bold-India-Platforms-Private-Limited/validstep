@@ -519,6 +519,7 @@ async function getPublicBatchBySlug(slug) {
           logo_url: true,
           website: true,
           description: true,
+          is_active: true,
         },
       },
       templates: {
