@@ -555,6 +555,7 @@ async function getPublicBatchBySlug(slug) {
     certificate_price: batch.certificate_price,
     currency: batch.currency,
     status: batch.status,
+    is_active: batch.is_active,
     unique_slug: batch.unique_slug,
     program: batch.program,
     company: batch.company,
