@@ -213,6 +213,49 @@ async function getOrderForInvoice(userId, orderId) {
   return order;
 }
 
+async function getUserInvoices(userId, query = {}) {
+  const { page = 1, limit = 20 } = query;
+  const skip = (page - 1) * Number(limit);
+
+  const where = { order: { user_id: userId } };
+
+  const [invoices, total] = await Promise.all([
+    db.invoice.findMany({
+      where,
+      skip,
+      take: Number(limit),
+      orderBy: { generated_at: 'desc' },
+      include: {
+        order: {
+          select: {
+            id: true,
+            certificate_serial: true,
+            status: true,
+            batch: {
+              select: {
+                name: true,
+                program: { select: { name: true, type: true } },
+                company: { select: { name: true } },
+              },
+            },
+          },
+        },
+      },
+    }),
+    db.invoice.count({ where }),
+  ]);
+
+  return {
+    invoices,
+    pagination: {
+      total,
+      page: Number(page),
+      limit: Number(limit),
+      pages: Math.ceil(total / Number(limit)),
+    },
+  };
+}
+
 module.exports = {
   getDashboard,
   getOrders,
@@ -220,4 +263,5 @@ module.exports = {
   updateProfile,
   getPaymentHistory,
   getOrderForInvoice,
+  getUserInvoices,
 };

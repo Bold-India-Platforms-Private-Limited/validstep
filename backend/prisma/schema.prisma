@@ -188,6 +188,7 @@ model Order {
   company     Company       @relation(fields: [company_id], references: [id], onDelete: Cascade)
   payments    Payment[]
   certificate Certificate?
+  invoice     Invoice?
 
   @@index([user_id])
   @@index([batch_id])
@@ -262,6 +263,23 @@ model VerificationLog {
 
   @@index([certificate_id])
   @@map("verification_logs")
+}
+
+model Invoice {
+  id             String    @id @default(uuid())
+  order_id       String    @unique
+  invoice_number String    @unique
+  amount         Decimal   @db.Decimal(10, 2)
+  currency       String    @default("INR")
+  payu_txn_id    String?
+  paid_at        DateTime?
+  download_count Int       @default(0)
+  generated_at   DateTime  @default(now())
+
+  order Order @relation(fields: [order_id], references: [id], onDelete: Cascade)
+
+  @@index([order_id])
+  @@map("invoices")
 }
 
 model PricingConfig {

@@ -65,6 +65,11 @@ export const adminApi = baseApi.injectEndpoints({
     reconcilePayment: b.mutation({
       query: (txnid) => ({ url: `/payment/reconcile/${txnid}`, method: 'POST' }),
     }),
+    getAdminInvoices: b.query({
+      query: (params) => ({ url: '/admin/invoices', params }),
+      transformResponse: (r) => r.data,
+      providesTags: ['Invoice'],
+    }),
   }),
 })
 
@@ -76,4 +81,5 @@ export const {
   useGetAdminOrdersQuery, useGetAdminPaymentsQuery,
   useGetPricingQuery, useUpdatePricingMutation,
   useIssueCertificatesAdminMutation, useReconcilePaymentMutation,
+  useGetAdminInvoicesQuery,
 } = adminApi

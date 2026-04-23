@@ -5,7 +5,7 @@ import { useLogoutMutation } from '../../store/api/authApi'
 import { clearCredentials, selectUser } from '../../store/authSlice'
 import {
   LayoutDashboard, Building2, Layers, ShoppingBag, DollarSign,
-  CreditCard, LogOut, Menu, X, Shield,
+  CreditCard, LogOut, Menu, X, Shield, FileText,
 } from 'lucide-react'
 
 const nav = [
@@ -14,6 +14,7 @@ const nav = [
   { to: '/admin/batches', icon: Layers, label: 'Batches' },
   { to: '/admin/orders', icon: ShoppingBag, label: 'Orders' },
   { to: '/admin/payments', icon: CreditCard, label: 'Payments' },
+  { to: '/admin/invoices', icon: FileText, label: 'Invoices' },
   { to: '/admin/pricing', icon: DollarSign, label: 'Pricing' },
 ]
 

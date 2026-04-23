@@ -2,7 +2,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { useLogoutMutation } from '../../store/api/authApi'
 import { clearCredentials, selectUser } from '../../store/authSlice'
-import { Award, LogOut, User } from 'lucide-react'
+import { Award, LogOut, User, FileText } from 'lucide-react'
 
 export function UserLayout({ children }) {
   const dispatch = useDispatch()
@@ -27,6 +27,13 @@ export function UserLayout({ children }) {
             <span className="font-bold text-slate-900">Validstep</span>
           </Link>
           <div className="flex items-center gap-3">
+            <Link
+              to="/dashboard/invoices"
+              className="hidden sm:flex items-center gap-1.5 text-sm text-slate-600 hover:text-primary-600 transition-colors"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              Invoices
+            </Link>
             <span className="hidden text-sm text-slate-600 sm:block">
               <User className="inline h-3.5 w-3.5 mr-1" />{user?.name}
             </span>

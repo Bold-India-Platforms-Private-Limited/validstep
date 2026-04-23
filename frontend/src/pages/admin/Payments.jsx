@@ -3,13 +3,15 @@ import { useGetAdminPaymentsQuery, useReconcilePaymentMutation } from '../../sto
 import { PageSpinner } from '../../components/ui/Spinner'
 import { StatusBadge } from '../../components/ui/Badge'
 import { formatDate, formatCurrency } from '../../utils/formatDate'
-import { CreditCard, RefreshCw, Search } from 'lucide-react'
+import { downloadInvoicePDF } from '../../utils/downloadInvoice'
+import { CreditCard, RefreshCw, Search, FileText } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export default function AdminPayments() {
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
+  const [downloadingId, setDownloadingId] = useState(null)
   const { data, isLoading, refetch } = useGetAdminPaymentsQuery({ page, limit: 20, search, status })
   const [reconcile, { isLoading: reconciling }] = useReconcilePaymentMutation()
 
@@ -23,6 +25,20 @@ export default function AdminPayments() {
       refetch()
     } catch (err) {
       toast.error(err?.data?.message || 'Failed')
+    }
+  }
+
+  const handleDownloadInvoice = async (payment) => {
+    const orderId = payment.order?.id
+    const serial = payment.order?.certificate?.certificate_serial || payment.order_id
+    if (!orderId) return
+    setDownloadingId(payment.id)
+    try {
+      await downloadInvoicePDF('admin', orderId, `invoice-${serial}.pdf`)
+    } catch (err) {
+      toast.error(err.message || 'Failed to download invoice')
+    } finally {
+      setDownloadingId(null)
     }
   }
 
@@ -84,22 +100,38 @@ export default function AdminPayments() {
                   <td className="px-4 py-3 text-sm font-semibold text-slate-900">{formatCurrency(p.amount)}</td>
                   <td className="px-4 py-3"><StatusBadge status={p.status} /></td>
                   <td className="px-4 py-3">
-                    <span className="font-mono text-xs text-slate-500 break-all">{p.txnid || '—'}</span>
+                    <span className="font-mono text-xs text-slate-500 break-all">{p.payu_txn_id || p.txnid || '—'}</span>
                   </td>
                   <td className="px-4 py-3 text-xs text-slate-500">{p.gateway || 'PayU'}</td>
                   <td className="px-4 py-3 text-sm text-slate-500">{formatDate(p.created_at)}</td>
                   <td className="px-4 py-3">
-                    {p.status === 'PENDING' && p.txnid && (
-                      <button
-                        onClick={() => handleReconcile(p.txnid)}
-                        disabled={reconciling}
-                        title="Sync with PayU"
-                        className="flex items-center gap-1 text-xs text-primary-600 hover:underline disabled:opacity-50"
-                      >
-                        <RefreshCw className="h-3.5 w-3.5" />
-                        Sync
-                      </button>
-                    )}
+                    <div className="flex flex-col gap-1.5">
+                      {p.status === 'SUCCESS' && (
+                        <button
+                          onClick={() => handleDownloadInvoice(p)}
+                          disabled={downloadingId === p.id}
+                          title="Download Invoice"
+                          className="flex items-center gap-1 text-xs text-emerald-600 hover:underline disabled:opacity-50"
+                        >
+                          {downloadingId === p.id
+                            ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-600 inline-block" />
+                            : <FileText className="h-3.5 w-3.5" />
+                          }
+                          Invoice
+                        </button>
+                      )}
+                      {p.status === 'PENDING' && (p.payu_txn_id || p.txnid) && (
+                        <button
+                          onClick={() => handleReconcile(p.payu_txn_id || p.txnid)}
+                          disabled={reconciling}
+                          title="Sync with PayU"
+                          className="flex items-center gap-1 text-xs text-primary-600 hover:underline disabled:opacity-50"
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                          Sync
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

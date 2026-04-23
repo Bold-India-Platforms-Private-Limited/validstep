@@ -110,6 +110,21 @@ async function markOrderPaid(orderId, txnid, mihpayid, gatewayResponse, isWebhoo
         },
       });
     }
+
+    // Create invoice record (idempotent — skip if already exists)
+    const existingInvoice = await tx.invoice.findUnique({ where: { order_id: orderId } });
+    if (!existingInvoice) {
+      await tx.invoice.create({
+        data: {
+          order_id: orderId,
+          invoice_number: `INV-${order.certificate_serial}`,
+          amount: order.amount,
+          currency: order.currency,
+          payu_txn_id: txnid || null,
+          paid_at: new Date(),
+        },
+      });
+    }
   });
 
   // Fire-and-forget email — never await in the hot path
@@ -475,6 +490,46 @@ async function getPaymentStatus(userId, orderId) {
   return order;
 }
 
+/* ─────────────────────────────────────────────
+   Invoice Record helpers
+   Used by download endpoints to get consistent invoice_number
+   and track download counts.
+───────────────────────────────────────────── */
+
+async function getOrCreateInvoiceRecord(orderId) {
+  let invoice = await db.invoice.findUnique({ where: { order_id: orderId } });
+  if (!invoice) {
+    // Fallback for orders paid before invoice tracking was added
+    const order = await db.order.findUnique({
+      where: { id: orderId },
+      select: { certificate_serial: true, amount: true, currency: true, payu_txn_id: true, status: true },
+    });
+    if (!order) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
+
+    const invoiceNumber = `INV-${order.certificate_serial}`;
+    invoice = await db.invoice.upsert({
+      where: { order_id: orderId },
+      create: {
+        order_id: orderId,
+        invoice_number: invoiceNumber,
+        amount: order.amount,
+        currency: order.currency,
+        payu_txn_id: order.payu_txn_id || null,
+        paid_at: order.status === 'PAID' ? new Date() : null,
+      },
+      update: {},
+    });
+  }
+  return invoice;
+}
+
+async function incrementInvoiceDownloadCount(orderId) {
+  await db.invoice.updateMany({
+    where: { order_id: orderId },
+    data: { download_count: { increment: 1 } },
+  });
+}
+
 module.exports = {
   initiatePayment,
   handlePaymentSuccess,
@@ -482,6 +537,8 @@ module.exports = {
   handleWebhook,
   reconcilePayment,
   getPaymentStatus,
+  getOrCreateInvoiceRecord,
+  incrementInvoiceDownloadCount,
   // Exported for worker reuse
   markOrderPaid,
   markOrderFailed,

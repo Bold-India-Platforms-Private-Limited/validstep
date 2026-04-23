@@ -44,6 +44,7 @@ import CompanyPayments from './pages/company/Payments'
 // User pages
 import UserDashboard from './pages/user/Dashboard'
 import CertificateView from './pages/user/CertificateView'
+import UserInvoices from './pages/user/Invoices'
 
 // Admin pages
 import AdminDashboard from './pages/admin/Dashboard'
@@ -54,6 +55,10 @@ import AdminOrders from './pages/admin/Orders'
 import AdminPricing from './pages/admin/Pricing'
 import AdminPayments from './pages/admin/Payments'
 import AdminBatchDetail from './pages/admin/BatchDetail'
+import AdminInvoices from './pages/admin/Invoices'
+
+// Company pages (invoices)
+import CompanyInvoices from './pages/company/Invoices'
 
 function RootRedirect() {
   const isLoading = useSelector(selectIsLoading)
@@ -158,6 +163,7 @@ export default function App() {
                 <Route path="batches/:id" element={<BatchDetail />} />
                 <Route path="profile" element={<CompanyProfile />} />
                 <Route path="payments" element={<CompanyPayments />} />
+                <Route path="invoices" element={<CompanyInvoices />} />
                 <Route path="" element={<Navigate to="dashboard" replace />} />
                 <Route path="*" element={<Navigate to="dashboard" replace />} />
               </Routes>
@@ -175,6 +181,7 @@ export default function App() {
               <Routes>
                 <Route path="" element={<UserDashboard />} />
                 <Route path="certificates/:id" element={<CertificateView />} />
+                <Route path="invoices" element={<UserInvoices />} />
                 <Route path="*" element={<Navigate to="" replace />} />
               </Routes>
             </UserLayout>
@@ -196,6 +203,7 @@ export default function App() {
                 <Route path="orders" element={<AdminOrders />} />
                 <Route path="pricing" element={<AdminPricing />} />
                 <Route path="payments" element={<AdminPayments />} />
+                <Route path="invoices" element={<AdminInvoices />} />
                 <Route path="batches/:id" element={<AdminBatchDetail />} />
                 <Route path="" element={<Navigate to="dashboard" replace />} />
                 <Route path="*" element={<Navigate to="dashboard" replace />} />

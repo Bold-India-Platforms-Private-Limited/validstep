@@ -556,6 +556,60 @@ async function getOrderForInvoice(orderId) {
   return order;
 }
 
+async function getAllInvoices(query = {}) {
+  const { page = 1, limit = 20, search, company_id } = query;
+  const skip = (page - 1) * Number(limit);
+
+  const where = {
+    ...(company_id && { order: { company_id } }),
+    ...(search && {
+      OR: [
+        { invoice_number: { contains: search, mode: 'insensitive' } },
+        { payu_txn_id: { contains: search, mode: 'insensitive' } },
+        { order: { user: { name: { contains: search, mode: 'insensitive' } } } },
+        { order: { user: { email: { contains: search, mode: 'insensitive' } } } },
+      ],
+    }),
+  };
+
+  const [invoices, total] = await Promise.all([
+    db.invoice.findMany({
+      where,
+      skip,
+      take: Number(limit),
+      orderBy: { generated_at: 'desc' },
+      include: {
+        order: {
+          select: {
+            id: true,
+            certificate_serial: true,
+            status: true,
+            user: { select: { name: true, email: true } },
+            company: { select: { name: true } },
+            batch: {
+              select: {
+                name: true,
+                program: { select: { name: true, type: true } },
+              },
+            },
+          },
+        },
+      },
+    }),
+    db.invoice.count({ where }),
+  ]);
+
+  return {
+    invoices,
+    pagination: {
+      total,
+      page: Number(page),
+      limit: Number(limit),
+      pages: Math.ceil(total / Number(limit)),
+    },
+  };
+}
+
 module.exports = {
   getCompanies,
   getCompanyById,
@@ -564,6 +618,7 @@ module.exports = {
   getAllOrders,
   getAllPayments,
   getOrderForInvoice,
+  getAllInvoices,
   getPricingConfigs,
   updatePricingConfig,
   getDashboardStats,

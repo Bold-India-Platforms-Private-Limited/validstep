@@ -57,6 +57,7 @@ router.delete('/programs/:id', controller.deleteProgram);
 
 router.get('/dashboard', controller.getDashboard);
 router.get('/payments', validate({ query: paymentsQuerySchema }), controller.getPaymentHistory);
+router.get('/invoices', controller.getInvoices);
 router.get('/orders/:orderId/invoice', controller.downloadInvoice);
 
 module.exports = router;

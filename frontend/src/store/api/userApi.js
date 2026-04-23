@@ -25,11 +25,16 @@ export const userApi = baseApi.injectEndpoints({
       query: (id) => ({ url: `/user/certificates/${id}/download`, method: 'GET' }),
       transformResponse: (r) => r.data,
     }),
+    getUserInvoices: b.query({
+      query: (params) => ({ url: '/user/invoices', params }),
+      transformResponse: (r) => r.data,
+      providesTags: ['Invoice'],
+    }),
   }),
 })
 
 export const {
   useGetUserProfileQuery, useGetUserOrdersQuery,
   useGetUserCertificatesQuery, useGetCertificateQuery,
-  useDownloadCertificateMutation,
+  useDownloadCertificateMutation, useGetUserInvoicesQuery,
 } = userApi

@@ -37,6 +37,11 @@ export const companyApi = baseApi.injectEndpoints({
       transformResponse: (r) => r.data,
       providesTags: ['Payment'],
     }),
+    getCompanyInvoices: b.query({
+      query: (params) => ({ url: '/company/invoices', params }),
+      transformResponse: (r) => r.data,
+      providesTags: ['Invoice'],
+    }),
   }),
 })
 
@@ -45,5 +50,5 @@ export const {
   useGetCompanyDashboardQuery,
   useGetProgramsQuery, useCreateProgramMutation,
   useUpdateProgramMutation, useDeleteProgramMutation,
-  useGetPaymentHistoryQuery,
+  useGetPaymentHistoryQuery, useGetCompanyInvoicesQuery,
 } = companyApi

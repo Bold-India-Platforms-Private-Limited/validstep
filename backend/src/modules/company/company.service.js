@@ -255,6 +255,49 @@ async function deleteProgram(companyId, programId) {
   return db.program.delete({ where: { id: programId } });
 }
 
+async function getCompanyInvoices(companyId, query = {}) {
+  const { page = 1, limit = 20 } = query;
+  const skip = (page - 1) * Number(limit);
+
+  const where = { order: { company_id: companyId } };
+
+  const [invoices, total] = await Promise.all([
+    db.invoice.findMany({
+      where,
+      skip,
+      take: Number(limit),
+      orderBy: { generated_at: 'desc' },
+      include: {
+        order: {
+          select: {
+            id: true,
+            certificate_serial: true,
+            status: true,
+            user: { select: { name: true, email: true } },
+            batch: {
+              select: {
+                name: true,
+                program: { select: { name: true, type: true } },
+              },
+            },
+          },
+        },
+      },
+    }),
+    db.invoice.count({ where }),
+  ]);
+
+  return {
+    invoices,
+    pagination: {
+      total,
+      page: Number(page),
+      limit: Number(limit),
+      pages: Math.ceil(total / Number(limit)),
+    },
+  };
+}
+
 module.exports = {
   getProfile,
   updateProfile,
@@ -265,4 +308,5 @@ module.exports = {
   getDashboardStats,
   getPaymentHistory,
   getOrderForInvoice,
+  getCompanyInvoices,
 };

@@ -220,10 +220,15 @@ function startPaymentVerificationWorker() {
   });
 
   worker.on('failed', (job, err) => {
-    const isFinalAttempt = job.attemptsMade >= (job.opts.attempts || 5);
+    const isFinalAttempt = job.attemptsMade >= (job.opts.attempts || 7);
     if (isFinalAttempt) {
-      console.error(`[Worker] Job ${job.id} permanently failed after ${job.attemptsMade} attempts: ${err.message}`);
-      // TODO: alert engineering team — payment may need manual reconciliation
+      const txnid = job?.data?.txnid || 'unknown';
+      const orderId = job?.data?.orderId || 'unknown';
+      console.error(
+        `[Worker][ALERT] Payment job ${job.id} permanently failed after ${job.attemptsMade} attempts. ` +
+        `txnid=${txnid} orderId=${orderId} error="${err.message}". ` +
+        'Manual reconciliation required: POST /api/admin/payments/:txnid/reconcile'
+      );
     } else {
       console.warn(`[Worker] Job ${job.id} attempt ${job.attemptsMade} failed (will retry): ${err.message}`);
     }

@@ -4,12 +4,26 @@ import { useGetUserCertificatesQuery, useGetUserOrdersQuery, useGetUserProfileQu
 import { PageSpinner } from '../../components/ui/Spinner'
 import { StatusBadge } from '../../components/ui/Badge'
 import { formatDate, formatCurrency } from '../../utils/formatDate'
-import { Award, ShoppingBag, Download, Eye, User } from 'lucide-react'
+import { downloadInvoicePDF } from '../../utils/downloadInvoice'
+import { Award, ShoppingBag, Download, Eye, User, FileText } from 'lucide-react'
+import toast from 'react-hot-toast'
 
 export default function UserDashboard() {
+  const [downloadingId, setDownloadingId] = useState(null)
   const { data: profile } = useGetUserProfileQuery()
   const { data: certs, isLoading: certsLoading } = useGetUserCertificatesQuery()
   const { data: orders, isLoading: ordersLoading } = useGetUserOrdersQuery()
+
+  const handleDownloadInvoice = async (order) => {
+    setDownloadingId(order.id)
+    try {
+      await downloadInvoicePDF('user', order.id, `invoice-${order.certificate_serial}.pdf`)
+    } catch (err) {
+      toast.error(err.message || 'Failed to download invoice')
+    } finally {
+      setDownloadingId(null)
+    }
+  }
 
   const certificates = certs?.certificates || []
   const orderList = orders?.orders || []
@@ -105,12 +119,21 @@ export default function UserDashboard() {
       {/* Orders */}
       {orderList.length > 0 && (
         <div>
-          <h2 className="mb-3 font-semibold text-slate-900">Order History</h2>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="font-semibold text-slate-900">Order History</h2>
+            <Link
+              to="/dashboard/invoices"
+              className="flex items-center gap-1.5 text-xs font-medium text-primary-600 hover:text-primary-700"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              View all invoices
+            </Link>
+          </div>
           <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
             <table className="min-w-full divide-y divide-slate-100">
               <thead className="bg-slate-50">
                 <tr>
-                  {['Batch', 'Amount', 'Status', 'Date'].map((h) => (
+                  {['Batch', 'Amount', 'Status', 'Date', ''].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
@@ -127,6 +150,22 @@ export default function UserDashboard() {
                     </td>
                     <td className="px-4 py-3"><StatusBadge status={o.status} /></td>
                     <td className="px-4 py-3 text-sm text-slate-500">{formatDate(o.created_at)}</td>
+                    <td className="px-4 py-3">
+                      {o.status === 'PAID' && (
+                        <button
+                          onClick={() => handleDownloadInvoice(o)}
+                          disabled={downloadingId === o.id}
+                          className="flex items-center gap-1 text-xs text-primary-600 hover:underline disabled:opacity-50"
+                          title="Download Invoice"
+                        >
+                          {downloadingId === o.id
+                            ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary-300 border-t-primary-600 inline-block" />
+                            : <FileText className="h-3.5 w-3.5" />
+                          }
+                          Invoice
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

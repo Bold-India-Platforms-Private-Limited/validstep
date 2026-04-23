@@ -35,6 +35,7 @@ router.get('/profile', controller.getProfile);
 router.put('/profile', validate({ body: updateProfileSchema }), controller.updateProfile);
 router.get('/orders', validate({ query: ordersQuerySchema }), controller.getOrders);
 router.get('/payments', validate({ query: paymentsQuerySchema }), controller.getPaymentHistory);
+router.get('/invoices', controller.getInvoices);
 router.get('/orders/:orderId/invoice', controller.downloadInvoice);
 
 module.exports = router;

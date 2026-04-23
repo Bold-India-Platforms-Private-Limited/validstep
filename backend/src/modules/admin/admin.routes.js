@@ -63,6 +63,13 @@ const paymentsQuerySchema = z.object({
   company_id: z.string().uuid().optional(),
 });
 
+const invoicesQuerySchema = z.object({
+  page: z.string().optional().transform(v => v ? parseInt(v) : 1),
+  limit: z.string().optional().transform(v => v ? Math.min(parseInt(v), 100) : 20),
+  search: z.string().optional(),
+  company_id: z.string().uuid().optional(),
+});
+
 // Routes
 router.get('/dashboard', controller.getDashboard);
 router.get('/companies', validate({ query: listQuerySchema }), controller.getCompanies);
@@ -77,6 +84,7 @@ router.get('/batches/:id/certificates', controller.getAdminBatchCertificates);
 router.post('/batches/:id/issue', validate({ body: issueCertsSchema }), controller.issueCertificatesAdmin);
 router.get('/orders', validate({ query: ordersQuerySchema }), controller.getAllOrders);
 router.get('/payments', validate({ query: paymentsQuerySchema }), controller.getAllPayments);
+router.get('/invoices', validate({ query: invoicesQuerySchema }), controller.getAdminInvoices);
 router.get('/orders/:orderId/invoice', controller.downloadInvoice);
 router.get('/pricing', controller.getPricing);
 router.put('/pricing', validate({ body: updatePricingSchema }), controller.updatePricing);

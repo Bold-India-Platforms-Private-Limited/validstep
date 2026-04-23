@@ -11,6 +11,6 @@ export const baseApi = createApi({
       return headers
     },
   }),
-  tagTypes: ['Batch', 'Program', 'Order', 'Certificate', 'Company', 'User', 'Payment', 'Admin'],
+  tagTypes: ['Batch', 'Program', 'Order', 'Certificate', 'Company', 'User', 'Payment', 'Admin', 'Invoice'],
   endpoints: () => ({}),
 })
