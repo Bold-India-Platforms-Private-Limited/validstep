@@ -18,7 +18,7 @@ module.exports = {
     {
       name: 'validstep',
       script: 'server.js',
-      instances: 2,             // match CPU core count — avoid over-subscribing
+      instances: 1,             // single cluster instance
       exec_mode: 'cluster',
       watch: false,
       max_memory_restart: '400M',
