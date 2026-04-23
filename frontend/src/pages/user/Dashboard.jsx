@@ -79,16 +79,16 @@ export default function UserDashboard() {
               <div key={cert.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:shadow-md transition-shadow">
                 <div className="mb-3 flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium text-slate-900 truncate">{cert.order?.batch?.program?.name}</p>
-                    <p className="text-xs text-slate-500 truncate">{cert.order?.batch?.name}</p>
+                    <p className="font-medium text-slate-900 truncate">{cert.batch?.program?.name}</p>
+                    <p className="text-xs text-slate-500 truncate">{cert.batch?.name}</p>
                   </div>
-                  <StatusBadge status={cert.status} />
+                  <StatusBadge status={cert.is_issued ? 'ISSUED' : 'PENDING'} />
                 </div>
                 <p className="text-xs text-slate-400 mb-3">
                   Issued: {cert.issued_at ? formatDate(cert.issued_at) : '—'}
                 </p>
                 <p className="mb-3 font-mono text-xs text-slate-500 bg-slate-50 rounded px-2 py-1">
-                  {cert.certificate_id}
+                  {cert.certificate_serial}
                 </p>
                 <div className="flex gap-2">
                   <Link
@@ -98,9 +98,9 @@ export default function UserDashboard() {
                     <Eye className="h-3.5 w-3.5" />
                     View
                   </Link>
-                  {cert.pdf_url && (
+                  {cert.certificate_url && (
                     <a
-                      href={cert.pdf_url}
+                      href={cert.certificate_url}
                       target="_blank"
                       rel="noreferrer"
                       className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-primary-600 py-1.5 text-xs font-medium text-white hover:bg-primary-700 transition-colors"

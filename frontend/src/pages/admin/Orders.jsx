@@ -53,7 +53,7 @@ export default function AdminOrders() {
           className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
         >
           <option value="">All statuses</option>
-          {['PENDING', 'COMPLETED', 'FAILED', 'CANCELLED'].map((s) => (
+          {['PENDING', 'PAID', 'FAILED', 'REFUNDED'].map((s) => (
             <option key={s} value={s}>{s}</option>
           ))}
         </select>
@@ -83,13 +83,13 @@ export default function AdminOrders() {
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-600">{o.batch?.name}</td>
                   <td className="px-4 py-3 text-sm text-slate-600">{o.batch?.company?.name}</td>
-                  <td className="px-4 py-3 text-sm font-semibold text-slate-900">{formatCurrency(o.amount_paid || 0)}</td>
+                  <td className="px-4 py-3 text-sm font-semibold text-slate-900">{formatCurrency(o.amount || 0)}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1.5">
-                      <StatusBadge status={o.payment_status || 'PENDING'} />
-                      {o.payment_status === 'PENDING' && o.payments?.[0]?.txnid && (
+                      <StatusBadge status={o.payments?.[0]?.status || 'PENDING'} />
+                      {(!o.payments?.[0]?.status || o.payments?.[0]?.status === 'INITIATED') && o.payments?.[0]?.payu_txn_id && (
                         <button
-                          onClick={() => handleReconcile(o.payments[0].txnid)}
+                          onClick={() => handleReconcile(o.payments[0].payu_txn_id)}
                           disabled={reconciling}
                           title="Reconcile"
                           className="text-primary-600 hover:text-primary-700 disabled:opacity-50"
@@ -102,8 +102,8 @@ export default function AdminOrders() {
                   <td className="px-4 py-3"><StatusBadge status={o.status} /></td>
                   <td className="px-4 py-3 text-sm text-slate-500">{formatDate(o.created_at)}</td>
                   <td className="px-4 py-3">
-                    {o.certificate && (
-                      <span className="font-mono text-xs text-slate-500">{o.certificate.certificate_id}</span>
+                    {o.certificate?.certificate_serial && (
+                      <span className="font-mono text-xs text-slate-500">{o.certificate.certificate_serial}</span>
                     )}
                   </td>
                 </tr>

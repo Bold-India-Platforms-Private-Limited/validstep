@@ -10,7 +10,12 @@ export default function AdminBatches() {
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
-  const { data, isLoading } = useGetAdminBatchesQuery({ page, limit: 20, search, status })
+  const { data, isLoading } = useGetAdminBatchesQuery({
+    page,
+    limit: 20,
+    ...(search && { search }),
+    ...(status && { status }),
+  })
 
   const batches = data?.batches || []
   const pagination = data?.pagination || {}

@@ -17,8 +17,8 @@ async function getCompanies(query = {}) {
         { email: { contains: search, mode: 'insensitive' } },
       ],
     }),
-    ...(is_active !== undefined && { is_active: is_active === 'true' }),
-    ...(is_verified !== undefined && { is_verified: is_verified === 'true' }),
+    ...(is_active && { is_active: is_active === 'true' }),
+    ...(is_verified && { is_verified: is_verified === 'true' }),
   };
 
   const [companies, total] = await Promise.all([
@@ -340,12 +340,19 @@ async function updateCompanyStatus(id, data) {
  * Get all batches (admin view)
  */
 async function getAllBatches(query = {}) {
-  const { page = 1, limit = 20, status, company_id } = query;
+  const { page = 1, limit = 20, status, company_id, search } = query;
   const skip = (page - 1) * limit;
 
   const where = {
     ...(status && { status }),
     ...(company_id && { company_id }),
+    ...(search && {
+      OR: [
+        { name: { contains: search, mode: 'insensitive' } },
+        { company: { name: { contains: search, mode: 'insensitive' } } },
+        { program: { name: { contains: search, mode: 'insensitive' } } },
+      ],
+    }),
   };
 
   const [batches, total] = await Promise.all([
@@ -378,12 +385,19 @@ async function getAllBatches(query = {}) {
  * Get all orders (admin view)
  */
 async function getAllOrders(query = {}) {
-  const { page = 1, limit = 20, status, company_id } = query;
+  const { page = 1, limit = 20, status, company_id, search } = query;
   const skip = (page - 1) * limit;
 
   const where = {
     ...(status && { status }),
     ...(company_id && { company_id }),
+    ...(search && {
+      OR: [
+        { user: { name: { contains: search, mode: 'insensitive' } } },
+        { user: { email: { contains: search, mode: 'insensitive' } } },
+        { batch: { name: { contains: search, mode: 'insensitive' } } },
+      ],
+    }),
   };
 
   const [orders, total] = await Promise.all([
@@ -397,6 +411,7 @@ async function getAllOrders(query = {}) {
         company: { select: { id: true, name: true } },
         batch: { select: { id: true, name: true } },
         certificate: { select: { is_issued: true, certificate_serial: true } },
+        payments: { select: { status: true, payu_txn_id: true }, orderBy: { created_at: 'desc' }, take: 1 },
       },
     }),
     db.order.count({ where }),

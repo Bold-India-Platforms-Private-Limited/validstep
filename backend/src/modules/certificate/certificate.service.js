@@ -322,10 +322,6 @@ async function downloadCertificate(userId, certificateId) {
     throw Object.assign(new Error('Certificate has not been issued yet'), { statusCode: 403 });
   }
 
-  if (certificate.batch.status !== 'COMPLETED' && !certificate.is_issued) {
-    throw Object.assign(new Error('Certificate is not yet available for download'), { statusCode: 403 });
-  }
-
   // Increment download count
   await db.certificate.update({
     where: { id: certificateId },

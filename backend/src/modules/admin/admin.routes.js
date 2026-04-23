@@ -25,8 +25,9 @@ const listQuerySchema = z.object({
 const batchesQuerySchema = z.object({
   page: z.string().optional().transform(v => v ? parseInt(v) : 1),
   limit: z.string().optional().transform(v => v ? Math.min(parseInt(v), 100) : 20),
-  status: z.enum(['DRAFT', 'ACTIVE', 'COMPLETED']).optional(),
+  status: z.enum(['DRAFT', 'ACTIVE', 'HOLD', 'COMPLETED']).optional(),
   company_id: z.string().uuid().optional(),
+  search: z.string().optional(),
 });
 
 const batchOrdersQuerySchema = z.object({
@@ -44,6 +45,7 @@ const ordersQuerySchema = z.object({
   limit: z.string().optional().transform(v => v ? Math.min(parseInt(v), 100) : 20),
   status: z.enum(['PENDING', 'PAID', 'FAILED', 'REFUNDED']).optional(),
   company_id: z.string().uuid().optional(),
+  search: z.string().optional(),
 });
 
 const updateStatusSchema = z.object({

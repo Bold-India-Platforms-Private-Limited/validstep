@@ -23,7 +23,7 @@ import { PublicLayout } from '../../components/layouts/PublicLayout'
 const registerSchema = z.object({
   name: z.string().min(2, 'Name is required'),
   email: z.string().email('Valid email required'),
-  mobile: z.string().min(10, 'Valid mobile number required'),
+  phone: z.string().min(10, 'Valid mobile number required'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
 })
 
@@ -274,9 +274,9 @@ export default function OrderCertificate() {
                   type="tel"
                   placeholder="+91 98765 43210"
                   leftIcon={<Phone className="h-4 w-4" />}
-                  error={registerForm.formState.errors.mobile?.message}
+                  error={registerForm.formState.errors.phone?.message}
                   required
-                  {...registerForm.register('mobile')}
+                  {...registerForm.register('phone')}
                 />
               </div>
               <Input

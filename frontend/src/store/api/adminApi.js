@@ -14,10 +14,11 @@ export const adminApi = baseApi.injectEndpoints({
     getAdminCompany: b.query({
       query: (id) => `/admin/companies/${id}`,
       transformResponse: (r) => r.data,
+      providesTags: (result, error, id) => [{ type: 'Company', id }],
     }),
     updateCompanyStatus: b.mutation({
       query: ({ id, ...body }) => ({ url: `/admin/companies/${id}/status`, method: 'PUT', body }),
-      invalidatesTags: ['Company'],
+      invalidatesTags: (result, error, { id }) => ['Company', { type: 'Company', id }],
     }),
     getAdminBatches: b.query({
       query: (params) => ({ url: '/admin/batches', params }),

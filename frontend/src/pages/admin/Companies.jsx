@@ -9,7 +9,12 @@ export default function AdminCompanies() {
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('')
-  const { data, isLoading } = useGetAdminCompaniesQuery({ page, limit: 20, search, is_verified: filter })
+  const { data, isLoading } = useGetAdminCompaniesQuery({
+    page,
+    limit: 20,
+    ...(search && { search }),
+    ...(filter && { is_verified: filter }),
+  })
 
   const companies = data?.companies || []
   const pagination = data?.pagination || {}
@@ -80,9 +85,16 @@ export default function AdminCompanies() {
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-600">{c.email}</td>
                   <td className="px-4 py-3">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${c.is_verified ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                      {c.is_verified ? 'Verified' : 'Pending'}
-                    </span>
+                    <div className="flex flex-col gap-1">
+                      <span className={`w-fit rounded-full px-2 py-0.5 text-xs font-medium ${c.is_verified ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {c.is_verified ? 'Verified' : 'Unverified'}
+                      </span>
+                      {!c.is_active && (
+                        <span className="w-fit rounded-full px-2 py-0.5 text-xs font-medium bg-red-100 text-red-600">
+                          Inactive
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-500">{formatDate(c.created_at)}</td>
                   <td className="px-4 py-3">

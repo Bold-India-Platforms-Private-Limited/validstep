@@ -4,24 +4,35 @@ import { useGetAdminCompanyQuery, useUpdateCompanyStatusMutation } from '../../s
 import { PageSpinner } from '../../components/ui/Spinner'
 import { StatusBadge } from '../../components/ui/Badge'
 import { formatDate, formatCurrency } from '../../utils/formatDate'
-import { ArrowLeft, Building2, Mail, Phone, Globe, Layers, CheckCircle, XCircle } from 'lucide-react'
+import { ArrowLeft, Building2, Mail, Phone, Globe, Layers, CheckCircle, XCircle, ToggleLeft, ToggleRight } from 'lucide-react'
 
 export default function AdminCompanyDetail() {
   const { id } = useParams()
-  const { data, isLoading, refetch } = useGetAdminCompanyQuery(id)
+  const { data, isLoading } = useGetAdminCompanyQuery(id)
   const [updateStatus, { isLoading: updating }] = useUpdateCompanyStatusMutation()
 
   if (isLoading) return <PageSpinner />
   if (!data) return <p className="p-6 text-slate-500">Company not found</p>
 
-  const company = data.company || data
-  const batches = data.batches || []
+  // Backend returns programs[].batches[] — flatten to a single batches array
+  const company = data
+  const batches = (data.programs || []).flatMap((p) =>
+    (p.batches || []).map((b) => ({ ...b, program: { name: p.name, type: p.type } }))
+  )
 
   const handleVerify = async (is_verified) => {
     try {
       await updateStatus({ id, is_verified }).unwrap()
       toast.success(is_verified ? 'Company verified' : 'Verification revoked')
-      refetch()
+    } catch (err) {
+      toast.error(err?.data?.message || 'Failed')
+    }
+  }
+
+  const handleToggleActive = async () => {
+    try {
+      await updateStatus({ id, is_active: !company.is_active }).unwrap()
+      toast.success(company.is_active ? 'Company deactivated' : 'Company activated')
     } catch (err) {
       toast.error(err?.data?.message || 'Failed')
     }
@@ -53,9 +64,14 @@ export default function AdminCompanyDetail() {
               )}
               <div>
                 <p className="font-semibold text-slate-900">{company.name}</p>
-                <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${company.is_verified ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                  {company.is_verified ? 'Verified' : 'Pending'}
-                </span>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${company.is_verified ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                    {company.is_verified ? 'Verified' : 'Unverified'}
+                  </span>
+                  <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${company.is_active ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-600'}`}>
+                    {company.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -86,26 +102,40 @@ export default function AdminCompanyDetail() {
               <p className="mt-4 text-sm text-slate-600 border-t border-slate-100 pt-4">{company.description}</p>
             )}
 
-            <div className="mt-4 flex gap-2">
+            <div className="mt-4 space-y-2">
               {!company.is_verified ? (
                 <button
                   onClick={() => handleVerify(true)}
                   disabled={updating}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-600 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
                 >
                   <CheckCircle className="h-4 w-4" />
-                  Verify
+                  Verify Company
                 </button>
               ) : (
                 <button
                   onClick={() => handleVerify(false)}
                   disabled={updating}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-red-200 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-red-200 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
                 >
                   <XCircle className="h-4 w-4" />
-                  Revoke
+                  Revoke Verification
                 </button>
               )}
+              <button
+                onClick={handleToggleActive}
+                disabled={updating}
+                className={`flex w-full items-center justify-center gap-2 rounded-lg border py-2 text-sm font-medium disabled:opacity-50 transition-colors ${
+                  company.is_active
+                    ? 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                    : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                }`}
+              >
+                {company.is_active
+                  ? <><ToggleRight className="h-4 w-4" /> Deactivate</>
+                  : <><ToggleLeft className="h-4 w-4" /> Activate</>
+                }
+              </button>
             </div>
 
             <p className="mt-3 text-xs text-slate-400">Joined {formatDate(company.created_at)}</p>
