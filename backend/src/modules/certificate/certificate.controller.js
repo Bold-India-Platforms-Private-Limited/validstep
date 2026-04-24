@@ -25,6 +25,15 @@ async function getUserCertificates(req, res) {
   }
 }
 
+async function getCertificateById(req, res) {
+  try {
+    const cert = await certificateService.getCertificateById(req.user.id, req.params.id);
+    return sendSuccess(res, cert, 'Certificate retrieved successfully');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
 async function downloadCertificate(req, res) {
   try {
     const result = await certificateService.downloadCertificate(req.user.id, req.params.id);
@@ -53,5 +62,6 @@ async function downloadCertificate(req, res) {
 module.exports = {
   verifyCertificate,
   getUserCertificates,
+  getCertificateById,
   downloadCertificate,
 };

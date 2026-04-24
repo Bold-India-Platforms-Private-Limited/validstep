@@ -72,10 +72,10 @@ export default function AdminBatchDetail() {
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {[
-          { icon: ShoppingBag, label: 'Orders', value: stats.totalOrders || 0, color: 'text-primary-600 bg-primary-50' },
-          { icon: CreditCard, label: 'Revenue', value: formatCurrency(stats.revenue || 0), color: 'text-emerald-600 bg-emerald-50' },
-          { icon: Award, label: 'Issued', value: stats.issuedCertificates || 0, color: 'text-violet-600 bg-violet-50' },
-          { icon: RefreshCw, label: 'Pending', value: stats.pendingOrders || 0, color: 'text-amber-600 bg-amber-50' },
+          { icon: ShoppingBag, label: 'Total Orders', value: stats.orders?.TOTAL || 0, color: 'text-primary-600 bg-primary-50' },
+          { icon: CreditCard, label: 'Revenue', value: formatCurrency(stats.paid_revenue || 0), color: 'text-emerald-600 bg-emerald-50' },
+          { icon: Award, label: 'Paid', value: stats.orders?.PAID || 0, color: 'text-violet-600 bg-violet-50' },
+          { icon: RefreshCw, label: 'Pending', value: stats.orders?.PENDING || 0, color: 'text-amber-600 bg-amber-50' },
         ].map(({ icon: Icon, label, value, color }) => (
           <div key={label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className={`mb-2 inline-flex rounded-lg p-2 ${color}`}><Icon className="h-4 w-4" /></div>
@@ -123,13 +123,13 @@ export default function AdminBatchDetail() {
                     <p className="text-sm font-medium text-slate-900">{o.user?.name}</p>
                     <p className="text-xs text-slate-500">{o.user?.email}</p>
                   </td>
-                  <td className="px-4 py-3 text-sm font-semibold text-slate-900">{formatCurrency(o.amount_paid || 0)}</td>
+                  <td className="px-4 py-3 text-sm font-semibold text-slate-900">{formatCurrency(o.amount || 0)}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <StatusBadge status={o.payment_status || o.status} />
-                      {o.payment_status === 'PENDING' && o.txnid && (
+                      <StatusBadge status={o.status} />
+                      {o.status === 'PENDING' && o.payu_txn_id && (
                         <button
-                          onClick={() => handleReconcile(o.txnid)}
+                          onClick={() => handleReconcile(o.payu_txn_id)}
                           disabled={reconciling}
                           title="Reconcile payment"
                           className="text-xs text-primary-600 hover:underline disabled:opacity-50"
@@ -142,8 +142,8 @@ export default function AdminBatchDetail() {
                   <td className="px-4 py-3">
                     {o.certificate ? (
                       <div>
-                        <p className="font-mono text-xs text-slate-600">{o.certificate.certificate_id}</p>
-                        <StatusBadge status={o.certificate.status} />
+                        <p className="font-mono text-xs text-slate-600">{o.certificate.certificate_serial}</p>
+                        <StatusBadge status={o.certificate.is_issued ? 'ISSUED' : 'PENDING'} />
                       </div>
                     ) : <span className="text-xs text-slate-400">—</span>}
                   </td>

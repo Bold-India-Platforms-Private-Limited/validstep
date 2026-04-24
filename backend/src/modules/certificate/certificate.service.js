@@ -278,6 +278,30 @@ async function verifyCertificate(verificationHash, ipAddress, userAgent) {
 }
 
 /**
+ * Get a single certificate by ID (user-scoped)
+ */
+async function getCertificateById(userId, certId) {
+  const cert = await db.certificate.findFirst({
+    where: { id: certId, user_id: userId },
+    include: {
+      user: { select: { name: true, email: true } },
+      batch: {
+        include: {
+          program: { select: { name: true, type: true } },
+          company: { select: { name: true } },
+        },
+      },
+    },
+  });
+
+  if (!cert) {
+    throw Object.assign(new Error('Certificate not found'), { statusCode: 404 });
+  }
+
+  return cert;
+}
+
+/**
  * Get user's certificates
  */
 async function getUserCertificates(userId) {
@@ -340,6 +364,7 @@ module.exports = {
   processCertificateJob,
   startCertificateWorker,
   verifyCertificate,
+  getCertificateById,
   getUserCertificates,
   downloadCertificate,
 };

@@ -41,6 +41,12 @@ router.get(
 router.post('/success', controller.handleSuccess);
 router.post('/failure', controller.handleFailure);
 
+// PayU sometimes sends a GET redirect to furl (UPI debit failures, pre-auth errors).
+// These never hit our POST handler so orders stay PENDING. Handle GET gracefully:
+// just redirect to the frontend failure page; the webhook will settle the order.
+router.get('/failure', controller.handleFailureGet);
+router.get('/success', controller.handleSuccessGet);
+
 /* ─────────────────────────────────────────────
    PayU webhook / IPN (no auth — PayU POSTs async)
 ───────────────────────────────────────────── */

@@ -146,7 +146,7 @@ export default function UserDashboard() {
                       <p className="text-xs text-slate-500">{o.batch?.name}</p>
                     </td>
                     <td className="px-4 py-3 text-sm font-semibold text-slate-900">
-                      {formatCurrency(o.payments?.[0]?.amount || o.amount_paid || 0)}
+                      {formatCurrency(o.amount || 0)}
                     </td>
                     <td className="px-4 py-3"><StatusBadge status={o.status} /></td>
                     <td className="px-4 py-3 text-sm text-slate-500">{formatDate(o.created_at)}</td>

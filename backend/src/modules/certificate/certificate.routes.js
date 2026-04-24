@@ -14,6 +14,7 @@ const userRouter = Router();
 userRouter.use(requireUser);
 userRouter.use(generalLimiter);
 userRouter.get('/', controller.getUserCertificates);
+userRouter.get('/:id', controller.getCertificateById);
 userRouter.get('/:id/download', controller.downloadCertificate);
 
 module.exports = { publicRouter, userRouter };

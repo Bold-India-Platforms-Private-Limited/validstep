@@ -30,7 +30,7 @@ export default function CertificateView() {
         </Link>
         <div>
           <h1 className="text-xl font-bold text-slate-900">Certificate</h1>
-          <p className="text-sm text-slate-500">{cert.certificate_id}</p>
+          <p className="text-sm text-slate-500">{cert.certificate_serial}</p>
         </div>
       </div>
 
@@ -42,7 +42,7 @@ export default function CertificateView() {
             <Award className="h-8 w-8 text-white" />
             <div>
               <p className="text-sm font-medium text-primary-100">Certificate of Completion</p>
-              <p className="text-xl font-bold text-white">{cert.order?.batch?.program?.name}</p>
+              <p className="text-xl font-bold text-white">{cert.batch?.program?.name}</p>
             </div>
           </div>
         </div>
@@ -50,8 +50,8 @@ export default function CertificateView() {
         <div className="p-6 space-y-5">
           {/* Status */}
           <div className="flex items-center justify-between">
-            <StatusBadge status={cert.status} />
-            {cert.status === 'ISSUED' && (
+            <StatusBadge status={cert.is_issued ? 'ISSUED' : 'PENDING'} />
+            {cert.is_issued && (
               <div className="flex items-center gap-1.5 text-sm text-emerald-600">
                 <CheckCircle className="h-4 w-4" />
                 Verified
@@ -63,24 +63,24 @@ export default function CertificateView() {
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Recipient</p>
-              <p className="mt-1 font-semibold text-slate-900">{cert.order?.user?.name}</p>
+              <p className="mt-1 font-semibold text-slate-900">{cert.user?.name}</p>
             </div>
             <div>
               <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Program</p>
-              <p className="mt-1 font-semibold text-slate-900">{cert.order?.batch?.program?.name}</p>
+              <p className="mt-1 font-semibold text-slate-900">{cert.batch?.program?.name}</p>
             </div>
             <div>
               <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Batch</p>
-              <p className="mt-1 text-slate-700">{cert.order?.batch?.name}</p>
+              <p className="mt-1 text-slate-700">{cert.batch?.name}</p>
             </div>
             <div>
               <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Role</p>
-              <p className="mt-1 text-slate-700">{cert.order?.batch?.role || '—'}</p>
+              <p className="mt-1 text-slate-700">{cert.batch?.role || '—'}</p>
             </div>
             <div>
               <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Duration</p>
               <p className="mt-1 text-slate-700">
-                {formatDate(cert.order?.batch?.start_date)} — {formatDate(cert.order?.batch?.end_date)}
+                {formatDate(cert.batch?.start_date)} — {formatDate(cert.batch?.end_date)}
               </p>
             </div>
             <div>
@@ -92,14 +92,14 @@ export default function CertificateView() {
           {/* Certificate ID */}
           <div className="rounded-lg bg-slate-50 px-4 py-3">
             <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Certificate ID</p>
-            <p className="font-mono text-sm font-semibold text-slate-800">{cert.certificate_id}</p>
+            <p className="font-mono text-sm font-semibold text-slate-800">{cert.certificate_serial}</p>
           </div>
 
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-3">
-            {cert.pdf_url && (
+            {cert.certificate_url && (
               <a
-                href={cert.pdf_url}
+                href={cert.certificate_url}
                 target="_blank"
                 rel="noreferrer"
                 className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 transition-colors"

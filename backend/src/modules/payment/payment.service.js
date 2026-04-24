@@ -265,7 +265,7 @@ async function initiatePayment(userId, data) {
   const payuParams = buildPayUParams({
     txnid,
     amount: String(parseFloat(batch.certificate_price).toFixed(2)),
-    productinfo: `Certificate - ${batch.name} - ${batch.company.name}`,
+    productinfo: `Certificate - ${batch.name} - ${batch.company.name}`.replace(/[|]/g, '-'),
     firstname: user.name.split(' ')[0],
     email: user.email,
     phone: user.phone || '',

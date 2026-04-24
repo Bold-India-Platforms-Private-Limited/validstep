@@ -20,41 +20,66 @@ async function initiatePayment(req, res) {
    PayU Redirect Handlers (no auth — PayU POSTs these)
 ───────────────────────────────────────────── */
 async function handleSuccess(req, res) {
+  const orderId = req.body?.udf1 || '';
   try {
     const result = await paymentService.handlePaymentSuccess(req.body);
-    const params = new URLSearchParams({
-      order_id: result.orderId,
-      status: result.status,
-      txnid: req.body.txnid || '',
-    });
+    // Route to correct page based on actual settlement result
+    if (result.status === 'paid' || result.status === 'already_paid') {
+      const params = new URLSearchParams({ order_id: result.orderId, status: 'success', txnid: req.body.txnid || '' });
+      return res.redirect(302, `${env.FRONTEND_URL}/payment/success?${params}`);
+    }
+    if (result.status === 'failed') {
+      const params = new URLSearchParams({ order_id: result.orderId, status: 'failed', txnid: req.body.txnid || '' });
+      return res.redirect(302, `${env.FRONTEND_URL}/payment/failure?${params}`);
+    }
+    // 'processing' — job queued, let the status page poll
+    const params = new URLSearchParams({ order_id: result.orderId, status: 'processing', txnid: req.body.txnid || '' });
     return res.redirect(302, `${env.FRONTEND_URL}/payment/success?${params}`);
   } catch (err) {
-    console.error('[Payment] Success handler error:', err.message);
-    const params = new URLSearchParams({
-      error: err.message,
-      order_id: req.body?.udf1 || '',
-    });
+    console.error('[Payment] Success handler error:', err.message, { orderId, body: req.body });
+    const params = new URLSearchParams({ order_id: orderId, status: 'failed' });
     return res.redirect(302, `${env.FRONTEND_URL}/payment/failure?${params}`);
   }
 }
 
 async function handleFailure(req, res) {
+  const orderId = req.body?.udf1 || '';
   try {
+    console.log('[Payment] Failure POST received:', { txnid: req.body?.txnid, orderId, error_Message: req.body?.error_Message });
     const result = await paymentService.handlePaymentFailure(req.body);
-    const params = new URLSearchParams({
-      order_id: result.orderId,
-      status: 'failed',
-      txnid: req.body.txnid || '',
-    });
+    const params = new URLSearchParams({ order_id: result.orderId, status: 'failed', txnid: req.body.txnid || '' });
     return res.redirect(302, `${env.FRONTEND_URL}/payment/failure?${params}`);
   } catch (err) {
-    console.error('[Payment] Failure handler error:', err.message);
-    const params = new URLSearchParams({
-      error: err.message,
-      order_id: req.body?.udf1 || '',
-    });
+    console.error('[Payment] Failure handler error:', err.message, { orderId, body: req.body });
+    // Best-effort: try to mark order failed even if main handler threw
+    if (orderId) {
+      paymentService.handlePaymentFailure(req.body).catch(() => {});
+    }
+    const params = new URLSearchParams({ order_id: orderId, status: 'failed' });
     return res.redirect(302, `${env.FRONTEND_URL}/payment/failure?${params}`);
   }
+}
+
+// PayU sends GET to furl for certain UPI errors (pre-auth failures, "Custom Id cannot contain :" etc.)
+// The order status will be settled by the async webhook. Just redirect cleanly to the failure page.
+async function handleFailureGet(req, res) {
+  const orderId = req.query?.udf1 || req.query?.order_id || '';
+  console.log('[Payment] Failure GET received (UPI pre-auth error):', req.query);
+  // Attempt async failure marking using query params
+  if (orderId && req.query?.txnid) {
+    paymentService.handlePaymentFailure(req.query).catch((e) =>
+      console.warn('[Payment] GET failure mark failed (non-critical):', e.message)
+    );
+  }
+  const params = new URLSearchParams({ order_id: orderId, status: 'failed' });
+  return res.redirect(302, `${env.FRONTEND_URL}/payment/failure?${params}`);
+}
+
+async function handleSuccessGet(req, res) {
+  const orderId = req.query?.udf1 || req.query?.order_id || '';
+  console.log('[Payment] Success GET received:', req.query);
+  const params = new URLSearchParams({ order_id: orderId, status: 'processing' });
+  return res.redirect(302, `${env.FRONTEND_URL}/payment/success?${params}`);
 }
 
 /* ─────────────────────────────────────────────
@@ -102,6 +127,8 @@ module.exports = {
   initiatePayment,
   handleSuccess,
   handleFailure,
+  handleFailureGet,
+  handleSuccessGet,
   handleWebhook,
   getPaymentStatus,
   reconcilePayment,
