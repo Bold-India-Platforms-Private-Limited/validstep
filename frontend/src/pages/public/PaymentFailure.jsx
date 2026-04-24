@@ -53,7 +53,9 @@ export default function PaymentFailure() {
               <XCircle className="h-9 w-9 text-white" />
             </div>
             <h2 className="text-2xl font-bold text-white">Payment Failed</h2>
-            <p className="mt-1 text-red-100 text-sm">No amount has been deducted</p>
+            <p className="mt-1 text-red-100 text-sm">
+              If you were charged, please contact support immediately
+            </p>
           </div>
 
           <div className="px-8 py-6 space-y-4">

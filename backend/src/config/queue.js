@@ -63,11 +63,14 @@ async function enqueuePaymentVerification(data) {
   const { txnid, source } = data;
   const jobId = `payu:${txnid}`;
 
-  // Redirect jobs (user is waiting on the page) get higher priority than webhooks
+  // Redirect jobs (user is waiting on the page) get higher priority than webhooks.
+  // Add a 3s delay to redirect jobs — PayU's verify API sometimes returns 'not_found'
+  // if queried immediately after redirect (race condition with PayU's own processing).
   const priority = source === 'redirect' ? 1 : 2;
+  const delay = source === 'redirect' ? 3_000 : 0;
 
   // BullMQ deduplication: same jobId is a no-op if already waiting/active
-  const job = await queue.add('verify-and-settle', data, { jobId, priority });
+  const job = await queue.add('verify-and-settle', data, { jobId, priority, delay });
   return job;
 }
 

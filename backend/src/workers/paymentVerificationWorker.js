@@ -21,7 +21,7 @@ const { getRedisClient, isRedisAvailable } = require('../config/redis');
 
 // Import the core settling functions directly to avoid circular deps
 const { db } = require('../config/database');
-const { verifyPaymentWithPayU, verifyPayUHash, verifyWebhookHash } = require('../utils/payu');
+const { verifyPaymentWithPayU } = require('../utils/payu');
 const { generateVerificationHash } = require('../utils/hash');
 const { sendPaymentConfirmationEmail } = require('../utils/email');
 
@@ -84,6 +84,21 @@ async function markOrderPaidWorker(orderId, txnid, mihpayid, gatewayResponse, is
           template_id: template?.id || null,
           is_issued: false,
           verification_hash: verificationHash,
+        },
+      });
+    }
+
+    // Create invoice record (idempotent — skip if already exists)
+    const existingInvoice = await tx.invoice.findUnique({ where: { order_id: orderId } });
+    if (!existingInvoice) {
+      await tx.invoice.create({
+        data: {
+          order_id: orderId,
+          invoice_number: `INV-${order.certificate_serial}`,
+          amount: order.amount,
+          currency: order.currency,
+          payu_txn_id: txnid || null,
+          paid_at: new Date(),
         },
       });
     }
@@ -167,16 +182,20 @@ async function processVerificationJob(job) {
     return result;
   }
 
-  if (payuResult.status === 'pending') {
-    // Still pending at PayU — throw a retriable error so BullMQ retries
-    // This will retry up to 5 times with exponential backoff
+  // 'pending' or 'not_found' — PayU hasn't registered the transaction yet (race condition
+  // between redirect and PayU's own backend processing). Throw to trigger BullMQ retry
+  // with exponential backoff (3s → 6s → 12s → 24s → 48s → 96s → 192s).
+  // Only mark failed after all retry attempts are exhausted.
+  if (payuResult.status === 'pending' || payuResult.status === 'not_found') {
+    const attemptInfo = `attempt ${job.attemptsMade + 1}/${job.opts.attempts || 7}`;
+    job.log(`PayU transaction ${txnid} not yet confirmed (${payuResult.status}) — ${attemptInfo}, will retry`);
     throw Object.assign(
-      new Error(`PayU transaction ${txnid} still pending`),
+      new Error(`PayU transaction ${txnid} not yet confirmed (${payuResult.status})`),
       { code: 'PAYU_PENDING' }
     );
   }
 
-  // Failure confirmed
+  // status === 'failure' confirmed by PayU verify API
   const result = await markOrderFailedWorker(
     orderId,
     txnid,

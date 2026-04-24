@@ -108,7 +108,7 @@ export default function AdminBatchDetail() {
                 <th className="px-4 py-3">
                   <input type="checkbox" checked={selected.length === orders.length && orders.length > 0} onChange={toggleAll} className="rounded border-slate-300" />
                 </th>
-                {['User', 'Amount', 'Payment', 'Certificate', 'Date', ''].map((h) => (
+                {['User', 'Amount', 'Status', 'Certificate', 'Date', 'Paid At'].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -148,8 +148,8 @@ export default function AdminBatchDetail() {
                     ) : <span className="text-xs text-slate-400">—</span>}
                   </td>
                   <td className="px-4 py-3 text-xs text-slate-500">{formatDate(o.created_at)}</td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={o.status} />
+                  <td className="px-4 py-3 text-xs text-slate-400">
+                    {o.paid_at ? formatDate(o.paid_at) : '—'}
                   </td>
                 </tr>
               ))}

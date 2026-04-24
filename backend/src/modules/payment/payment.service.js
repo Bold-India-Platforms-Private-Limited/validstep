@@ -189,8 +189,11 @@ async function syncVerifyAndSettle(orderId, txnid, mihpayid, payload, isWebhook)
   if (payuResult.verified) {
     return markOrderPaid(orderId, txnid, payuResult.mihpayid || mihpayid, payload, isWebhook);
   }
-  if (payuResult.status === 'pending') {
-    return { status: 'pending', orderId };
+  // 'pending' or 'not_found' — PayU hasn't processed the transaction yet.
+  // Don't mark failed — wait for the async webhook to settle it.
+  if (payuResult.status === 'pending' || payuResult.status === 'not_found') {
+    console.warn(`[Payment] Sync verify: txn ${txnid} is ${payuResult.status} — deferring to webhook`);
+    return { status: 'processing', orderId };
   }
   return markOrderFailed(orderId, txnid, mihpayid, payload, isWebhook);
 }
@@ -431,8 +434,8 @@ async function reconcilePayment(txnid) {
   let result;
   if (payuResult.verified) {
     result = await markOrderPaid(order.id, txnid, payuResult.mihpayid, payuResult.txnDetails, false);
-  } else if (payuResult.status === 'pending') {
-    result = { status: 'pending', orderId: order.id, message: 'Transaction still pending at PayU' };
+  } else if (payuResult.status === 'pending' || payuResult.status === 'not_found') {
+    result = { status: 'pending', orderId: order.id, message: 'Transaction not yet confirmed at PayU — retry reconciliation in a few minutes' };
   } else {
     result = await markOrderFailed(order.id, txnid, payuResult.mihpayid, payuResult.txnDetails, false);
   }

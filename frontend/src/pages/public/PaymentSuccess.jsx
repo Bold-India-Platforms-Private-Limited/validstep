@@ -60,7 +60,8 @@ export default function PaymentSuccess() {
         }
 
         if (orderData.status === 'FAILED') {
-          setPhase('error')
+          // Redirect to failure page so the user sees the proper failure UI
+          navigate(`/payment/failure?order_id=${orderId}&status=failed`)
           return
         }
 
