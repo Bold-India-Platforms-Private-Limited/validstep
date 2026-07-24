@@ -75,17 +75,17 @@ function parseUserImportFile(buffer) {
   }
 
   const fieldMap = buildFieldMap(grid[0]);
-  if (!fieldMap.name || !fieldMap.email) {
+  if (!fieldMap.email) {
     const reason = looksLikePayuReport(grid[0])
-      ? 'This looks like a raw PayU transaction report, not a Name/Email/Mobile roster. Bulk Upload only accepts a clean roster with Name, Email, and (optionally) Mobile columns — build one from your PayU export first, then upload it here.'
-      : 'Missing required "Name" and/or "Email" column header';
+      ? 'This looks like a raw PayU transaction report, not a roster with an Email column. Bulk Upload needs at least an Email column — build one from your PayU export first, then upload it here.'
+      : 'Missing required "Email" column header';
     errors.push({ rowNum: 1, reason });
     return { rows, errors };
   }
 
   const headerRow = grid[0];
   const usesFirstLastName = fieldMap.name === '__firstname_lastname__';
-  const nameIdx = usesFirstLastName ? -1 : headerRow.indexOf(fieldMap.name);
+  const nameIdx = (fieldMap.name && !usesFirstLastName) ? headerRow.indexOf(fieldMap.name) : -1;
   const firstNameIdx = fieldMap.firstname ? headerRow.indexOf(fieldMap.firstname) : -1;
   const lastNameIdx = fieldMap.lastname ? headerRow.indexOf(fieldMap.lastname) : -1;
   const emailIdx = headerRow.indexOf(fieldMap.email);
@@ -96,14 +96,17 @@ function parseUserImportFile(buffer) {
     const row = grid[i];
     if (!row || row.every((c) => c === null)) continue; // skip blank rows
 
-    const name = usesFirstLastName
+    const rawName = usesFirstLastName
       ? [firstNameIdx >= 0 ? toStr(row[firstNameIdx]) : null, lastNameIdx >= 0 ? toStr(row[lastNameIdx]) : null].filter(Boolean).join(' ') || null
-      : toStr(row[nameIdx]);
+      : (nameIdx >= 0 ? toStr(row[nameIdx]) : null);
     const email = toStr(row[emailIdx])?.toLowerCase();
     const phone = phoneIdx >= 0 ? toStr(row[phoneIdx]) : null;
 
-    if (!name) { errors.push({ rowNum, email, reason: 'Missing name' }); continue; }
     if (!email || !EMAIL_RE.test(email)) { errors.push({ rowNum, email, reason: 'Missing or invalid email' }); continue; }
+    // Name is optional — same fallback already used for PayU Button customers and imported
+    // transactions elsewhere (see admin.service.js): the email's local part when no name is
+    // available in the file, so a row is never rejected just for lacking a name.
+    const name = rawName || email.split('@')[0];
 
     rows.push({ rowNum, name, email, phone });
   }
