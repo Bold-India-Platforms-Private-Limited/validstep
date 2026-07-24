@@ -5,7 +5,7 @@ import { useLogoutMutation } from '../../store/api/authApi'
 import { clearCredentials, selectUser } from '../../store/authSlice'
 import {
   LayoutDashboard, Building2, Layers, ShoppingBag, DollarSign,
-  CreditCard, LogOut, Menu, X, Shield, FileText,
+  CreditCard, LogOut, Menu, X, Shield, FileText, Banknote, ShieldCheck, Users,
 } from 'lucide-react'
 
 const nav = [
@@ -13,8 +13,10 @@ const nav = [
   { to: '/admin/companies', icon: Building2, label: 'Companies' },
   { to: '/admin/batches', icon: Layers, label: 'Batches' },
   { to: '/admin/orders', icon: ShoppingBag, label: 'Orders' },
+  { to: '/admin/users', icon: Users, label: 'Users' },
   { to: '/admin/payments', icon: CreditCard, label: 'Payments' },
   { to: '/admin/invoices', icon: FileText, label: 'Invoices' },
+  { to: '/admin/accounting', icon: Banknote, label: 'Accounting' },
   { to: '/admin/pricing', icon: DollarSign, label: 'Pricing' },
 ]
 
@@ -56,6 +58,15 @@ export function AdminLayout({ children }) {
       <nav className="flex-1 space-y-1 p-3">
         {nav.map((item) => <NavItem key={item.to} {...item} onClick={() => setOpen(false)} />)}
       </nav>
+      <div className="border-t border-slate-100 p-3">
+        <NavLink
+          to="/admin/master-accounting"
+          onClick={() => setOpen(false)}
+          className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100 transition-colors"
+        >
+          <ShieldCheck className="h-4 w-4 shrink-0" /> Master Accounting
+        </NavLink>
+      </div>
       <div className="border-t border-slate-100 p-3">
         <div className="mb-2 px-3 py-1">
           <p className="text-xs font-medium text-slate-900 truncate">{user?.name}</p>

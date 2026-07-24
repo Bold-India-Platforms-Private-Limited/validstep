@@ -1,23 +1,34 @@
 import { useState } from 'react'
 import { useGetAdminInvoicesQuery } from '../../store/api/adminApi'
 import { PageSpinner } from '../../components/ui/Spinner'
+import { Badge } from '../../components/ui/Badge'
+import { Pagination } from '../../components/ui/Pagination'
 import { formatDate, formatCurrency } from '../../utils/formatDate'
 import { downloadInvoicePDF } from '../../utils/downloadInvoice'
+import { downloadFileGet } from '../../utils/downloadFile'
 import { FileText, Search, Download } from 'lucide-react'
 import toast from 'react-hot-toast'
 
+const TYPE_LABELS = { ORDER: 'Website Order', PAYU_BUTTON: 'PayU Button' }
+const TYPE_VARIANTS = { ORDER: 'primary', PAYU_BUTTON: 'info' }
+
 export default function AdminInvoices() {
   const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(20)
   const [search, setSearch] = useState('')
   const [downloadingId, setDownloadingId] = useState(null)
-  const { data, isLoading } = useGetAdminInvoicesQuery({ page, limit: 20, search: search || undefined })
+  const { data, isLoading } = useGetAdminInvoicesQuery({ page, limit, search: search || undefined })
   const invoices = data?.invoices || []
   const pagination = data?.pagination || {}
 
   const handleDownload = async (inv) => {
     setDownloadingId(inv.id)
     try {
-      await downloadInvoicePDF('admin', inv.order_id, `${inv.invoice_number}.pdf`)
+      if (inv.type === 'PAYU_BUTTON') {
+        await downloadFileGet(`/admin/accounting/transactions/${inv.payu_id}/receipt`, `${inv.invoice_number}.pdf`)
+      } else {
+        await downloadInvoicePDF('admin', inv.order_id, `${inv.invoice_number}.pdf`)
+      }
     } catch (err) {
       toast.error(err.message || 'Failed to download invoice')
     } finally {
@@ -32,6 +43,7 @@ export default function AdminInvoices() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Invoices</h1>
         <p className="text-sm text-slate-500">All invoices across the platform</p>
+        <p className="mt-1 text-xs text-slate-400">For PayU Button rows, "PayU Fee" combines this transaction's exact processing/priority-settlement fee (from PayU's ledger) with its proportional share of that day's ~2% PayU transaction fee (allocated, since PayU settles that once per day, not per row) — "Net (Credited)" is Total Price minus that combined fee.</p>
       </div>
 
       <div className="flex gap-3">
@@ -54,61 +66,65 @@ export default function AdminInvoices() {
         </div>
       ) : (
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <table className="min-w-full divide-y divide-slate-100">
-            <thead className="bg-slate-50">
-              <tr>
-                {['Invoice #', 'User', 'Company / Batch', 'Amount', 'Paid On', 'Downloads', ''].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {invoices.map((inv) => (
-                <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3">
-                    <span className="font-mono text-sm font-medium text-slate-900">{inv.invoice_number}</span>
-                    {inv.payu_txn_id && (
-                      <p className="font-mono text-xs text-slate-400 mt-0.5">{inv.payu_txn_id}</p>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <p className="text-sm font-medium text-slate-900">{inv.order?.user?.name}</p>
-                    <p className="text-xs text-slate-500">{inv.order?.user?.email}</p>
-                  </td>
-                  <td className="px-4 py-3">
-                    <p className="text-sm text-slate-700">{inv.order?.company?.name}</p>
-                    <p className="text-xs text-slate-500">{inv.order?.batch?.name}</p>
-                  </td>
-                  <td className="px-4 py-3 text-sm font-semibold text-slate-900">{formatCurrency(inv.amount)}</td>
-                  <td className="px-4 py-3 text-sm text-slate-500">{inv.paid_at ? formatDate(inv.paid_at) : '—'}</td>
-                  <td className="px-4 py-3 text-sm text-slate-500">{inv.download_count}</td>
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => handleDownload(inv)}
-                      disabled={downloadingId === inv.id}
-                      className="flex items-center gap-1 text-xs text-primary-600 hover:underline disabled:opacity-50"
-                      title="Download Invoice"
-                    >
-                      {downloadingId === inv.id
-                        ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-primary-300 border-t-primary-600 inline-block" />
-                        : <Download className="h-3.5 w-3.5" />
-                      }
-                      Download
-                    </button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-100">
+              <thead className="bg-slate-50">
+                <tr>
+                  {['Invoice #', 'Type', 'User', 'Company / Batch', 'Total Price', 'PayU Fee', 'Net (Credited)', 'Paid On', 'Downloads', ''].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {pagination.pages > 1 && (
-            <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3">
-              <p className="text-xs text-slate-500">Page {page} of {pagination.pages} · {pagination.total} total</p>
-              <div className="flex gap-2">
-                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs disabled:opacity-40 hover:bg-slate-50">Prev</button>
-                <button onClick={() => setPage(p => Math.min(pagination.pages, p + 1))} disabled={page === pagination.pages} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs disabled:opacity-40 hover:bg-slate-50">Next</button>
-              </div>
-            </div>
-          )}
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {invoices.map((inv) => (
+                  <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-3">
+                      <span className="font-mono text-sm font-medium text-slate-900">{inv.invoice_number}</span>
+                      {inv.payu_txn_id && (
+                        <p className="font-mono text-xs text-slate-400 mt-0.5">{inv.payu_txn_id}</p>
+                      )}
+                    </td>
+                    <td className="px-4 py-3"><Badge variant={TYPE_VARIANTS[inv.type] || 'default'}>{TYPE_LABELS[inv.type] || inv.type}</Badge></td>
+                    <td className="px-4 py-3">
+                      <p className="text-sm font-medium text-slate-900">{inv.order?.user?.name || '—'}</p>
+                      <p className="text-xs text-slate-500">{inv.order?.user?.email}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="text-sm text-slate-700">{inv.order?.company?.name || '—'}</p>
+                      <p className="text-xs text-slate-500">{inv.order?.batch?.name}</p>
+                    </td>
+                    <td className="px-4 py-3 text-sm font-semibold text-slate-900">{formatCurrency(inv.amount)}</td>
+                    <td className="px-4 py-3 text-sm text-rose-600">{inv.payu_fee != null ? `−${formatCurrency(inv.payu_fee)}` : '—'}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-emerald-700">{inv.net_amount != null ? formatCurrency(inv.net_amount) : '—'}</td>
+                    <td className="px-4 py-3 text-sm text-slate-500">{inv.paid_at ? formatDate(inv.paid_at) : '—'}</td>
+                    <td className="px-4 py-3 text-sm text-slate-500">{inv.download_count}</td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => handleDownload(inv)}
+                        disabled={downloadingId === inv.id}
+                        className="flex items-center gap-1 text-xs text-primary-600 hover:underline disabled:opacity-50"
+                        title="Download Invoice"
+                      >
+                        {downloadingId === inv.id
+                          ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-primary-300 border-t-primary-600 inline-block" />
+                          : <Download className="h-3.5 w-3.5" />
+                        }
+                        Download
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <Pagination
+            page={page}
+            pages={pagination.pages}
+            total={pagination.total}
+            limit={limit}
+            onPageChange={setPage}
+            onLimitChange={(n) => { setLimit(n); setPage(1) }}
+          />
         </div>
       )}
     </div>

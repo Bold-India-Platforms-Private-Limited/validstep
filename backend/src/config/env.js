@@ -7,10 +7,6 @@ const requiredVars = [
   'REDIS_URL',
   'JWT_ACCESS_SECRET',
   'JWT_REFRESH_SECRET',
-  'PAYU_KEY',
-  'PAYU_SALT',
-  'PAYU_MID',
-  'PAYU_BASE_URL',
 ];
 
 function validateEnv() {
@@ -39,18 +35,24 @@ const env = {
   APP_DOMAIN: process.env.APP_DOMAIN || 'localhost',
   ALLOWED_ORIGINS: (process.env.ALLOWED_ORIGINS || 'http://localhost:3000').split(',').map((o) => o.trim()),
 
-  PAYU_MID: process.env.PAYU_MID,
-  PAYU_KEY: process.env.PAYU_KEY,
-  PAYU_SALT: process.env.PAYU_SALT,
-  // Salt2 is the newer IPN/webhook salt issued from PayU dashboard (optional, but recommended)
-  PAYU_SALT2: process.env.PAYU_SALT2 || '',
-  PAYU_BASE_URL: process.env.PAYU_BASE_URL || 'https://test.payu.in',
-
   SUPERADMIN_EMAIL: process.env.SUPERADMIN_EMAIL || 'admin@example.com',
   SUPERADMIN_PASSWORD: process.env.SUPERADMIN_PASSWORD || 'Admin@123',
   SUPERADMIN_NAME: process.env.SUPERADMIN_NAME || 'Super Admin',
 
+  // Secondary confirmation gate for the Master Accounting panel — entered after the
+  // superadmin is already authenticated, so this is a UX/scoping gate, not the primary
+  // security boundary. Configurable via env so it can be changed without a code deploy.
+  MASTER_ACCOUNTING_PASSCODE: process.env.MASTER_ACCOUNTING_PASSCODE || '11-09-2025',
+
   STORAGE_BASE_URL: process.env.STORAGE_BASE_URL || 'http://localhost:5000/uploads',
+
+  // No GSTIN yet. Once registered, set both — invoices only show a GST breakdown for
+  // orders paid on/after GST_EFFECTIVE_FROM, so past invoices never retroactively gain
+  // GST just because they're re-downloaded after registration (see invoiceGenerator.js).
+  COMPANY_GSTIN: process.env.COMPANY_GSTIN || '',
+  COMPANY_GST_EFFECTIVE_FROM: process.env.COMPANY_GST_EFFECTIVE_FROM || '',
+  COMPANY_PAN: process.env.COMPANY_PAN || '',
+  COMPANY_ADDRESS: process.env.COMPANY_ADDRESS || '',
 
   isDev: process.env.NODE_ENV !== 'production',
   isProd: process.env.NODE_ENV === 'production',

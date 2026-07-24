@@ -3,16 +3,18 @@ import { Link } from 'react-router-dom'
 import { useGetAdminBatchesQuery } from '../../store/api/adminApi'
 import { PageSpinner } from '../../components/ui/Spinner'
 import { StatusBadge } from '../../components/ui/Badge'
+import { Pagination } from '../../components/ui/Pagination'
 import { formatDate, formatCurrency } from '../../utils/formatDate'
 import { Layers, Search, ChevronRight } from 'lucide-react'
 
 export default function AdminBatches() {
   const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(20)
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
   const { data, isLoading } = useGetAdminBatchesQuery({
     page,
-    limit: 20,
+    limit,
     ...(search && { search }),
     ...(status && { status }),
   })
@@ -59,46 +61,47 @@ export default function AdminBatches() {
         </div>
       ) : (
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <table className="min-w-full divide-y divide-slate-100">
-            <thead className="bg-slate-50">
-              <tr>
-                {['Batch', 'Company', 'Price', 'Orders', 'Status', 'Dates', ''].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {batches.map((b) => (
-                <tr key={b.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3">
-                    <p className="text-sm font-medium text-slate-900">{b.name}</p>
-                    <p className="text-xs text-slate-400">{b.program?.name}</p>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-600">{b.company?.name}</td>
-                  <td className="px-4 py-3 text-sm font-semibold text-slate-900">{formatCurrency(b.certificate_price)}</td>
-                  <td className="px-4 py-3 text-sm text-slate-600">{b._count?.orders || 0}</td>
-                  <td className="px-4 py-3"><StatusBadge status={b.status} /></td>
-                  <td className="px-4 py-3 text-xs text-slate-500">
-                    {formatDate(b.start_date)}<br />{formatDate(b.end_date)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Link to={`/admin/batches/${b.id}`} className="flex items-center gap-1 text-xs text-primary-600 hover:underline">
-                      View <ChevronRight className="h-3.5 w-3.5" />
-                    </Link>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-100">
+              <thead className="bg-slate-50">
+                <tr>
+                  {['Batch', 'Company', 'Price', 'Orders', 'Status', 'Dates', ''].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {pagination.pages > 1 && (
-            <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3">
-              <p className="text-xs text-slate-500">Page {page} of {pagination.pages}</p>
-              <div className="flex gap-2">
-                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs disabled:opacity-40 hover:bg-slate-50">Prev</button>
-                <button onClick={() => setPage(p => Math.min(pagination.pages, p + 1))} disabled={page === pagination.pages} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs disabled:opacity-40 hover:bg-slate-50">Next</button>
-              </div>
-            </div>
-          )}
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {batches.map((b) => (
+                  <tr key={b.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-3">
+                      <p className="text-sm font-medium text-slate-900">{b.name}</p>
+                      <p className="text-xs text-slate-400">{b.program?.name}</p>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-600">{b.company?.name}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-slate-900">{formatCurrency(b.certificate_price)}</td>
+                    <td className="px-4 py-3 text-sm text-slate-600">{b._count?.orders || 0}</td>
+                    <td className="px-4 py-3"><StatusBadge status={b.status} /></td>
+                    <td className="px-4 py-3 text-xs text-slate-500">
+                      {formatDate(b.start_date)}<br />{formatDate(b.end_date)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Link to={`/admin/batches/${b.id}`} className="flex items-center gap-1 text-xs text-primary-600 hover:underline">
+                        View <ChevronRight className="h-3.5 w-3.5" />
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <Pagination
+            page={page}
+            pages={pagination.pages}
+            total={pagination.total}
+            limit={limit}
+            onPageChange={setPage}
+            onLimitChange={(n) => { setLimit(n); setPage(1) }}
+          />
         </div>
       )}
     </div>

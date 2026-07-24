@@ -4,19 +4,11 @@ import { PageSpinner } from '../../components/ui/Spinner'
 import { StatusBadge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { formatDate } from '../../utils/formatDate'
-import { Plus, Layers, ExternalLink, Copy } from 'lucide-react'
-import toast from 'react-hot-toast'
-
-const APP_URL = import.meta.env.VITE_APP_URL || window.location.origin
+import { Plus, Layers } from 'lucide-react'
 
 export default function Batches() {
   const { data, isLoading } = useGetBatchesQuery({})
   const batches = data?.batches || []
-
-  const copyLink = (slug) => {
-    navigator.clipboard.writeText(`${APP_URL}/order/${slug}`)
-    toast.success('Link copied!')
-  }
 
   if (isLoading) return <PageSpinner />
 
@@ -52,12 +44,6 @@ export default function Batches() {
                   <p className="mt-1 text-xs text-slate-400">{formatDate(b.start_date)} — {formatDate(b.end_date)}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <button onClick={() => copyLink(b.unique_slug)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100" title="Copy link">
-                    <Copy className="h-4 w-4" />
-                  </button>
-                  <a href={`${APP_URL}/order/${b.unique_slug}`} target="_blank" rel="noreferrer" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100" title="Open link">
-                    <ExternalLink className="h-4 w-4" />
-                  </a>
                   <Link to={`/company/batches/${b.id}`} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors">
                     Manage
                   </Link>

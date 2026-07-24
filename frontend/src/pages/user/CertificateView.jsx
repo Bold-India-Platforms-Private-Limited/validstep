@@ -2,6 +2,7 @@ import { useParams, Link } from 'react-router-dom'
 import { useGetCertificateQuery } from '../../store/api/userApi'
 import { PageSpinner } from '../../components/ui/Spinner'
 import { StatusBadge } from '../../components/ui/Badge'
+import { BatchProgress } from '../../components/ui/BatchProgress'
 import { formatDate } from '../../utils/formatDate'
 import { ArrowLeft, Download, ExternalLink, Award, CheckCircle } from 'lucide-react'
 
@@ -25,7 +26,7 @@ export default function CertificateView() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <Link to="/dashboard" className="rounded-lg p-2 hover:bg-slate-100 transition-colors">
+        <Link to="/dashboard" className="rounded-lg p-2 transition-colors hover:bg-slate-100 max-md:-ml-2 max-md:h-10 max-md:w-10 max-md:rounded-full max-md:active:bg-slate-200">
           <ArrowLeft className="h-5 w-5 text-slate-600" />
         </Link>
         <div>
@@ -35,7 +36,7 @@ export default function CertificateView() {
       </div>
 
       {/* Certificate card */}
-      <div className="max-w-2xl rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <div className="max-w-2xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm max-md:-mx-4 max-md:rounded-none max-md:border-x-0">
         {/* Header strip */}
         <div className="bg-gradient-to-r from-primary-600 to-primary-500 px-6 py-5">
           <div className="flex items-center gap-3">
@@ -87,6 +88,17 @@ export default function CertificateView() {
               <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Issued On</p>
               <p className="mt-1 text-slate-700">{cert.issued_at ? formatDate(cert.issued_at) : '—'}</p>
             </div>
+          </div>
+
+          {/* Progress */}
+          <div>
+            <p className="mb-2 text-xs font-medium text-slate-400 uppercase tracking-wider">Progress</p>
+            <BatchProgress
+              startDate={cert.batch?.start_date}
+              endDate={cert.batch?.end_date}
+              certificateDeliveryDate={cert.batch?.certificate_delivery_date}
+              issuedAt={cert.issued_at}
+            />
           </div>
 
           {/* Certificate ID */}

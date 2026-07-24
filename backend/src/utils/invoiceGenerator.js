@@ -3,6 +3,15 @@
 const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
 const env = require('../config/env');
 
+// The invoice issuer is always Bold India Platforms (the entity that actually receives
+// payment via PayU) — `companyName` passed into this function is the customer's employer
+// / program provider (e.g. "Acme Corp"), which is contextual info about the certificate,
+// not who issued the invoice, so it must never appear in the ISSUED BY block.
+const COMPANY = {
+  legalName: 'Bold India Platforms Private Limited',
+  cin: 'U85499PN2025PTC246360',
+};
+
 function hexToRgb(hex) {
   const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   return r ? rgb(parseInt(r[1], 16) / 255, parseInt(r[2], 16) / 255, parseInt(r[3], 16) / 255) : rgb(0, 0, 0);
@@ -16,6 +25,24 @@ function fmt(d) {
 function fmtDate(d) {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+}
+
+const GST_RATE = 0.18;
+
+/**
+ * GST only applies to orders paid on/after the company's registration takes effect —
+ * never retroactively, even if this same invoice is re-downloaded after registration.
+ * With no GSTIN/effective-date configured (current state), this is always false.
+ */
+function isGstApplicable(paidAt) {
+  if (!env.COMPANY_GSTIN || !env.COMPANY_GST_EFFECTIVE_FROM || !paidAt) return false;
+  return new Date(paidAt) >= new Date(env.COMPANY_GST_EFFECTIVE_FROM);
+}
+
+/** Amount is treated as GST-inclusive; this splits it into taxable value + GST for display only. */
+function splitGstInclusive(amount) {
+  const taxable = amount / (1 + GST_RATE);
+  return { taxable, gst: amount - taxable };
 }
 
 /**
@@ -68,7 +95,9 @@ async function generateInvoicePDF(data) {
 
   // Status badge
   const isPaid = !!paidAt;
-  const statusLabel = isPaid ? '✓  PAID' : 'PENDING';
+  // Plain ASCII only — pdf-lib's standard WinAnsi font encoding throws on Unicode
+  // glyphs like a checkmark, which would crash every paid-invoice download.
+  const statusLabel = isPaid ? 'PAID' : 'PENDING';
   const statusColor = isPaid ? green : hexToRgb('#d97706');
   const statusBg = isPaid ? hexToRgb('#dcfce7') : hexToRgb('#fef3c7');
   page.drawRectangle({ x: marginX, y: y - 6, width: 80, height: 22, color: statusBg, borderRadius: 4 });
@@ -88,13 +117,30 @@ async function generateInvoicePDF(data) {
   if (userPhone) { y -= 14; page.drawText(userPhone, { x: marginX, y, size: 10, font: regular, color: gray }); }
 
   // Bill From (right column)
+  const gstApplicable = isGstApplicable(paidAt);
   const col2X = marginX + colW + 20;
   let y2 = y + (userPhone ? 48 : 34);
   page.drawText('ISSUED BY', { x: col2X, y: y2, size: 8, font: bold, color: gray });
   y2 -= 18;
-  page.drawText(companyName, { x: col2X, y: y2, size: 13, font: bold, color: dark });
-  y2 -= 16;
-  page.drawText('via Validstep.com Platform', { x: col2X, y: y2, size: 10, font: oblique, color: gray });
+  page.drawText(COMPANY.legalName, { x: col2X, y: y2, size: 12, font: bold, color: dark });
+  y2 -= 15;
+  page.drawText(`CIN: ${COMPANY.cin}`, { x: col2X, y: y2, size: 8.5, font: regular, color: gray });
+  y2 -= 13;
+  page.drawText('via Validstep.com Platform', { x: col2X, y: y2, size: 9, font: oblique, color: gray });
+  // PAN/registered address are true regardless of GST registration status, unlike the GST
+  // breakdown below — never gate these behind isGstApplicable.
+  if (env.COMPANY_PAN) {
+    y2 -= 13;
+    page.drawText(`PAN: ${env.COMPANY_PAN}`, { x: col2X, y: y2, size: 8.5, font: regular, color: gray });
+  }
+  if (gstApplicable) {
+    y2 -= 13;
+    page.drawText(`GSTIN: ${env.COMPANY_GSTIN}`, { x: col2X, y: y2, size: 8.5, font: regular, color: gray });
+  }
+  if (env.COMPANY_ADDRESS) {
+    y2 -= 13;
+    page.drawText(env.COMPANY_ADDRESS.slice(0, 55), { x: col2X, y: y2, size: 8.5, font: regular, color: gray });
+  }
 
   y = Math.min(y, y2) - 32;
 
@@ -115,17 +161,39 @@ async function generateInvoicePDF(data) {
   // Item row
   const desc = `${programType === 'INTERNSHIP' ? 'Internship / Fellowship' : programType === 'COURSE' ? 'Course' : programType === 'HACKATHON' ? 'Hackathon' : programType === 'OTHER' ? 'Other' : 'Participation'} Certificate – ${batchName}`;
   page.drawText(desc.slice(0, 52), { x: marginX + 10, y, size: 10, font: regular, color: dark });
-  if (role) { page.drawText(`Role: ${role}`, { x: marginX + 10, y: y - 14, size: 9, font: oblique, color: gray }); }
   page.drawText(certificateSerial, { x: marginX + tableW * 0.55, y, size: 10, font: regular, color: dark, fontFamily: 'monospace' });
   const amtStr = `${currency || 'INR'} ${Number(amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
   const amtW = bold.widthOfTextAtSize(amtStr, 11);
   page.drawText(amtStr, { x: width - marginX - amtW, y, size: 11, font: bold, color: dark });
 
-  y -= (role ? 46 : 30);
+  // Company/role are context about the certificate, not who issued the invoice (see ISSUED BY above)
+  const subLines = [companyName && `Program by: ${companyName}`, role && `Role: ${role}`].filter(Boolean);
+  let subY = y - 14;
+  for (const line of subLines) {
+    page.drawText(line, { x: marginX + 10, y: subY, size: 9, font: oblique, color: gray });
+    subY -= 13;
+  }
+
+  y -= (subLines.length ? 16 + subLines.length * 13 : 30);
 
   // Divider
   page.drawLine({ start: { x: marginX, y }, end: { x: width - marginX, y }, thickness: 0.5, color: hexToRgb('#e2e8f0') });
   y -= 20;
+
+  // GST breakdown (informational only — the total charged never changes; see isGstApplicable)
+  if (gstApplicable) {
+    const { taxable, gst } = splitGstInclusive(Number(amount));
+    const taxableStr = `${currency || 'INR'} ${taxable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+    const gstStr = `${currency || 'INR'} ${gst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+    page.drawText('Taxable Value', { x: marginX + 10, y, size: 9.5, font: regular, color: dark });
+    const taxableW = regular.widthOfTextAtSize(taxableStr, 9.5);
+    page.drawText(taxableStr, { x: width - marginX - taxableW, y, size: 9.5, font: regular, color: dark });
+    y -= 15;
+    page.drawText('GST (18%, included)', { x: marginX + 10, y, size: 9.5, font: regular, color: dark });
+    const gstW = regular.widthOfTextAtSize(gstStr, 9.5);
+    page.drawText(gstStr, { x: width - marginX - gstW, y, size: 9.5, font: regular, color: dark });
+    y -= 22;
+  }
 
   // Total row
   page.drawText('TOTAL PAID', { x: marginX + 10, y, size: 11, font: bold, color: dark });

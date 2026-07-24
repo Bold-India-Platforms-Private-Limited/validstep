@@ -43,6 +43,25 @@ enum PaymentStatus {
   PENDING
 }
 
+enum TransactionChannel {
+  VALIDSTEP
+  PAYU_BUTTON
+  OTHER
+}
+
+enum AccountingImportType {
+  TRANSACTION_REPORT
+  SETTLEMENT_REPORT
+  BANK_STATEMENT
+}
+
+enum BankMatchStatus {
+  UNMATCHED
+  MATCHED_EXACT
+  MATCHED_AMOUNT_DATE
+  IGNORED
+}
+
 model SuperAdmin {
   id            String   @id @default(uuid())
   email         String   @unique
@@ -95,22 +114,24 @@ model Program {
 }
 
 model Batch {
-  id                  String      @id @default(uuid())
-  program_id          String
-  company_id          String
-  name                String
-  start_date          DateTime
-  end_date            DateTime
-  role                String?
-  id_prefix           String      @default("CERT")
-  id_counter          Int         @default(0)
-  certificate_price   Decimal     @db.Decimal(10, 2)
-  currency            String      @default("INR")
-  is_active           Boolean     @default(true)
-  unique_slug         String      @unique
-  status              BatchStatus @default(DRAFT)
-  created_at          DateTime    @default(now())
-  updated_at          DateTime    @updatedAt
+  id                         String      @id @default(uuid())
+  program_id                 String
+  company_id                 String
+  name                       String
+  start_date                 DateTime
+  end_date                   DateTime
+  certificate_delivery_date  DateTime?
+  description                String?
+  role                       String?
+  id_prefix                  String      @default("CERT")
+  id_counter                 Int         @default(0)
+  certificate_price          Decimal     @db.Decimal(10, 2)
+  currency                   String      @default("INR")
+  is_active                  Boolean     @default(true)
+  unique_slug                String      @unique
+  status                     BatchStatus @default(DRAFT)
+  created_at                 DateTime    @default(now())
+  updated_at                 DateTime    @updatedAt
 
   program      Program               @relation(fields: [program_id], references: [id], onDelete: Cascade)
   company      Company               @relation(fields: [company_id], references: [id], onDelete: Cascade)
@@ -162,11 +183,34 @@ model User {
   created_at           DateTime  @default(now())
   updated_at           DateTime  @updatedAt
 
-  orders       Order[]
-  certificates Certificate[]
+  orders          Order[]
+  certificates    Certificate[]
+  delivery_events DeliveryEvent[]
 
   @@index([email])
   @@map("users")
+}
+
+/// Proof-of-delivery audit trail — one row per meaningful lifecycle event for a user's
+/// enrollment (payment imported, account created, batch assigned, certificate generated/
+/// downloaded, invoice downloaded). Built for exactly the kind of evidence a payment
+/// processor risk review asks for: a verifiable trail from payment to service delivery.
+model DeliveryEvent {
+  id         String   @id @default(uuid())
+  user_id    String
+  order_id   String?
+  /// PAYMENT_IMPORTED | USER_CREATED | BATCH_ASSIGNED | CERTIFICATE_GENERATED |
+  /// CERTIFICATE_DOWNLOADED | INVOICE_DOWNLOADED
+  event      String
+  metadata   Json?
+  created_at DateTime @default(now())
+
+  user  User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  order Order? @relation(fields: [order_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id])
+  @@index([order_id])
+  @@map("delivery_events")
 }
 
 model Order {
@@ -180,6 +224,10 @@ model Order {
   status             OrderStatus @default(PENDING)
   payu_txn_id        String?
   payu_order_id      String?
+  /// True for orders created by an admin (manual registration or Excel bulk-upload) rather than
+  /// a real PayU payment. These are always PAID with amount 0 and intentionally have no
+  /// Payment/Invoice row, so they're excluded from revenue and PayU-reconciliation reports.
+  is_manual_enrollment Boolean   @default(false)
   created_at         DateTime    @default(now())
   updated_at         DateTime    @updatedAt
 
@@ -189,6 +237,8 @@ model Order {
   payments    Payment[]
   certificate Certificate?
   invoice     Invoice?
+  transaction     PayuTransaction?
+  delivery_events DeliveryEvent[]
 
   @@index([user_id])
   @@index([batch_id])
@@ -290,4 +340,551 @@ model PricingConfig {
   updated_at   DateTime    @updatedAt
 
   @@map("pricing_configs")
+}
+
+/// One row per uploaded PayU/bank report file (transaction report, settlement report, bank statement).
+model AccountingImport {
+  id                String               @id @default(uuid())
+  type              AccountingImportType
+  original_filename String
+  stored_path       String
+  row_count         Int                  @default(0)
+  period_label      String?
+  uploaded_at       DateTime             @default(now())
+  uploaded_by       String?
+
+  transactions PayuTransaction[]
+  settlements  PayuSettlement[]
+  bank_rows    BankTransaction[]
+
+  @@index([type])
+  @@map("accounting_imports")
+}
+
+/// Normalized row from PayU's transaction report export (one row per transaction attempt).
+/// Note: `txnid` (merchant reference) is NOT unique — PayU logs a new row per retry attempt
+/// and retries deterministically reuse the same txnid (see utils/payu.js generateTxnId).
+/// `payu_id` (PayU's own row id) is the true unique key and the upsert de-dupe key.
+model PayuTransaction {
+  id                     String    @id @default(uuid())
+  txnid                  String
+  payu_id                String    @unique
+  /// Which channel this money came through — the ValidStep website checkout (txnid is
+  /// deterministically "VS"-prefixed from an internal Order) or PayU's standalone Payment
+  /// Button product (productinfo reads "Paid With ButtonId ..."), or OTHER for anything
+  /// that matches neither (e.g. ad-hoc test transactions, not a real revenue channel).
+  source_channel         TransactionChannel @default(OTHER)
+  status                 String
+  addedon                DateTime?
+  success_at             DateTime?
+  amount                 Decimal?  @db.Decimal(12, 2)
+  productinfo            String?
+  firstname              String?
+  lastname               String?
+  email                  String?
+  phone                  String?
+  bank_name              String?
+  mode                   String?
+  error_code             String?
+  error_message          String?
+  transaction_fee        Decimal?  @db.Decimal(12, 2)
+  service_fees           Decimal?  @db.Decimal(12, 2)
+  convenience_fee        Decimal?  @db.Decimal(12, 2)
+  tsp_charges            Decimal?  @db.Decimal(12, 2)
+  mer_service_fee        Decimal?  @db.Decimal(12, 2)
+  cgst                   Decimal?  @db.Decimal(12, 2)
+  sgst                   Decimal?  @db.Decimal(12, 2)
+  igst                   Decimal?  @db.Decimal(12, 2)
+  settlement_amount      Decimal?  @db.Decimal(12, 2)
+  settlement_date        DateTime?
+  utr                    String?
+  recon_ref_number       String?
+  category               String?
+  sub_category           String?
+  raw                    Json
+  import_id              String?
+  /// Set once this transaction has been assigned to a batch (see admin.service.js
+  /// assignTransactionsToBatch) — lets the assignment picker exclude already-used rows.
+  order_id               String?   @unique
+  created_at             DateTime  @default(now())
+  updated_at             DateTime  @updatedAt
+
+  import AccountingImport? @relation(fields: [import_id], references: [id], onDelete: SetNull)
+  order   Order?           @relation(fields: [order_id], references: [id], onDelete: SetNull)
+
+  @@index([txnid])
+  @@index([status])
+  @@index([addedon])
+  @@index([settlement_date])
+  @@index([utr])
+  @@index([import_id])
+  @@map("payu_transactions")
+}
+
+/// Normalized row from PayU's settlement report export (capture/refund/adjustment ledger entries).
+model PayuSettlement {
+  id                     String    @id @default(uuid())
+  /// PayU's own Request ID when present; otherwise a deterministic hash of stable
+  /// row fields (used as fallback for rows without one, e.g. Adjustment_debit entries).
+  /// This is the upsert/de-dupe key for re-uploads.
+  settlement_key         String    @unique
+  merchant_txn_id        String
+  /// Same classification as PayuTransaction.source_channel, derived independently from this
+  /// row's own merchant_txn_id / Product Info (not joined) since merchant_txn_id isn't unique.
+  source_channel         TransactionChannel @default(OTHER)
+  requested_action       String
+  recon_ref_number       String?
+  payu_id                String?
+  merchant_utr           String?
+  bank_reference_no      String?
+  bank_arn               String?
+  amount                 Decimal?  @db.Decimal(12, 2)
+  /// "Net Amount" column — unsigned.
+  net_amount             Decimal?  @db.Decimal(12, 2)
+  /// "Amount(Net)" column — signed (negative for refunds/adjustment debits). This is the
+  /// value that actually sums to the bank credit for a settlement date, and is what the
+  /// reconciliation matching engine uses.
+  amount_net_signed      Decimal?  @db.Decimal(12, 2)
+  status                 String?
+  settlement_date        DateTime?
+  added_on               DateTime?
+  succeed_on             DateTime?
+  service_tax            Decimal?  @db.Decimal(12, 2)
+  cgst                   Decimal?  @db.Decimal(12, 2)
+  sgst                   Decimal?  @db.Decimal(12, 2)
+  igst                   Decimal?  @db.Decimal(12, 2)
+  /// The per-transaction PayU processing fee (small, ~0.1-0.2% seen in practice) — populated
+  /// on capture rows. NOT the main fee PayU charges; see product_info "Platform fees_daily_*"
+  /// Adjustment_debit rows for that (also stored in this same field, on those rows).
+  total_processing_fees  Decimal?  @db.Decimal(12, 2)
+  total_service_tax      Decimal?  @db.Decimal(12, 2)
+  /// Instant/priority settlement fee — only charged on capture rows when priority settlement
+  /// is used. Already netted into that row's amount_net_signed; shown separately here purely
+  /// for an itemized fee breakdown, not summed again on top of the net amount.
+  priority_settlement_fee Decimal? @db.Decimal(12, 2)
+  priority_settlement_tax Decimal? @db.Decimal(12, 2)
+  bank_match_status      BankMatchStatus @default(UNMATCHED)
+  bank_transaction_id    String?
+  raw                    Json
+  import_id              String?
+  created_at             DateTime  @default(now())
+  updated_at             DateTime  @updatedAt
+
+  import           AccountingImport? @relation(fields: [import_id], references: [id], onDelete: SetNull)
+  bank_transaction BankTransaction?  @relation(fields: [bank_transaction_id], references: [id], onDelete: SetNull)
+
+  @@index([merchant_txn_id])
+  @@index([settlement_date])
+  @@index([merchant_utr])
+  @@index([bank_match_status])
+  @@index([import_id])
+  @@map("payu_settlements")
+}
+
+/// Normalized row from the HDFC bank statement export.
+model BankTransaction {
+  id               String    @id @default(uuid())
+  txn_date         DateTime
+  narration        String
+  ref_no           String?
+  value_date       DateTime?
+  withdrawal_amt   Decimal?  @db.Decimal(12, 2)
+  deposit_amt      Decimal?  @db.Decimal(12, 2)
+  closing_balance  Decimal?  @db.Decimal(12, 2)
+  match_status     BankMatchStatus @default(UNMATCHED)
+  import_id        String?
+  created_at       DateTime  @default(now())
+
+  import      AccountingImport? @relation(fields: [import_id], references: [id], onDelete: SetNull)
+  settlements PayuSettlement[]
+
+  @@unique([txn_date, ref_no, withdrawal_amt, deposit_amt, closing_balance])
+  @@index([txn_date])
+  @@index([ref_no])
+  @@index([match_status])
+  @@index([import_id])
+  @@map("bank_transactions")
+}
+
+/// Generated internal PayU fee/settlement expense statement for a period (for CA/accounting handoff).
+model PlatformFeeStatement {
+  id                       String    @id @default(uuid())
+  statement_number         String    @unique
+  period_start             DateTime
+  period_end               DateTime
+  gross_amount             Decimal   @db.Decimal(14, 2)
+  refund_amount            Decimal   @db.Decimal(14, 2)
+  /// Itemized components — see accounting.service.js getSummary for how each is derived.
+  per_transaction_fee      Decimal   @db.Decimal(14, 2)
+  per_transaction_gst      Decimal   @db.Decimal(14, 2)
+  priority_settlement_fee  Decimal   @db.Decimal(14, 2)
+  priority_settlement_gst  Decimal   @db.Decimal(14, 2)
+  daily_platform_fee       Decimal   @db.Decimal(14, 2)
+  daily_platform_fee_gst   Decimal   @db.Decimal(14, 2)
+  total_fee_amount         Decimal   @db.Decimal(14, 2)
+  net_revenue              Decimal   @db.Decimal(14, 2)
+  net_credited_to_bank     Decimal   @db.Decimal(14, 2)
+  reconciliation_variance  Decimal   @db.Decimal(14, 2)
+  transaction_count        Int
+  pdf_path                 String?
+  generated_at             DateTime  @default(now())
+
+  @@map("platform_fee_statements")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MASTER ACCOUNTING — company-level, brand-agnostic, gateway-agnostic ledger
+// for Bold India Platforms Pvt Ltd. Fully additive/separate from the PayU-only
+// module above (PayuTransaction/PayuSettlement/BankTransaction/PlatformFeeStatement)
+// — nothing here is read or written by that module, and vice versa.
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum LedgerCategoryType {
+  REVENUE
+  EXPENSE
+  TRANSFER
+  TAX
+  REFUND
+  OTHER
+}
+
+enum RuleMatchType {
+  CONTAINS
+  STARTS_WITH
+  REGEX
+}
+
+enum MasterFileType {
+  PAYU_TRANSACTION_REPORT
+  PAYU_SETTLEMENT_REPORT
+  RAZORPAY_PAYMENT_REPORT
+  RAZORPAY_SETTLEMENT_REPORT
+  BANK_STATEMENT
+}
+
+/// What period a file covers. MONTHLY is the normal, recurring upload cadence and
+/// is fully imported into the ledger. QUARTERLY/HALF_YEARLY/YEARLY/CUSTOM cover a
+/// wider span (e.g. a combined Q1 report) uploaded purely for later cross-checking
+/// against the monthly totals — see importBankStatement etc. in
+/// masterAccounting.service.js for why CUSTOM-period files are archived but never
+/// written into the ledger tables (they'd massively double-count the monthly data).
+enum PeriodType {
+  MONTHLY
+  QUARTERLY
+  HALF_YEARLY
+  YEARLY
+  CUSTOM
+}
+
+/// A brand operated by the company (Validstep, RiseFlake, ...). Plain string code
+/// (not an enum) so a new brand is an INSERT, never a migration.
+model Brand {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+
+  gateways        PaymentGatewayAccount[]
+  categories      LedgerCategory[]
+  bank_lines      MasterBankTransaction[]
+  razorpay_payments    RazorpayPayment[]
+  razorpay_settlements RazorpaySettlement[]
+  payu_transactions    MasterPayuTransaction[]
+  payu_settlements     MasterPayuSettlement[]
+  file_archives   SourceFileArchive[]
+
+  @@map("master_brands")
+}
+
+/// A payment gateway account (PayU, Razorpay, ...). Plain string code so a new
+/// gateway is an INSERT, never a migration.
+model PaymentGatewayAccount {
+  id         String   @id @default(uuid())
+  code       String   @unique
+  name       String
+  brand_id   String?
+  brand      Brand?   @relation(fields: [brand_id], references: [id])
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now())
+
+  file_archives SourceFileArchive[]
+
+  @@map("master_payment_gateway_accounts")
+}
+
+/// A bank account the company holds (currently just the one HDFC account). New
+/// bank = an INSERT, never a migration.
+model BankAccount {
+  id                String   @id @default(uuid())
+  bank_name         String
+  account_no_masked String
+  ifsc              String?
+  nickname          String
+  is_active         Boolean  @default(true)
+  created_at        DateTime @default(now())
+
+  bank_lines    MasterBankTransaction[]
+  file_archives SourceFileArchive[]
+
+  @@map("master_bank_accounts")
+}
+
+/// The chart of accounts. Seeded with the categories already in informal use on
+/// the real bank statement (Validstep/RiseFlake profit, cloud bills, stipends,
+/// director salary, etc); admins can add more from the UI at any time.
+model LedgerCategory {
+  id          String             @id @default(uuid())
+  name        String             @unique
+  type        LedgerCategoryType
+  brand_id    String?
+  brand       Brand?             @relation(fields: [brand_id], references: [id])
+  is_system   Boolean            @default(false)
+  created_at  DateTime           @default(now())
+
+  rules      LedgerClassificationRule[]
+  bank_lines MasterBankTransaction[]
+
+  @@map("master_ledger_categories")
+}
+
+/// Narration-matching rules that auto-classify bank statement lines. This is the
+/// extensibility point for future brands/gateways/banks — a new narration pattern
+/// is a new rule row, never a code change. Checked in `priority` order (higher
+/// first); first match wins.
+model LedgerClassificationRule {
+  id          String         @id @default(uuid())
+  category_id String
+  category    LedgerCategory @relation(fields: [category_id], references: [id], onDelete: Cascade)
+  match_type  RuleMatchType
+  pattern     String
+  priority    Int            @default(0)
+  is_active   Boolean        @default(true)
+  created_at  DateTime       @default(now())
+
+  @@index([is_active])
+  @@map("master_ledger_classification_rules")
+}
+
+/// The canonical bank ledger for Master Accounting — parsed independently from
+/// the PayU-only BankTransaction above (same source file may be uploaded to both;
+/// see accounting.service.js / masterAccounting.service.js for why they're kept separate).
+model MasterBankTransaction {
+  id               String    @id @default(uuid())
+  bank_account_id  String
+  bank_account     BankAccount @relation(fields: [bank_account_id], references: [id])
+  txn_date         DateTime
+  narration        String
+  ref_no           String?
+  value_date       DateTime?
+  withdrawal_amt   Decimal?  @db.Decimal(14, 2)
+  deposit_amt      Decimal?  @db.Decimal(14, 2)
+  closing_balance  Decimal?  @db.Decimal(14, 2)
+  /// null = needs classification (shown as an actionable queue in the UI)
+  category_id      String?
+  category         LedgerCategory? @relation(fields: [category_id], references: [id])
+  brand_id         String?
+  brand            Brand?    @relation(fields: [brand_id], references: [id])
+  /// null once a rule matched; set to the rule id for traceability, or left null
+  /// with is_manual_entry=true for a human-tagged/added row.
+  matched_rule_id  String?
+  is_manual_entry  Boolean   @default(false)
+  notes            String?
+  import_id        String?
+  import           SourceFileArchive? @relation(fields: [import_id], references: [id], onDelete: SetNull)
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  @@index([txn_date])
+  @@index([ref_no])
+  @@index([category_id])
+  @@index([brand_id])
+  @@map("master_bank_transactions")
+}
+
+/// One row per Razorpay payment attempt (mirrors PayuTransaction's role).
+model RazorpayPayment {
+  id                String    @id @default(uuid())
+  razorpay_id       String    @unique
+  brand_id          String
+  brand             Brand     @relation(fields: [brand_id], references: [id])
+  amount             Decimal? @db.Decimal(12, 2)
+  currency           String?
+  status             String
+  order_id           String?
+  method             String?
+  fee                Decimal? @db.Decimal(12, 2)
+  tax                Decimal? @db.Decimal(12, 2)
+  amount_refunded    Decimal? @db.Decimal(12, 2)
+  refund_status      String?
+  email              String?
+  contact            String?
+  description        String?
+  bank               String?
+  created_at_source  DateTime?
+  raw                Json
+  import_id          String?
+  import             SourceFileArchive? @relation(fields: [import_id], references: [id], onDelete: SetNull)
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+
+  @@index([status])
+  @@index([created_at_source])
+  @@map("master_razorpay_payments")
+}
+
+/// One row per Razorpay settlement batch (mirrors PayuSettlement's role, but much
+/// simpler — Razorpay settles net-of-fees per batch with its own UTR already
+/// matching the bank statement directly).
+model RazorpaySettlement {
+  id                String    @id @default(uuid())
+  settlement_id     String    @unique
+  brand_id          String
+  brand             Brand     @relation(fields: [brand_id], references: [id])
+  amount            Decimal?  @db.Decimal(14, 2)
+  status            String?
+  fees              Decimal?  @db.Decimal(12, 2)
+  tax               Decimal?  @db.Decimal(12, 2)
+  utr               String?
+  additional_utr    String?
+  created_at_source DateTime?
+  bank_match_status BankMatchStatus @default(UNMATCHED)
+  bank_transaction_id String?
+  raw               Json
+  import_id         String?
+  import            SourceFileArchive? @relation(fields: [import_id], references: [id], onDelete: SetNull)
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+
+  @@index([utr])
+  @@index([bank_match_status])
+  @@map("master_razorpay_settlements")
+}
+
+/// One row per PayU transaction attempt, re-imported into Master Accounting for the
+/// Validstep brand (leaner mirror of the older PayuTransaction — that table remains
+/// the deep drill-down for the PayU-only /admin/accounting page; this one exists so
+/// Master Accounting has uniform per-gateway detail for both brands).
+model MasterPayuTransaction {
+  id                String    @id @default(uuid())
+  payu_id           String    @unique
+  brand_id          String
+  brand             Brand     @relation(fields: [brand_id], references: [id])
+  txnid             String
+  status            String
+  amount            Decimal?  @db.Decimal(12, 2)
+  productinfo       String?
+  email             String?
+  mode              String?
+  service_fees      Decimal?  @db.Decimal(12, 2)
+  convenience_fee   Decimal?  @db.Decimal(12, 2)
+  cgst              Decimal?  @db.Decimal(12, 2)
+  sgst              Decimal?  @db.Decimal(12, 2)
+  igst              Decimal?  @db.Decimal(12, 2)
+  settlement_amount Decimal?  @db.Decimal(12, 2)
+  addedon           DateTime?
+  settlement_date   DateTime?
+  raw               Json
+  import_id         String?
+  import            SourceFileArchive? @relation(fields: [import_id], references: [id], onDelete: SetNull)
+  created_at        DateTime  @default(now())
+
+  @@index([status])
+  @@index([txnid])
+  @@index([addedon])
+  @@map("master_payu_transactions")
+}
+
+/// PayU exports settlement data in two different shapes depending on the report
+/// type pulled from the dashboard: a per-transaction ledger (Merchant Txn ID,
+/// Requested Action, Amount(Net) — what the original /admin/accounting module
+/// was built against) and a daily settlement SUMMARY (one row per settlement
+/// day/UTR, shaped like Razorpay's settlement report). Both map onto this one
+/// table; ledger-only and summary-only fields are nullable so either shape fits.
+model MasterPayuSettlement {
+  id                    String    @id @default(uuid())
+  settlement_key        String    @unique
+  brand_id              String
+  brand                 Brand     @relation(fields: [brand_id], references: [id])
+  merchant_txn_id        String?
+  requested_action       String?
+  amount_net_signed      Decimal?  @db.Decimal(12, 2)
+  total_processing_fees  Decimal?  @db.Decimal(12, 2)
+  total_service_tax      Decimal?  @db.Decimal(12, 2)
+  merchant_utr           String?
+  settlement_date        DateTime?
+  // Summary-report-only fields (null when populated from the per-txn ledger shape)
+  settlement_id          String?
+  txns_amount            Decimal?  @db.Decimal(12, 2)
+  settled_amount         Decimal?  @db.Decimal(12, 2)
+  adjustment_amount      Decimal?  @db.Decimal(12, 2)
+  refund_amount          Decimal?  @db.Decimal(12, 2)
+  chargeback_amount      Decimal?  @db.Decimal(12, 2)
+  transactions_count     Int?
+  bank_match_status      BankMatchStatus @default(UNMATCHED)
+  bank_transaction_id    String?
+  raw                    Json
+  import_id              String?
+  import                 SourceFileArchive? @relation(fields: [import_id], references: [id], onDelete: SetNull)
+  created_at             DateTime  @default(now())
+
+  @@index([merchant_txn_id])
+  @@index([merchant_utr])
+  @@index([bank_match_status])
+  @@index([settlement_date])
+  @@map("master_payu_settlements")
+}
+
+/// Every original file ever uploaded into Master Accounting, archived read-only
+/// on disk (backend/storage/master-accounting/originals/...) and checksummed so
+/// tampering/corruption is detectable. Files are committed to the git repo as a
+/// permanent, version-controlled record — see masterAccounting.service.js for the
+/// write path (chmod 444 immediately after write).
+model SourceFileArchive {
+  id                String    @id @default(uuid())
+  file_type         MasterFileType
+  brand_id          String?
+  brand             Brand?    @relation(fields: [brand_id], references: [id])
+  gateway_id        String?
+  gateway           PaymentGatewayAccount? @relation(fields: [gateway_id], references: [id])
+  bank_account_id   String?
+  bank_account      BankAccount? @relation(fields: [bank_account_id], references: [id])
+  original_filename String
+  stored_path       String
+  sha256_checksum   String
+  file_size         Int
+  period_type       PeriodType @default(MONTHLY)
+  period_label      String?
+  row_count         Int       @default(0)
+  imported_to_ledger Boolean  @default(true)
+  uploaded_by       String?
+  uploaded_at       DateTime  @default(now())
+
+  bank_transactions    MasterBankTransaction[]
+  razorpay_payments    RazorpayPayment[]
+  razorpay_settlements RazorpaySettlement[]
+  payu_transactions    MasterPayuTransaction[]
+  payu_settlements     MasterPayuSettlement[]
+
+  @@index([file_type])
+  @@map("master_source_file_archives")
+}
+
+/// Sequential, statutory-style invoice numbers for customer-facing invoices (BIPPL-VS-01,
+/// BIPPL-RR-1, ...) — assigned once per transaction, the first time its customer invoice is
+/// generated, and never reused/reassigned after that (a real invoice number must stay fixed
+/// forever once issued, unlike the internal PU-/RP- reference used on the company invoice).
+model CustomerInvoiceNumber {
+  id             String   @id @default(uuid())
+  brand          String
+  gateway        String
+  gateway_txn_id String
+  seq            Int
+  invoice_no     String
+  created_at     DateTime @default(now())
+
+  @@unique([brand, gateway, gateway_txn_id])
+  @@unique([brand, seq])
+  @@map("master_customer_invoice_numbers")
 }

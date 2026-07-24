@@ -23,14 +23,6 @@ const companyLoginSchema = z.object({
   password: z.string().min(1),
 });
 
-const userRegisterSchema = z.object({
-  name: z.string().min(2).max(100),
-  email: z.string().email(),
-  password: z.string().min(8).max(128),
-  phone: z.string().optional(),
-  batch_slug: z.string().min(1),
-});
-
 const userLoginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
@@ -54,13 +46,6 @@ router.post(
   authLimiter,
   validate({ body: companyLoginSchema }),
   controller.companyLogin
-);
-
-router.post(
-  '/user/register',
-  authLimiter,
-  validate({ body: userRegisterSchema }),
-  controller.userRegister
 );
 
 router.post(

@@ -215,9 +215,97 @@ async function sendPasswordResetEmail({ name, email, resetUrl, accountType }) {
   });
 }
 
+/**
+ * Send welcome email to a user admin-registered (manually or via Excel bulk-upload) for a
+ * batch — prompts them to set their own password via the existing reset-password flow.
+ */
+async function sendUserWelcomeEmail({ name, email, companyName, batchName, setPasswordUrl }) {
+  const html = baseLayout(`
+    <h2 style="margin:0 0 8px;color:#1e293b;">🎉 You've been registered!</h2>
+    <p style="color:#64748b;margin:0 0 24px;">Hi <strong>${name}</strong>, <strong>${companyName}</strong> has registered you on Validstep.com for <strong>${batchName}</strong>. Set your password to access your dashboard.</p>
+
+    <div class="info-box">
+      <div class="info-row"><span class="label">Batch / Program</span><span class="value">${batchName}</span></div>
+      <div class="info-row"><span class="label">Organization</span><span class="value">${companyName}</span></div>
+      <div class="info-row"><span class="label">Login Email</span><span class="value">${email}</span></div>
+    </div>
+
+    <div style="text-align:center;margin:28px 0;">
+      <a href="${setPasswordUrl}" class="btn">Set My Password</a>
+    </div>
+
+    <p style="font-size:13px;color:#64748b;">This link expires in 1 hour. Once your password is set, log in anytime at <a href="${env.FRONTEND_URL}/auth/user/login" style="color:#4F46E5;">${env.FRONTEND_URL}/auth/user/login</a> to track your certificate status.</p>
+  `);
+
+  return sendEmail({
+    to: email,
+    subject: `🎉 You're registered for ${batchName} — set your password`,
+    html,
+  });
+}
+
+/**
+ * Notify an existing user that an admin has enrolled their existing account in another batch —
+ * no password link needed since they already have credentials.
+ */
+async function sendBatchEnrollmentEmail({ name, email, companyName, batchName, loginUrl }) {
+  const html = baseLayout(`
+    <h2 style="margin:0 0 8px;color:#1e293b;">📋 New Batch Enrollment</h2>
+    <p style="color:#64748b;margin:0 0 24px;">Hi <strong>${name}</strong>, <strong>${companyName}</strong> has enrolled your existing Validstep.com account in a new batch.</p>
+
+    <div class="info-box">
+      <div class="info-row"><span class="label">Batch / Program</span><span class="value">${batchName}</span></div>
+      <div class="info-row"><span class="label">Organization</span><span class="value">${companyName}</span></div>
+    </div>
+
+    <div style="text-align:center;margin:28px 0;">
+      <a href="${loginUrl}" class="btn">Log In to My Dashboard</a>
+    </div>
+
+    <p style="font-size:13px;color:#64748b;">Use your existing password to log in. Your certificate will appear on your dashboard once it's issued.</p>
+  `);
+
+  return sendEmail({
+    to: email,
+    subject: `📋 You've been enrolled in ${batchName}`,
+    html,
+  });
+}
+
+/**
+ * Send welcome email to a company admin-created on the platform — prompts them to set
+ * their own password via the existing reset-password flow.
+ */
+async function sendCompanyWelcomeEmail({ name, email, setPasswordUrl }) {
+  const html = baseLayout(`
+    <h2 style="margin:0 0 8px;color:#1e293b;">🎉 Your organization account is ready</h2>
+    <p style="color:#64748b;margin:0 0 24px;">Hi <strong>${name}</strong>, an account has been set up for you on Validstep.com. Set your password to start creating programs and batches.</p>
+
+    <div class="info-box">
+      <div class="info-row"><span class="label">Organization</span><span class="value">${name}</span></div>
+      <div class="info-row"><span class="label">Login Email</span><span class="value">${email}</span></div>
+    </div>
+
+    <div style="text-align:center;margin:28px 0;">
+      <a href="${setPasswordUrl}" class="btn">Set My Password</a>
+    </div>
+
+    <p style="font-size:13px;color:#64748b;">This link expires in 1 hour. Once your password is set, log in anytime at <a href="${env.FRONTEND_URL}/auth/company/login" style="color:#4F46E5;">${env.FRONTEND_URL}/auth/company/login</a>.</p>
+  `);
+
+  return sendEmail({
+    to: email,
+    subject: `🎉 Your Validstep.com organization account is ready — set your password`,
+    html,
+  });
+}
+
 module.exports = {
   sendEmail,
   sendCertificateIssuedEmail,
   sendPaymentConfirmationEmail,
   sendPasswordResetEmail,
+  sendUserWelcomeEmail,
+  sendBatchEnrollmentEmail,
+  sendCompanyWelcomeEmail,
 };

@@ -32,16 +32,6 @@ async function companyLogin(req, res) {
   }
 }
 
-async function userRegister(req, res) {
-  try {
-    const { user, batch, tokens } = await authService.registerUser(req.body);
-    setRefreshTokenCookie(res, tokens.refreshToken);
-    return sendCreated(res, { user, batch, accessToken: tokens.accessToken }, 'Registration successful');
-  } catch (err) {
-    return sendError(res, err.message, err.statusCode || 500);
-  }
-}
-
 async function userLogin(req, res) {
   try {
     const { email, password } = req.body;
@@ -114,7 +104,6 @@ async function resetPassword(req, res) {
 module.exports = {
   companyRegister,
   companyLogin,
-  userRegister,
   userLogin,
   superAdminLogin,
   refreshToken,

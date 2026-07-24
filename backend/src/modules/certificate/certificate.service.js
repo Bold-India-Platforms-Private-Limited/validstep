@@ -353,6 +353,7 @@ async function downloadCertificate(userId, certificateId) {
   });
 
   return {
+    order_id: certificate.order_id,
     certificate_url: certificate.certificate_url,
     certificate_serial: certificate.certificate_serial,
     verification_hash: certificate.verification_hash,

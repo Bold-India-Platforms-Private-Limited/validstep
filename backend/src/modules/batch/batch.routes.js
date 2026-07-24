@@ -83,8 +83,4 @@ companyRouter.get('/:id/orders', validate({ query: ordersQuerySchema }), control
 companyRouter.get('/:id/orders/export', controller.exportBatchOrders);
 companyRouter.get('/:id/certificates', controller.getBatchCertificates);
 
-// Public route (no auth)
-const publicRouter = Router();
-publicRouter.get('/batch/:slug', controller.getPublicBatch);
-
-module.exports = { companyRouter, publicRouter };
+module.exports = { companyRouter };

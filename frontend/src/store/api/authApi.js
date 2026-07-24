@@ -14,10 +14,6 @@ export const authApi = baseApi.injectEndpoints({
       query: (body) => ({ url: '/auth/user/login', method: 'POST', body }),
       transformResponse: (r) => r.data,
     }),
-    userRegister: b.mutation({
-      query: (body) => ({ url: '/auth/user/register', method: 'POST', body }),
-      transformResponse: (r) => r.data,
-    }),
     adminLogin: b.mutation({
       query: (body) => ({ url: '/auth/superadmin/login', method: 'POST', body }),
       transformResponse: (r) => r.data,
@@ -36,7 +32,7 @@ export const authApi = baseApi.injectEndpoints({
 
 export const {
   useCompanyLoginMutation, useCompanyRegisterMutation,
-  useUserLoginMutation, useUserRegisterMutation,
+  useUserLoginMutation,
   useAdminLoginMutation, useLogoutMutation,
   useForgotPasswordMutation, useResetPasswordMutation,
 } = authApi

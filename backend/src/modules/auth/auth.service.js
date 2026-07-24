@@ -77,71 +77,6 @@ async function loginCompany(email, password) {
 }
 
 /**
- * Register a new user (via batch link)
- */
-async function registerUser(data) {
-  const { name, email, password, phone, batch_slug } = data;
-
-  // Try Redis cache first (same cache used by the public landing page endpoint)
-  let batch = null;
-  const cacheKey = `public:batch:${batch_slug}`;
-  const cached = await redisGet(cacheKey);
-  if (cached) {
-    batch = JSON.parse(cached);
-  } else {
-    batch = await db.batch.findUnique({
-      where: { unique_slug: batch_slug },
-      include: { company: { select: { id: true, name: true, is_active: true } } },
-    });
-  }
-
-  if (!batch) {
-    throw Object.assign(new Error('Invalid batch link'), { statusCode: 404 });
-  }
-
-  if (!batch.is_active || batch.status === 'COMPLETED' || batch.status === 'HOLD') {
-    const msg = batch.status === 'HOLD'
-      ? 'Registrations for this batch are temporarily paused'
-      : 'This batch is no longer accepting registrations';
-    throw Object.assign(new Error(msg), { statusCode: 400 });
-  }
-
-  if (!batch.company?.is_active) {
-    throw Object.assign(new Error('This company account is inactive'), { statusCode: 400 });
-  }
-
-  const existing = await db.user.findUnique({ where: { email } });
-  if (existing) {
-    throw Object.assign(new Error('An account with this email already exists'), { statusCode: 409 });
-  }
-
-  const password_hash = await hashPassword(password);
-
-  const user = await db.user.create({
-    data: {
-      name,
-      email,
-      phone,
-      password_hash,
-      is_verified: false,
-    },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phone: true,
-      is_verified: true,
-      created_at: true,
-    },
-  });
-
-  const tokenPayload = { id: user.id, email: user.email, role: 'user' };
-  const tokens = generateTokenPair(tokenPayload);
-
-  return { user, batch: { id: batch.id, name: batch.name, slug: batch.unique_slug }, tokens };
-}
-
-/**
  * Login a user
  */
 async function loginUser(email, password) {
@@ -345,7 +280,6 @@ async function resetPassword(rawToken, newPassword, accountType) {
 module.exports = {
   registerCompany,
   loginCompany,
-  registerUser,
   loginUser,
   loginSuperAdmin,
   refreshAccessToken,

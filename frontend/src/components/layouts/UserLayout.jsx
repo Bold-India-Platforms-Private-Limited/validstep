@@ -1,12 +1,18 @@
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useLocation } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { useLogoutMutation } from '../../store/api/authApi'
 import { clearCredentials, selectUser } from '../../store/authSlice'
-import { Award, LogOut, User, FileText } from 'lucide-react'
+import { Award, LogOut, User, FileText, Home } from 'lucide-react'
+
+const TABS = [
+  { to: '/dashboard', label: 'Home', icon: Home, exact: true },
+  { to: '/dashboard/invoices', label: 'Invoices', icon: FileText },
+]
 
 export function UserLayout({ children }) {
   const dispatch = useDispatch()
   const navigate = useNavigate()
+  const location = useLocation()
   const user = useSelector(selectUser)
   const [logout] = useLogoutMutation()
 
@@ -16,10 +22,12 @@ export function UserLayout({ children }) {
     navigate('/')
   }
 
+  const isActive = (tab) => (tab.exact ? location.pathname === tab.to : location.pathname.startsWith(tab.to))
+
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="border-b border-slate-200 bg-white shadow-sm">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 max-md:px-4 max-md:py-3" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
           <Link to="/dashboard" className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-600">
               <Award className="h-4 w-4 text-white" />
@@ -37,13 +45,38 @@ export function UserLayout({ children }) {
             <span className="hidden text-sm text-slate-600 sm:block">
               <User className="inline h-3.5 w-3.5 mr-1" />{user?.name}
             </span>
-            <button onClick={handleLogout} className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
-              <LogOut className="h-3.5 w-3.5" /> Logout
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors max-md:h-9 max-md:w-9 max-md:justify-center max-md:rounded-full max-md:border-0 max-md:bg-slate-100 max-md:px-0 max-md:active:bg-slate-200"
+            >
+              <LogOut className="h-3.5 w-3.5" /> <span className="max-md:hidden">Logout</span>
             </button>
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-4 py-6">{children}</main>
+
+      <main className="mx-auto max-w-5xl px-4 py-6 max-md:pb-24">{children}</main>
+
+      {/* Native-app-style bottom tab bar — mobile viewport only */}
+      <nav
+        className="fixed inset-x-0 bottom-0 z-40 flex border-t border-slate-200 bg-white/95 backdrop-blur md:hidden"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        {TABS.map((tab) => {
+          const active = isActive(tab)
+          const Icon = tab.icon
+          return (
+            <Link
+              key={tab.to}
+              to={tab.to}
+              className={`flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium transition-colors ${active ? 'text-primary-600' : 'text-slate-400'}`}
+            >
+              <Icon className={`h-5 w-5 ${active ? 'text-primary-600' : 'text-slate-400'}`} strokeWidth={active ? 2.4 : 2} />
+              {tab.label}
+            </Link>
+          )
+        })}
+      </nav>
     </div>
   )
 }

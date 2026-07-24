@@ -1,7 +1,16 @@
 'use strict';
 
+const fs = require('fs');
 const { db } = require('../../config/database');
 const { redisGet, redisSet } = require('../../config/redis');
+const { getTransactionFeesForPayuIds } = require('../accounting/accounting.service');
+const { hashPassword, generateVerificationHash, generateRandomToken, sha256 } = require('../../utils/hash');
+const { sendUserWelcomeEmail, sendBatchEnrollmentEmail, sendCompanyWelcomeEmail } = require('../../utils/email');
+const { generateCertificateSerial } = require('../batch/batch.service');
+const { parseUserImportFile } = require('../../utils/userImportParser');
+const { parseTransactionReport } = require('../../utils/reportParsers');
+const { logDeliveryEvent } = require('../../utils/deliveryLog');
+const env = require('../../config/env');
 
 /**
  * Get all companies (paginated)
@@ -296,6 +305,7 @@ async function issueCertificatesAdmin(batchId, orderIds) {
       companyId: batch.company_id,
       templateId,
     });
+    logDeliveryEvent(order.user_id, 'CERTIFICATE_GENERATED', order.id);
     results.push({ orderId: order.id, status: 'queued' });
   }
 
@@ -571,9 +581,18 @@ async function getOrderForInvoice(orderId) {
   return order;
 }
 
+/**
+ * Unified invoice list: real per-Order invoices (website checkout) plus PayU Button
+ * transactions (captured, no Order behind them — see accounting module) shown as receipts.
+ * PayU Button rows have no company_id, so they're excluded whenever filtering by company.
+ * Both sources are fetched in full and merged/paginated in-process — acceptable at the current
+ * scale (thousands of rows per quarter), revisit with a DB-level UNION if volume grows much
+ * further.
+ */
 async function getAllInvoices(query = {}) {
   const { page = 1, limit = 20, search, company_id } = query;
-  const skip = (page - 1) * Number(limit);
+  const pageNum = Number(page);
+  const limitNum = Number(limit);
 
   const where = {
     ...(company_id && { order: { company_id } }),
@@ -587,42 +606,681 @@ async function getAllInvoices(query = {}) {
     }),
   };
 
-  const [invoices, total] = await Promise.all([
-    db.invoice.findMany({
-      where,
-      skip,
-      take: Number(limit),
-      orderBy: { generated_at: 'desc' },
-      include: {
-        order: {
-          select: {
-            id: true,
-            certificate_serial: true,
-            status: true,
-            user: { select: { name: true, email: true } },
-            company: { select: { name: true } },
-            batch: {
-              select: {
-                name: true,
-                program: { select: { name: true, type: true } },
-              },
+  const orderInvoices = await db.invoice.findMany({
+    where,
+    orderBy: { generated_at: 'desc' },
+    include: {
+      order: {
+        select: {
+          id: true,
+          certificate_serial: true,
+          status: true,
+          user: { select: { name: true, email: true } },
+          company: { select: { name: true } },
+          batch: {
+            select: {
+              name: true,
+              program: { select: { name: true, type: true } },
             },
           },
         },
       },
+    },
+  });
+
+  let payuInvoices = [];
+  if (!company_id) {
+    const payuWhere = {
+      status: 'captured',
+      source_channel: 'PAYU_BUTTON',
+      ...(search && {
+        OR: [
+          { txnid: { contains: search, mode: 'insensitive' } },
+          { payu_id: { contains: search, mode: 'insensitive' } },
+          { firstname: { contains: search, mode: 'insensitive' } },
+          { lastname: { contains: search, mode: 'insensitive' } },
+          { email: { contains: search, mode: 'insensitive' } },
+        ],
+      }),
+    };
+    const transactions = await db.payuTransaction.findMany({ where: payuWhere, orderBy: { addedon: 'desc' } });
+    payuInvoices = transactions.map((t) => ({
+      id: `payu-${t.payu_id}`,
+      type: 'PAYU_BUTTON',
+      invoice_number: `PU-${t.payu_id}`,
+      amount: t.amount,
+      currency: 'INR',
+      payu_txn_id: t.txnid,
+      payu_id: t.payu_id,
+      paid_at: t.success_at || t.addedon,
+      generated_at: t.success_at || t.addedon,
+      download_count: 0,
+      order: {
+        id: null,
+        user: { name: [t.firstname, t.lastname].filter(Boolean).join(' ') || null, email: t.email },
+        company: { name: null },
+        batch: { name: t.productinfo, program: { name: null, type: null } },
+      },
+    }));
+  }
+
+  const combined = [
+    ...orderInvoices.map((inv) => ({ ...inv, type: 'ORDER' })),
+    ...payuInvoices,
+  ].sort((a, b) => new Date(b.paid_at || b.generated_at || 0).getTime() - new Date(a.paid_at || a.generated_at || 0).getTime());
+
+  const total = combined.length;
+  const skip = (pageNum - 1) * limitNum;
+  const pageItems = combined.slice(skip, skip + limitNum);
+
+  // Fee/net breakdown is only computed for the current page's PayU Button rows (not all 1786+
+  // at once) — each one needs a couple of settlement lookups, cheap for 20 rows, expensive for
+  // the full list.
+  const payuIdsOnPage = pageItems.filter((inv) => inv.type === 'PAYU_BUTTON').map((inv) => inv.payu_id);
+  const feesByPayuId = await getTransactionFeesForPayuIds(payuIdsOnPage);
+  const pageItemsWithFees = pageItems.map((inv) => {
+    if (inv.type !== 'PAYU_BUTTON') return inv;
+    const fee = feesByPayuId.get(inv.payu_id);
+    if (!fee) return inv;
+    return { ...inv, payu_fee: fee.totalFee, net_amount: fee.netAmount };
+  });
+
+  return {
+    invoices: pageItemsWithFees,
+    pagination: {
+      total,
+      page: pageNum,
+      limit: limitNum,
+      pages: Math.ceil(total / limitNum),
+    },
+  };
+}
+
+/**
+ * Create a company on behalf of an organization — mirrors auth.service.registerCompany but
+ * delivers credentials via a set-password link (reusing the reset_token flow already on the
+ * Company model) instead of returning a session, since the admin is creating this for someone
+ * else, not registering themselves.
+ */
+async function createCompany({ name, email, phone, website, description }) {
+  const normalizedEmail = String(email).toLowerCase().trim();
+
+  const existing = await db.company.findUnique({ where: { email: normalizedEmail } });
+  if (existing) {
+    throw Object.assign(new Error('A company with this email already exists'), { statusCode: 409 });
+  }
+
+  const password_hash = await hashPassword(generateRandomToken(24));
+  const company = await db.company.create({
+    data: {
+      name,
+      email: normalizedEmail,
+      phone: phone || null,
+      website: website || null,
+      description: description || null,
+      password_hash,
+      is_active: true,
+      is_verified: false,
+    },
+    select: {
+      id: true, name: true, email: true, phone: true, website: true,
+      is_active: true, is_verified: true, created_at: true,
+    },
+  });
+
+  const rawToken = generateRandomToken(32);
+  const hashedToken = sha256(rawToken);
+  await db.company.update({
+    where: { id: company.id },
+    data: { reset_token: hashedToken, reset_token_expires: new Date(Date.now() + 60 * 60 * 1000) },
+  });
+  const setPasswordUrl = `${env.FRONTEND_URL}/auth/reset-password?token=${rawToken}&type=company`;
+  sendCompanyWelcomeEmail({ name: company.name, email: company.email, setPasswordUrl });
+
+  return company;
+}
+
+/**
+ * Get all users (admin view) — paginated, with each row's recent batch enrollments.
+ */
+async function listUsers(query = {}) {
+  const { page = 1, limit = 20, search } = query;
+  const skip = (page - 1) * limit;
+
+  const where = search
+    ? {
+        OR: [
+          { name: { contains: search, mode: 'insensitive' } },
+          { email: { contains: search, mode: 'insensitive' } },
+          { phone: { contains: search, mode: 'insensitive' } },
+        ],
+      }
+    : {};
+
+  const [users, total] = await Promise.all([
+    db.user.findMany({
+      where,
+      skip,
+      take: Number(limit),
+      orderBy: { created_at: 'desc' },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        is_verified: true,
+        created_at: true,
+        orders: {
+          orderBy: { created_at: 'desc' },
+          take: 5,
+          select: {
+            status: true,
+            is_manual_enrollment: true,
+            batch: { select: { name: true } },
+            company: { select: { name: true } },
+          },
+        },
+        _count: { select: { orders: true } },
+      },
     }),
-    db.invoice.count({ where }),
+    db.user.count({ where }),
   ]);
 
   return {
-    invoices,
-    pagination: {
-      total,
-      page: Number(page),
-      limit: Number(limit),
-      pages: Math.ceil(total / Number(limit)),
-    },
+    users,
+    pagination: { total, page: Number(page), limit: Number(limit), pages: Math.ceil(total / limit) },
   };
+}
+
+/**
+ * Register (or enroll an existing user in) a specific company + batch without a real payment —
+ * used by both the manual "Add User" form and each row of a bulk Excel upload. Creates a PAID,
+ * amount-0, is_manual_enrollment order so the company's existing "Issue Certificates" workflow
+ * picks it up unchanged, but deliberately skips Payment/Invoice creation since no real
+ * transaction happened (keeps these out of revenue/reconciliation reports).
+ */
+async function registerUserForBatch({ name, email, phone, company_id, batch_id }) {
+  const normalizedEmail = String(email).toLowerCase().trim();
+
+  const batch = await db.batch.findUnique({
+    where: { id: batch_id },
+    include: { company: { select: { id: true, name: true, is_active: true } } },
+  });
+  if (!batch) throw Object.assign(new Error('Batch not found'), { statusCode: 404 });
+  if (batch.company_id !== company_id) {
+    throw Object.assign(new Error('Batch does not belong to the selected company'), { statusCode: 400 });
+  }
+  if (!batch.company?.is_active) {
+    throw Object.assign(new Error('This company account is inactive'), { statusCode: 400 });
+  }
+  if (!batch.is_active || batch.status === 'COMPLETED' || batch.status === 'HOLD') {
+    throw Object.assign(new Error(`Batch is ${batch.status.toLowerCase()} — cannot enroll new participants`), { statusCode: 400 });
+  }
+
+  let user = await db.user.findUnique({ where: { email: normalizedEmail } });
+  let isNewUser = false;
+
+  if (!user) {
+    isNewUser = true;
+    const password_hash = await hashPassword(generateRandomToken(24));
+    user = await db.user.create({
+      data: { name, email: normalizedEmail, phone: phone || null, password_hash, is_verified: false },
+    });
+  } else {
+    const existingOrder = await db.order.findFirst({ where: { user_id: user.id, batch_id } });
+    if (existingOrder) {
+      throw Object.assign(new Error(`${normalizedEmail} is already enrolled in this batch`), { statusCode: 409 });
+    }
+  }
+
+  const certificateSerial = await generateCertificateSerial(batch_id);
+
+  const order = await db.$transaction(async (tx) => {
+    const created = await tx.order.create({
+      data: {
+        user_id: user.id,
+        batch_id,
+        company_id,
+        certificate_serial: certificateSerial,
+        amount: 0,
+        currency: batch.currency,
+        status: 'PAID',
+        is_manual_enrollment: true,
+      },
+    });
+
+    const verificationHash = generateVerificationHash(certificateSerial, user.id, batch_id);
+    const template = await tx.certificateTemplate.findFirst({
+      where: { batch_id, is_active: true },
+      orderBy: { created_at: 'desc' },
+    });
+    await tx.certificate.create({
+      data: {
+        order_id: created.id,
+        user_id: user.id,
+        batch_id,
+        company_id,
+        certificate_serial: certificateSerial,
+        template_id: template?.id || null,
+        is_issued: false,
+        verification_hash: verificationHash,
+      },
+    });
+
+    return created;
+  });
+
+  // Fire-and-forget email — never let a delivery failure fail the enrollment itself.
+  if (isNewUser) {
+    const rawToken = generateRandomToken(32);
+    const hashedToken = sha256(rawToken);
+    await db.user.update({
+      where: { id: user.id },
+      data: { reset_token: hashedToken, reset_token_expires: new Date(Date.now() + 60 * 60 * 1000) },
+    });
+    const setPasswordUrl = `${env.FRONTEND_URL}/auth/reset-password?token=${rawToken}&type=user`;
+    sendUserWelcomeEmail({ name: user.name, email: user.email, companyName: batch.company.name, batchName: batch.name, setPasswordUrl });
+  } else {
+    const loginUrl = `${env.FRONTEND_URL}/auth/user/login`;
+    sendBatchEnrollmentEmail({ name: user.name, email: user.email, companyName: batch.company.name, batchName: batch.name, loginUrl });
+  }
+
+  return { user_id: user.id, order_id: order.id, is_new_user: isNewUser };
+}
+
+/**
+ * Enroll a set of already-registered users (picked from the admin Users list) into a
+ * company's batch — reuses registerUserForBatch's existing-user branch directly, so these
+ * get the same PAID/₹0/is_manual_enrollment Order + "you've been enrolled" email as any
+ * other existing-user enrollment path.
+ */
+async function enrollExistingUsers({ company_id, batch_id, user_ids }) {
+  const users = await db.user.findMany({
+    where: { id: { in: user_ids } },
+    select: { id: true, email: true },
+  });
+
+  const result = { total: users.length, enrolled: 0, errors: [] };
+
+  for (const u of users) {
+    try {
+      await registerUserForBatch({ email: u.email, company_id, batch_id });
+      result.enrolled += 1;
+    } catch (err) {
+      result.errors.push({ user_id: u.id, email: u.email, reason: err.message });
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Bulk-enroll users from an uploaded Excel/CSV file into one company + batch. One bad row never
+ * aborts the rest — each row is processed independently and results are aggregated.
+ */
+async function bulkUploadUsers({ company_id, batch_id, file }) {
+  const buffer = fs.readFileSync(file.path);
+  const { rows, errors: parseErrors } = parseUserImportFile(buffer);
+
+  const result = { total_rows: rows.length, created: 0, enrolled_existing: 0, errors: [...parseErrors] };
+
+  // registerUserForBatch does its own bcrypt hash + $transaction per new user — sequentially
+  // awaiting that per row made even a moderate-sized roster feel like it hung (same class of
+  // bug found and fixed for the PayU import paths earlier). Run rows concurrently in bounded
+  // batches instead — generateCertificateSerial's atomic increment makes this safe.
+  const CONCURRENCY = 10;
+  for (let i = 0; i < rows.length; i += CONCURRENCY) {
+    const batch = rows.slice(i, i + CONCURRENCY);
+    const outcomes = await Promise.allSettled(batch.map((row) => registerUserForBatch({
+      name: row.name,
+      email: row.email,
+      phone: row.phone,
+      company_id,
+      batch_id,
+    })));
+
+    outcomes.forEach((outcome, idx) => {
+      const row = batch[idx];
+      if (outcome.status === 'fulfilled') {
+        if (outcome.value.is_new_user) result.created += 1;
+        else result.enrolled_existing += 1;
+      } else {
+        result.errors.push({ rowNum: row.rowNum, email: row.email, reason: outcome.reason.message });
+      }
+    });
+  }
+
+  return result;
+}
+
+/**
+ * Import PayU Button customers (captured transactions with no ValidStep order behind them,
+ * see PayuTransaction.source_channel) as standalone User accounts so they can log into the
+ * customer portal. Password is set to the account's own email address (no set-password email,
+ * no forced change) per explicit product decision — every account is otherwise a normal User row.
+ * Existing accounts (matched by email) are left untouched, never overwritten.
+ */
+async function importPayuButtonCustomers() {
+  const candidates = await db.payuTransaction.findMany({
+    where: { source_channel: 'PAYU_BUTTON', status: 'captured', email: { not: null } },
+    select: { email: true, firstname: true, lastname: true, phone: true },
+    distinct: ['email'],
+  });
+
+  // One query to find which emails already have accounts, instead of N sequential lookups —
+  // matters at this table's real scale (thousands of PayU Button transactions).
+  const existing = await db.user.findMany({
+    where: { email: { in: candidates.map((c) => c.email.toLowerCase().trim()) } },
+    select: { email: true },
+  });
+  const existingEmails = new Set(existing.map((u) => u.email));
+
+  const toCreate = candidates.filter((c) => !existingEmails.has(c.email.toLowerCase().trim()));
+
+  // bcrypt hashing is CPU-bound (~150-250ms each at this app's SALT_ROUNDS) — hashing
+  // thousands of rows one at a time in series would take minutes. Promise.all lets Node's
+  // libuv threadpool run them concurrently instead.
+  const rows = await Promise.all(
+    toCreate.map(async (c) => {
+      const email = c.email.toLowerCase().trim();
+      const name = [c.firstname, c.lastname].filter(Boolean).join(' ').trim() || email.split('@')[0];
+      const password_hash = await hashPassword(email);
+      return { name, email, phone: c.phone || null, password_hash, is_verified: true };
+    })
+  );
+
+  if (rows.length > 0) {
+    await db.user.createMany({ data: rows, skipDuplicates: true });
+  }
+
+  return {
+    total_candidates: candidates.length,
+    created: rows.length,
+    skipped_existing: candidates.length - rows.length,
+  };
+}
+
+const CAPTURED_LIKE = new Set(['captured']);
+const REFUNDED_LIKE = new Set(['refunded', 'refund']);
+const FAILED_LIKE = new Set(['failed', 'failure']);
+const CANCELLED_LIKE = new Set(['usercancelled', 'cancelled', 'cancel']);
+const PENDING_LIKE = new Set(['pending', 'inprogress', 'not_found']);
+
+/**
+ * Import a PayU transaction-report export (CSV/Excel, same format the accounting module
+ * already parses via parseTransactionReport). Every row is upserted into payu_transactions
+ * (payu_id is the de-dupe key — matches what PayU itself treats as the unique payment
+ * identifier); a User account is created for every NEW, captured row's distinct email that
+ * doesn't already have one, so it immediately shows up in the admin Users list ready to be
+ * assigned to a batch. Returns the exact import-summary shape the admin UI shows.
+ */
+async function importPayuTransactions(file) {
+  const buffer = fs.readFileSync(file.path);
+  const { rows } = parseTransactionReport(buffer);
+
+  const existing = await db.payuTransaction.findMany({
+    where: { payu_id: { in: rows.map((r) => r.payu_id) } },
+    select: { payu_id: true },
+  });
+  const existingIds = new Set(existing.map((e) => e.payu_id));
+
+  const summary = { total_rows: rows.length, imported: 0, duplicate: 0, refunded: 0, failed: 0, cancelled: 0, pending: 0, other: 0 };
+  const capturedNewByEmail = new Map();
+
+  // Upsert every row into Postgres, concurrently in bounded batches — sequentially awaiting
+  // 1000+ single-row upserts one at a time made large report imports feel hung (same class
+  // of bug already fixed for the password-hashing step below).
+  const UPSERT_CONCURRENCY = 20;
+  for (let i = 0; i < rows.length; i += UPSERT_CONCURRENCY) {
+    const chunk = rows.slice(i, i + UPSERT_CONCURRENCY);
+    await Promise.all(chunk.map((row) => db.payuTransaction.upsert({
+      where: { payu_id: row.payu_id },
+      create: { ...row },
+      update: { ...row },
+    })));
+  }
+
+  for (const row of rows) {
+    const isDuplicate = existingIds.has(row.payu_id);
+    const status = (row.status || '').toLowerCase();
+
+    // Summary buckets stay a clean partition of total_rows: a duplicate payu_id is counted as
+    // "duplicate" only, not also re-counted into imported/refunded/failed/etc.
+    if (isDuplicate) {
+      summary.duplicate += 1;
+    } else if (CAPTURED_LIKE.has(status)) {
+      summary.imported += 1;
+    } else if (REFUNDED_LIKE.has(status)) {
+      summary.refunded += 1;
+    } else if (FAILED_LIKE.has(status)) {
+      summary.failed += 1;
+    } else if (CANCELLED_LIKE.has(status)) {
+      summary.cancelled += 1;
+    } else if (PENDING_LIKE.has(status)) {
+      summary.pending += 1;
+    } else {
+      summary.other += 1;
+    }
+
+    // Collect every captured row's email regardless of duplicate status, separately from the
+    // summary above — account creation below is already idempotent (checked against existing
+    // Users), and a transaction being a "duplicate" of an earlier import attempt doesn't
+    // guarantee that attempt ever reached the account-creation step (e.g. a killed/failed
+    // import can leave transactions upserted with no corresponding User — must still be
+    // repaired on re-upload).
+    if (CAPTURED_LIKE.has(status) && row.email) {
+      capturedNewByEmail.set(row.email.toLowerCase().trim(), {
+        firstname: row.firstname, lastname: row.lastname, phone: row.phone,
+      });
+    }
+  }
+
+  const candidateEmails = [...capturedNewByEmail.keys()];
+  let newUsersCreated = 0;
+  if (candidateEmails.length > 0) {
+    const existingUsers = await db.user.findMany({
+      where: { email: { in: candidateEmails } },
+      select: { email: true },
+    });
+    const existingUserEmails = new Set(existingUsers.map((u) => u.email));
+    const toCreate = candidateEmails.filter((e) => !existingUserEmails.has(e));
+
+    const userRows = await Promise.all(toCreate.map(async (email) => {
+      const info = capturedNewByEmail.get(email);
+      const name = [info.firstname, info.lastname].filter(Boolean).join(' ').trim() || email.split('@')[0];
+      // No welcome/set-password email is sent for imported transactions (bulk, high-volume) —
+      // password = email so the account is immediately usable, same tradeoff already confirmed
+      // for importPayuButtonCustomers.
+      const password_hash = await hashPassword(email);
+      return { name, email, phone: info.phone || null, password_hash, is_verified: true };
+    }));
+
+    if (userRows.length > 0) {
+      await db.user.createMany({ data: userRows, skipDuplicates: true });
+      newUsersCreated = userRows.length;
+
+      const newUsers = await db.user.findMany({
+        where: { email: { in: userRows.map((u) => u.email) } },
+        select: { id: true },
+      });
+      await db.deliveryEvent.createMany({
+        data: newUsers.flatMap((u) => [
+          { user_id: u.id, event: 'PAYMENT_IMPORTED' },
+          { user_id: u.id, event: 'USER_CREATED' },
+        ]),
+      });
+    }
+  }
+
+  return { ...summary, new_users_created: newUsersCreated };
+}
+
+/**
+ * List captured, not-yet-assigned transactions for the "assign to batch" picker.
+ */
+async function getAssignableTransactions({ from, to, search } = {}) {
+  const addedonRange = {};
+  if (from) addedonRange.gte = new Date(from);
+  if (to) {
+    const end = new Date(to);
+    end.setUTCHours(23, 59, 59, 999);
+    addedonRange.lte = end;
+  }
+
+  const where = {
+    status: 'captured',
+    order_id: null,
+    ...(Object.keys(addedonRange).length && { addedon: addedonRange }),
+    ...(search && {
+      OR: [
+        { email: { contains: search, mode: 'insensitive' } },
+        { firstname: { contains: search, mode: 'insensitive' } },
+        { lastname: { contains: search, mode: 'insensitive' } },
+        { txnid: { contains: search, mode: 'insensitive' } },
+        { payu_id: { contains: search, mode: 'insensitive' } },
+      ],
+    }),
+  };
+
+  const transactions = await db.payuTransaction.findMany({
+    where,
+    orderBy: { addedon: 'desc' },
+    take: 200,
+    select: {
+      payu_id: true, txnid: true, email: true, firstname: true, lastname: true,
+      amount: true, addedon: true, success_at: true, productinfo: true,
+    },
+  });
+
+  return { transactions };
+}
+
+/**
+ * Assign a set of imported, captured PayU transactions to a company's batch — the
+ * real-money counterpart to registerUserForBatch (which stays as-is for genuine $0 comp
+ * enrollments). Creates a real Order (actual amount + payu_txn_id), Payment, and Invoice,
+ * backdated to the transaction's own success_at/addedon — this data represents actual
+ * collected revenue and must show up in Payments/Invoices, unlike manual enrollments.
+ */
+async function assignTransactionsToBatch({ company_id, batch_id, payu_ids }) {
+  const batch = await db.batch.findUnique({
+    where: { id: batch_id },
+    include: { company: { select: { id: true, name: true, is_active: true } } },
+  });
+  if (!batch) throw Object.assign(new Error('Batch not found'), { statusCode: 404 });
+  if (batch.company_id !== company_id) {
+    throw Object.assign(new Error('Batch does not belong to the selected company'), { statusCode: 400 });
+  }
+
+  const transactions = await db.payuTransaction.findMany({
+    where: { payu_id: { in: payu_ids }, status: 'captured' },
+  });
+
+  const result = { total: transactions.length, assigned: 0, errors: [] };
+
+  for (const txn of transactions) {
+    try {
+      if (txn.order_id) {
+        throw Object.assign(new Error('Transaction is already assigned to a batch'), { statusCode: 409 });
+      }
+      if (!txn.email) {
+        throw Object.assign(new Error('Transaction has no customer email'), { statusCode: 400 });
+      }
+
+      const email = txn.email.toLowerCase().trim();
+      let user = await db.user.findUnique({ where: { email } });
+      let isNewUser = false;
+      if (!user) {
+        isNewUser = true;
+        const name = [txn.firstname, txn.lastname].filter(Boolean).join(' ').trim() || email.split('@')[0];
+        // Same tradeoff as importPayuTransactions — no email step, password = email.
+        const password_hash = await hashPassword(email);
+        user = await db.user.create({
+          data: { name, email, phone: txn.phone || null, password_hash, is_verified: true },
+        });
+      }
+
+      const existingOrder = await db.order.findFirst({ where: { user_id: user.id, batch_id } });
+      if (existingOrder) {
+        throw Object.assign(new Error(`${email} is already enrolled in this batch`), { statusCode: 409 });
+      }
+
+      const certificateSerial = await generateCertificateSerial(batch_id);
+      const paidAt = txn.success_at || txn.addedon || new Date();
+      const amount = txn.amount || 0;
+
+      await db.$transaction(async (tx) => {
+        const order = await tx.order.create({
+          data: {
+            user_id: user.id,
+            batch_id,
+            company_id,
+            certificate_serial: certificateSerial,
+            amount,
+            currency: batch.currency || 'INR',
+            status: 'PAID',
+            payu_txn_id: txn.txnid,
+            is_manual_enrollment: false,
+          },
+        });
+
+        const verificationHash = generateVerificationHash(certificateSerial, user.id, batch_id);
+        const template = await tx.certificateTemplate.findFirst({
+          where: { batch_id, is_active: true },
+          orderBy: { created_at: 'desc' },
+        });
+        await tx.certificate.create({
+          data: {
+            order_id: order.id,
+            user_id: user.id,
+            batch_id,
+            company_id,
+            certificate_serial: certificateSerial,
+            template_id: template?.id || null,
+            is_issued: false,
+            verification_hash: verificationHash,
+          },
+        });
+
+        await tx.payment.create({
+          data: {
+            order_id: order.id,
+            payu_txn_id: txn.txnid,
+            payu_payment_id: txn.payu_id,
+            amount,
+            currency: batch.currency || 'INR',
+            status: 'SUCCESS',
+            gateway_response: txn.raw || {},
+            created_at: paidAt,
+          },
+        });
+
+        await tx.invoice.create({
+          data: {
+            order_id: order.id,
+            invoice_number: `INV-${certificateSerial}`,
+            amount,
+            currency: batch.currency || 'INR',
+            payu_txn_id: txn.txnid,
+            paid_at: paidAt,
+          },
+        });
+
+        await tx.payuTransaction.update({ where: { payu_id: txn.payu_id }, data: { order_id: order.id } });
+
+        if (isNewUser) {
+          await tx.deliveryEvent.create({ data: { user_id: user.id, event: 'USER_CREATED' } });
+        }
+        await tx.deliveryEvent.create({ data: { user_id: user.id, order_id: order.id, event: 'BATCH_ASSIGNED' } });
+      });
+
+      result.assigned += 1;
+    } catch (err) {
+      result.errors.push({ payu_id: txn.payu_id, email: txn.email, reason: err.message });
+    }
+  }
+
+  return result;
 }
 
 module.exports = {
@@ -643,4 +1301,13 @@ module.exports = {
   exportAdminBatchOrders,
   getAdminBatchCertificates,
   issueCertificatesAdmin,
+  listUsers,
+  registerUserForBatch,
+  bulkUploadUsers,
+  importPayuButtonCustomers,
+  createCompany,
+  enrollExistingUsers,
+  importPayuTransactions,
+  getAssignableTransactions,
+  assignTransactionsToBatch,
 };

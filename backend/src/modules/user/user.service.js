@@ -256,6 +256,19 @@ async function getUserInvoices(userId, query = {}) {
   };
 }
 
+/**
+ * Proof-of-delivery timeline for the customer portal — payment imported, account created,
+ * batch assigned, certificate generated/downloaded, invoice downloaded.
+ */
+async function getDeliveryLog(userId) {
+  const events = await db.deliveryEvent.findMany({
+    where: { user_id: userId },
+    orderBy: { created_at: 'desc' },
+    include: { order: { select: { certificate_serial: true, batch: { select: { name: true } } } } },
+  });
+  return { events };
+}
+
 module.exports = {
   getDashboard,
   getOrders,
@@ -264,4 +277,5 @@ module.exports = {
   getPaymentHistory,
   getOrderForInvoice,
   getUserInvoices,
+  getDeliveryLog,
 };

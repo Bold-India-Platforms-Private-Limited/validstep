@@ -1,7 +1,8 @@
 'use strict';
 
 const userService = require('./user.service');
-const { getOrCreateInvoiceRecord, incrementInvoiceDownloadCount } = require('../payment/payment.service');
+const { getOrCreateInvoiceRecord, incrementInvoiceDownloadCount } = require('../../utils/invoiceRecords');
+const { logDeliveryEvent } = require('../../utils/deliveryLog');
 const { sendSuccess, sendError } = require('../../utils/apiResponse');
 
 async function getDashboard(req, res) {
@@ -79,6 +80,7 @@ async function downloadInvoice(req, res) {
     });
 
     incrementInvoiceDownloadCount(order.id).catch(() => {});
+    logDeliveryEvent(req.user.id, 'INVOICE_DOWNLOADED', order.id);
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="invoice-${order.certificate_serial}.pdf"`);
@@ -97,6 +99,15 @@ async function getInvoices(req, res) {
   }
 }
 
+async function getDeliveryLog(req, res) {
+  try {
+    const result = await userService.getDeliveryLog(req.user.id);
+    return sendSuccess(res, result, 'Delivery log retrieved');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
 module.exports = {
   getDashboard,
   getOrders,
@@ -105,4 +116,5 @@ module.exports = {
   getPaymentHistory,
   downloadInvoice,
   getInvoices,
+  getDeliveryLog,
 };

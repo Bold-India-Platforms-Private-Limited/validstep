@@ -66,6 +66,7 @@ function Navbar() {
   }
 
   return (
+    <>
     <header className={`fixed top-0 inset-x-0 z-50 transition-all duration-200 ${scrolled ? 'bg-white/98 backdrop-blur shadow-sm border-b border-gray-150' : 'bg-white/80 backdrop-blur'}`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
@@ -285,73 +286,143 @@ function Navbar() {
           </button>
         </div>
       </div>
+    </header>
 
-      {/* Mobile menu */}
-      {mobileOpen && (
-        <div className="md:hidden bg-white border-t border-gray-100 px-4 py-4 space-y-1 shadow-lg">
-          {[['Features','#features'],['How it Works','#how-it-works'],['Pricing','#pricing']].map(([label, href]) => (
-            <a key={label} href={href}
-              onClick={() => setMobileOpen(false)}
-              className="block px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-lg">
-              {label}
-            </a>
-          ))}
-          <Link to="/about" onClick={() => setMobileOpen(false)}
-            className="block px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-lg">
-            About
-          </Link>
-          <Link to="/contact" onClick={() => setMobileOpen(false)}
-            className="block px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-lg">
-            Contact
-          </Link>
+    {/* Mobile menu — native app-style slide-in sheet. Rendered as a sibling of
+        <header>, not inside it: <header> has backdrop-blur, and per the CSS spec an
+        ancestor with a backdrop-filter/filter/transform becomes the containing block
+        for its position:fixed descendants — nesting this here made inset-y-0 resolve
+        against header's own ~64px box instead of the viewport. */}
+    {mobileOpen && (
+      <div className="md:hidden">
+        <button
+          aria-hidden="true"
+          onClick={() => setMobileOpen(false)}
+          className="fixed inset-0 z-40 bg-gray-900/40 backdrop-blur-[2px]"
+        />
+        <div
+          className="fixed inset-y-0 right-0 z-50 flex w-[85%] max-w-sm flex-col overflow-y-auto rounded-l-3xl bg-white shadow-2xl"
+          style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+        >
+          <div className="flex items-center justify-between px-5 pt-5 pb-2">
+            <img src="/logo.webp" alt="Validstep" className="h-7 w-auto" />
+            <button onClick={() => setMobileOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-500 active:bg-gray-200">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="space-y-1 px-3 pt-3">
+            {[['Features','#features'],['How it Works','#how-it-works'],['Pricing','#pricing']].map(([label, href]) => (
+              <a key={label} href={href}
+                onClick={() => setMobileOpen(false)}
+                className="block rounded-2xl px-4 py-3.5 text-[15px] font-medium text-gray-700 active:bg-gray-100">
+                {label}
+              </a>
+            ))}
+            <Link to="/about" onClick={() => setMobileOpen(false)}
+              className="block rounded-2xl px-4 py-3.5 text-[15px] font-medium text-gray-700 active:bg-gray-100">
+              About
+            </Link>
+            <Link to="/contact" onClick={() => setMobileOpen(false)}
+              className="block rounded-2xl px-4 py-3.5 text-[15px] font-medium text-gray-700 active:bg-gray-100">
+              Contact
+            </Link>
+          </div>
 
           {/* Mobile verify section */}
-          <div className="pt-3 border-t border-gray-100 mt-2">
-            <p className="px-3 pb-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Verify Certificate</p>
-            <form onSubmit={handleVerify} className="flex gap-2 px-1 mb-2">
+          <div className="mx-3 mt-3 rounded-2xl bg-emerald-50/60 p-4">
+            <p className="mb-2.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-700">
+              <CheckCircle2 className="w-3.5 h-3.5" /> Verify Certificate
+            </p>
+            <form onSubmit={handleVerify} className="flex gap-2">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                 <input
                   type="text"
                   value={certId}
                   onChange={e => setCertId(e.target.value)}
-                  placeholder="Enter Certificate ID"
-                  className="w-full pl-9 pr-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 font-mono"
+                  placeholder="Certificate ID"
+                  className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-9 pr-3 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
                 />
               </div>
               <button type="submit"
-                className="px-3 py-2.5 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition-colors">
-                <ArrowRight className="w-3.5 h-3.5" />
+                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white active:bg-emerald-700">
+                <ArrowRight className="w-4 h-4" />
               </button>
             </form>
           </div>
 
-          <div className="pt-2 space-y-2 border-t border-gray-100 mt-2">
+          <div className="mt-auto space-y-2.5 p-4">
             {isAuthenticated ? (
               <Link to={dashboardPath} onClick={() => setMobileOpen(false)}
-                className="block px-3 py-2.5 text-sm font-semibold bg-violet-600 text-white rounded-lg text-center">
+                className="block rounded-full bg-violet-600 py-3.5 text-center text-[15px] font-semibold text-white">
                 Go to Dashboard
               </Link>
             ) : (
               <>
                 <Link to="/auth/company/register" onClick={() => setMobileOpen(false)}
-                  className="block px-3 py-2.5 text-sm font-semibold bg-violet-600 text-white rounded-lg text-center">
+                  className="block rounded-full bg-violet-600 py-3.5 text-center text-[15px] font-semibold text-white">
                   Register Organization
                 </Link>
                 <Link to="/auth/company/login" onClick={() => setMobileOpen(false)}
-                  className="block px-3 py-2.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg text-center hover:bg-gray-50">
+                  className="block rounded-full border border-gray-200 py-3.5 text-center text-[15px] font-medium text-gray-700 active:bg-gray-50">
                   Organization Login
                 </Link>
                 <Link to="/auth/user/login" onClick={() => setMobileOpen(false)}
-                  className="block px-3 py-2.5 text-sm font-medium text-violet-600 rounded-lg text-center hover:bg-violet-50">
+                  className="block rounded-full py-3.5 text-center text-[15px] font-medium text-violet-600 active:bg-violet-50">
                   Participant Login
                 </Link>
               </>
             )}
           </div>
         </div>
-      )}
-    </header>
+      </div>
+    )}
+    <MobileAppBar onVerifyClick={() => setMobileOpen(true)} />
+    </>
+  )
+}
+
+/* ─────────────────────────────────────────────
+   MOBILE BOTTOM APP BAR — native-app tab bar,
+   mobile viewport only
+───────────────────────────────────────────── */
+function MobileAppBar({ onVerifyClick }) {
+  const isAuthenticated = useSelector(selectIsAuthenticated)
+  const role = useSelector(selectUserRole)
+  const dashboardPath =
+    role === 'COMPANY' ? '/company/dashboard'
+    : role === 'SUPERADMIN' ? '/admin/dashboard'
+    : '/dashboard'
+
+  return (
+    <nav
+      className="fixed inset-x-0 bottom-0 z-40 flex border-t border-gray-100 bg-white/95 backdrop-blur md:hidden"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+    >
+      <button
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        className="flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium text-gray-400"
+      >
+        <Award className="h-5 w-5" />
+        Home
+      </button>
+      <button onClick={onVerifyClick} className="flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium text-gray-400">
+        <CheckCircle2 className="h-5 w-5" />
+        Verify
+      </button>
+      <a href="#pricing" className="flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium text-gray-400">
+        <Sparkles className="h-5 w-5" />
+        Pricing
+      </a>
+      <Link
+        to={isAuthenticated ? dashboardPath : '/auth/user/login'}
+        className="flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium text-violet-600"
+      >
+        <Users className="h-5 w-5" />
+        {isAuthenticated ? 'Dashboard' : 'Sign In'}
+      </Link>
+    </nav>
   )
 }
 
@@ -517,13 +588,13 @@ function Hero() {
       <HeroBg />
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16 w-full">
-        <div className="grid lg:grid-cols-2 gap-16 items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
 
           {/* Left — copy */}
           <div>
             {/* Pill badge */}
-            <div className="inline-flex items-center gap-2 bg-violet-50 border border-violet-200 text-violet-700 text-xs font-semibold px-4 py-1.5 rounded-full mb-6">
-              <span className="w-1.5 h-1.5 rounded-full bg-violet-500 animate-pulse" />
+            <div className="inline-flex items-center gap-2 bg-violet-50 border border-violet-200 text-violet-700 text-xs font-semibold px-4 py-1.5 rounded-full mb-6 max-md:flex max-md:w-full max-md:rounded-2xl max-md:py-2.5 max-md:text-left">
+              <span className="w-1.5 h-1.5 rounded-full bg-violet-500 animate-pulse flex-shrink-0" />
               Certificate Infrastructure Platform — built for serious organizations
             </div>
 
@@ -542,10 +613,10 @@ function Hero() {
             </p>
 
             {/* Ideal for — org types */}
-            <div className="flex flex-wrap items-center gap-2 mb-6">
-              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide mr-1">Ideal for</span>
+            <div className="flex flex-wrap items-center gap-2 mb-6 max-md:flex-nowrap max-md:overflow-x-auto max-md:-mx-4 max-md:px-4 max-md:pb-1">
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide mr-1 max-md:flex-shrink-0">Ideal for</span>
               {['Companies','Startups','Colleges','Schools','NGOs','Training Institutes'].map(type => (
-                <span key={type} className="bg-violet-50 border border-violet-100 text-violet-700 text-xs font-medium px-2.5 py-1 rounded-full">
+                <span key={type} className="bg-violet-50 border border-violet-100 text-violet-700 text-xs font-medium px-2.5 py-1 rounded-full max-md:flex-shrink-0">
                   {type}
                 </span>
               ))}
@@ -560,14 +631,14 @@ function Hero() {
             </div>
 
             {/* CTAs */}
-            <div className="flex flex-col sm:flex-row items-start gap-3 mb-8">
+            <div className="flex flex-col sm:flex-row items-start gap-3 mb-8 max-md:w-full">
               <Link to="/auth/company/register"
-                className="inline-flex items-center gap-2 px-6 py-3.5 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 transition-all shadow-md shadow-violet-200 text-[15px]">
+                className="inline-flex items-center gap-2 px-6 py-3.5 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 transition-all shadow-md shadow-violet-200 text-[15px] max-md:w-full max-md:justify-center max-md:rounded-full">
                 Start for free
                 <ArrowRight className="w-4 h-4" />
               </Link>
               <a href="#how-it-works"
-                className="inline-flex items-center gap-2 px-6 py-3.5 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-all text-[15px]">
+                className="inline-flex items-center gap-2 px-6 py-3.5 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-all text-[15px] max-md:w-full max-md:justify-center max-md:rounded-full">
                 See how it works
               </a>
             </div>
@@ -772,9 +843,9 @@ function Features() {
           </p>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 max-md:flex max-md:grid-cols-none max-md:snap-x max-md:snap-mandatory max-md:overflow-x-auto max-md:-mx-4 max-md:px-4 max-md:pb-2">
           {FEATURES.map(({ icon: Icon, color, bg, border, title, desc }) => (
-            <div key={title} className={`group p-6 rounded-2xl border ${border} ${bg} hover:shadow-md transition-all`}>
+            <div key={title} className={`group p-6 rounded-2xl border ${border} ${bg} hover:shadow-md transition-all max-md:w-[78%] max-md:flex-shrink-0 max-md:snap-start`}>
               <div className={`inline-flex p-2.5 rounded-xl bg-white shadow-sm mb-4 border ${border}`}>
                 <Icon className={`w-5 h-5 ${color}`} />
               </div>
@@ -795,7 +866,7 @@ function VerificationTrust() {
   return (
     <section className="py-24 bg-gradient-to-b from-violet-50 to-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid lg:grid-cols-2 gap-16 items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
 
           {/* Left — stat cards */}
           <div className="grid grid-cols-2 gap-4">
@@ -943,7 +1014,7 @@ function EnterpriseTrust() {
           </p>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-14">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-14">
           {pillars.map(({ icon: Icon, color, bg, border, title, desc }) => (
             <div key={title} className={`p-6 rounded-2xl border ${border} ${bg}`}>
               <div className={`inline-flex p-2.5 rounded-xl bg-white shadow-sm mb-4 border ${border}`}>
@@ -996,7 +1067,7 @@ function PaymentModels() {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
           {/* Model A */}
           <div className="bg-white rounded-2xl border border-gray-200 p-8 hover:shadow-lg hover:border-blue-200 transition-all">
             <div className="flex items-center gap-3 mb-6">
@@ -1089,7 +1160,7 @@ function HowItWorks() {
           <p className="mt-4 text-gray-500 text-lg">Simple for organizations. Seamless for participants.</p>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-10">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
           {/* Org */}
           <div className="bg-gray-50 rounded-2xl p-8 border border-gray-100">
             <div className="flex items-center gap-3 mb-8">
@@ -1243,7 +1314,7 @@ function CertificateTypes() {
   return (
     <section className="py-24 bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid lg:grid-cols-2 gap-16 items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
 
           {/* Left — text */}
           <div>
@@ -1584,9 +1655,9 @@ function Testimonials() {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-3 gap-6 max-md:flex max-md:grid-cols-none max-md:snap-x max-md:snap-mandatory max-md:overflow-x-auto max-md:-mx-4 max-md:px-4 max-md:pb-2">
           {reviews.map(({ quote, name, role, org, initials, color }) => (
-            <div key={name} className="bg-white border border-gray-100 rounded-2xl p-7 shadow-sm hover:shadow-md transition-all flex flex-col">
+            <div key={name} className="bg-white border border-gray-100 rounded-2xl p-7 shadow-sm hover:shadow-md transition-all flex flex-col max-md:w-[85%] max-md:flex-shrink-0 max-md:snap-start">
               <div className="flex gap-1 mb-5">
                 {[...Array(5)].map((_, i) => (
                   <svg key={i} className="w-4 h-4 fill-amber-400 text-amber-400" viewBox="0 0 20 20">
@@ -1648,7 +1719,7 @@ function FAQ() {
   return (
     <section className="py-24 bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid lg:grid-cols-3 gap-12 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 items-start">
           <div className="lg:sticky lg:top-24">
             <span className="inline-block bg-violet-50 text-violet-700 text-xs font-semibold px-3 py-1.5 rounded-full uppercase tracking-wider mb-4">FAQ</span>
             <h2 className="text-3xl font-bold text-gray-900 leading-tight mb-4">
@@ -1708,9 +1779,9 @@ function Pricing() {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+        <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto max-md:flex max-md:grid-cols-none max-md:snap-x max-md:snap-mandatory max-md:overflow-x-auto max-md:-mx-4 max-md:px-4 max-md:pt-3 max-md:pb-2">
           {plans.map(({ type, icon, color, labelColor, badge }) => (
-            <div key={type} className={`rounded-2xl border p-7 relative transition-all hover:shadow-md ${color}`}>
+            <div key={type} className={`rounded-2xl border p-7 relative transition-all hover:shadow-md ${color} max-md:w-[82%] max-md:flex-shrink-0 max-md:snap-start`}>
               {badge && (
                 <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-violet-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow">
                   {badge}
@@ -1776,7 +1847,7 @@ function CustomDesign() {
       <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-indigo-600/15 rounded-full blur-[120px] pointer-events-none" />
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid lg:grid-cols-2 gap-16 items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
 
           {/* Left — copy */}
           <div>
@@ -1795,7 +1866,7 @@ function CustomDesign() {
             </p>
 
             {/* Feature list */}
-            <div className="grid sm:grid-cols-2 gap-4 mb-10">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-10">
               {features.map(({ icon: Icon, color, bg, border, title, desc }) => (
                 <div key={title} className="bg-white/5 border border-white/10 rounded-xl p-4 hover:bg-white/8 transition-all">
                   <div className={`inline-flex p-2 rounded-lg ${bg} mb-3`}>
@@ -2120,7 +2191,7 @@ function BackToTop() {
     <button
       onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
       aria-label="Back to top"
-      className={`fixed bottom-6 right-6 z-50 flex items-center gap-2 pl-3 pr-4 py-2.5 bg-gray-900 text-white text-xs font-semibold rounded-full shadow-lg hover:bg-violet-600 transition-all duration-300 group ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}
+      className={`fixed bottom-6 right-6 z-50 flex items-center gap-2 pl-3 pr-4 py-2.5 bg-gray-900 text-white text-xs font-semibold rounded-full shadow-lg hover:bg-violet-600 transition-all duration-300 group max-md:bottom-20 max-md:right-4 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}
     >
       <div className="w-5 h-5 bg-white/10 rounded-full flex items-center justify-center group-hover:bg-white/20 transition-colors">
         <ChevronUp className="w-3 h-3" />
@@ -2135,7 +2206,7 @@ function BackToTop() {
 ───────────────────────────────────────────── */
 export default function Home() {
   return (
-    <div className="min-h-screen font-sans antialiased bg-white">
+    <div className="min-h-screen font-sans antialiased bg-white max-md:pb-16">
       <Navbar />
       <Hero />
       <LogoStrip />

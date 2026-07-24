@@ -37,5 +37,6 @@ router.get('/orders', validate({ query: ordersQuerySchema }), controller.getOrde
 router.get('/payments', validate({ query: paymentsQuerySchema }), controller.getPaymentHistory);
 router.get('/invoices', controller.getInvoices);
 router.get('/orders/:orderId/invoice', controller.downloadInvoice);
+router.get('/delivery-log', controller.getDeliveryLog);
 
 module.exports = router;

@@ -1,7 +1,7 @@
 'use strict';
 
 const companyService = require('./company.service');
-const { getOrCreateInvoiceRecord, incrementInvoiceDownloadCount } = require('../payment/payment.service');
+const { getOrCreateInvoiceRecord, incrementInvoiceDownloadCount } = require('../../utils/invoiceRecords');
 const { sendSuccess, sendCreated, sendError } = require('../../utils/apiResponse');
 const { generateInvoicePDF } = require('../../utils/invoiceGenerator');
 

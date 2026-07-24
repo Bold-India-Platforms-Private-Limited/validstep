@@ -1,6 +1,7 @@
 'use strict';
 
 const certificateService = require('./certificate.service');
+const { logDeliveryEvent } = require('../../utils/deliveryLog');
 const { sendSuccess, sendError } = require('../../utils/apiResponse');
 
 async function verifyCertificate(req, res) {
@@ -45,6 +46,7 @@ async function downloadCertificate(req, res) {
     const filePath = path.join(__dirname, '../../../uploads/certificates', fileName);
 
     if (fs.existsSync(filePath)) {
+      logDeliveryEvent(req.user.id, 'CERTIFICATE_DOWNLOADED', result.order_id);
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="certificate-${result.certificate_serial}.pdf"`);
       const fileStream = fs.createReadStream(filePath);

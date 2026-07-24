@@ -1,12 +1,20 @@
 'use strict';
 
 const { db } = require('../../config/database');
-const { redisGet, redisSet, redisDel } = require('../../config/redis');
+const { redisDel } = require('../../config/redis');
 const { generateBatchSlug } = require('../../utils/slugGenerator');
 
-const BATCH_CACHE_TTL = 900; // 15 minutes base TTL
-// Jitter ±60s prevents cache stampede when many slugs expire simultaneously
-const batchCacheTTL = () => BATCH_CACHE_TTL + Math.floor(Math.random() * 120) - 60;
+/**
+ * Atomically get the next certificate serial for a batch (id_prefix + zero-padded counter).
+ */
+async function generateCertificateSerial(batchId) {
+  const batch = await db.batch.update({
+    where: { id: batchId },
+    data: { id_counter: { increment: 1 } },
+    select: { id_prefix: true, id_counter: true },
+  });
+  return `${batch.id_prefix}-${String(batch.id_counter).padStart(4, '0')}`;
+}
 
 /**
  * Create a new batch
@@ -17,6 +25,8 @@ async function createBatch(companyId, data) {
     name,
     start_date,
     end_date,
+    certificate_delivery_date,
+    description,
     role,
     id_prefix,
     certificate_price,
@@ -57,6 +67,8 @@ async function createBatch(companyId, data) {
       name,
       start_date: new Date(start_date),
       end_date: new Date(end_date),
+      certificate_delivery_date: certificate_delivery_date ? new Date(certificate_delivery_date) : null,
+      description: description || null,
       role: role || null,
       id_prefix: id_prefix || 'CERT',
       certificate_price,
@@ -151,6 +163,8 @@ async function updateBatch(companyId, batchId, data) {
     name,
     start_date,
     end_date,
+    certificate_delivery_date,
+    description,
     role,
     id_prefix,
     certificate_price,
@@ -165,6 +179,8 @@ async function updateBatch(companyId, batchId, data) {
       ...(name !== undefined && { name }),
       ...(start_date && { start_date: new Date(start_date) }),
       ...(end_date && { end_date: new Date(end_date) }),
+      ...(certificate_delivery_date !== undefined && { certificate_delivery_date: certificate_delivery_date ? new Date(certificate_delivery_date) : null }),
+      ...(description !== undefined && { description: description || null }),
       ...(role !== undefined && { role }),
       ...(id_prefix !== undefined && { id_prefix }),
       ...(certificate_price !== undefined && { certificate_price }),
@@ -500,74 +516,8 @@ async function getBatchCertificates(companyId, batchId, query = {}) {
   };
 }
 
-/**
- * Get public batch info by slug (for order page)
- */
-async function getPublicBatchBySlug(slug) {
-  const cacheKey = `public:batch:${slug}`;
-  const cached = await redisGet(cacheKey);
-  if (cached) return JSON.parse(cached);
-
-  const batch = await db.batch.findUnique({
-    where: { unique_slug: slug },
-    include: {
-      program: { select: { id: true, name: true, type: true } },
-      company: {
-        select: {
-          id: true,
-          name: true,
-          logo_url: true,
-          website: true,
-          description: true,
-          is_active: true,
-        },
-      },
-      templates: {
-        where: { is_active: true },
-        take: 1,
-        select: {
-          id: true,
-          template_type: true,
-          background_color: true,
-          accent_color: true,
-        },
-      },
-    },
-  });
-
-  if (!batch) {
-    throw Object.assign(new Error('Batch not found'), { statusCode: 404 });
-  }
-
-  if (!batch.is_active || batch.status === 'COMPLETED') {
-    throw Object.assign(new Error('This batch is no longer active'), { statusCode: 410 });
-  }
-  if (batch.status === 'HOLD') {
-    throw Object.assign(new Error('This batch is temporarily paused'), { statusCode: 503 });
-  }
-
-  // Remove sensitive fields
-  const publicBatch = {
-    id: batch.id,
-    name: batch.name,
-    start_date: batch.start_date,
-    end_date: batch.end_date,
-    role: batch.role,
-    certificate_price: batch.certificate_price,
-    currency: batch.currency,
-    status: batch.status,
-    is_active: batch.is_active,
-    unique_slug: batch.unique_slug,
-    program: batch.program,
-    company: batch.company,
-    template: batch.templates[0] || null,
-  };
-
-  await redisSet(cacheKey, JSON.stringify(publicBatch), batchCacheTTL());
-  return publicBatch;
-}
-
 module.exports = {
+  generateCertificateSerial,
   createBatch,
   getBatches,
   getBatchById,
@@ -578,5 +528,4 @@ module.exports = {
   getBatchOrders,
   exportBatchOrders,
   getBatchCertificates,
-  getPublicBatchBySlug,
 };

@@ -25,14 +25,6 @@ async function start() {
       console.warn('[Worker] Certificate worker not started:', err.message);
     }
 
-    // Start BullMQ payment verification worker
-    try {
-      const { startPaymentVerificationWorker } = require('./src/workers/paymentVerificationWorker');
-      startPaymentVerificationWorker();
-    } catch (err) {
-      console.warn('[Worker] Payment verification worker not started:', err.message);
-    }
-
     server = app.listen(PORT, () => {
       // Keep-alive must exceed nginx's keepalive_timeout (default 75s).
       // 65s ensures nginx closes first, preventing 502s on idle connections.
@@ -67,14 +59,6 @@ async function shutdown(signal) {
     server.close(async () => {
       console.log('HTTP server closed');
       try {
-        // Stop workers before DB/Redis disconnect (let in-flight jobs finish)
-        const { stopPaymentVerificationWorker } = require('./src/workers/paymentVerificationWorker');
-        await stopPaymentVerificationWorker();
-        console.log('Payment worker stopped');
-
-        const { closePaymentQueue } = require('./src/config/queue');
-        await closePaymentQueue();
-
         await disconnectDB();
         console.log('Database disconnected');
         await disconnectRedis();

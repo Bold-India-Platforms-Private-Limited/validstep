@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import {
-  ArrowLeft, Copy, ExternalLink, Settings, ShoppingBag, Award, Palette,
+  ArrowLeft, Settings, ShoppingBag, Award, Palette,
   Upload, Eye, Save, ToggleLeft, ToggleRight, ChevronDown, ChevronUp,
   CheckCircle2, Clock,
 } from 'lucide-react'
@@ -19,7 +19,6 @@ import { Modal } from '../../components/ui/Modal'
 import { formatDate } from '../../utils/formatDate'
 import axiosClient from '../../api/axiosClient'
 
-const APP_URL = import.meta.env.VITE_APP_URL || window.location.origin
 const API_URL = import.meta.env.VITE_API_URL || '/api'
 
 const TABS = ['Overview', 'Orders', 'Template Builder', 'Settings']
@@ -527,10 +526,6 @@ export default function BatchDetail() {
   if (isLoading) return <PageSpinner />
   if (!batch) return <div className="p-8 text-center text-slate-500">Batch not found</div>
 
-  const batchLink = `${APP_URL}/order/${batch.unique_slug}`
-
-  const copyLink = () => { navigator.clipboard.writeText(batchLink); toast.success('Link copied!') }
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -545,17 +540,6 @@ export default function BatchDetail() {
           </div>
           <p className="text-sm text-slate-500">{batch.program?.name} · {batch.program?.type} · {formatDate(batch.start_date)} — {formatDate(batch.end_date)}</p>
         </div>
-      </div>
-
-      {/* Batch link */}
-      <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-        <span className="min-w-0 flex-1 truncate font-mono text-sm text-slate-600">{batchLink}</span>
-        <button onClick={copyLink} className="rounded-lg p-1.5 hover:bg-slate-100 text-slate-500" title="Copy">
-          <Copy className="h-4 w-4" />
-        </button>
-        <a href={batchLink} target="_blank" rel="noreferrer" className="rounded-lg p-1.5 hover:bg-slate-100 text-slate-500" title="Open">
-          <ExternalLink className="h-4 w-4" />
-        </a>
       </div>
 
       {/* Tabs */}

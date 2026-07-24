@@ -1,31 +1,20 @@
 import { useState } from 'react'
 import { useGetAdminOrdersQuery } from '../../store/api/adminApi'
-import { useReconcilePaymentMutation } from '../../store/api/adminApi'
 import { PageSpinner } from '../../components/ui/Spinner'
 import { StatusBadge } from '../../components/ui/Badge'
+import { Pagination } from '../../components/ui/Pagination'
 import { formatDate, formatCurrency } from '../../utils/formatDate'
-import { ShoppingBag, Search, RefreshCw } from 'lucide-react'
-import toast from 'react-hot-toast'
+import { ShoppingBag, Search } from 'lucide-react'
 
 export default function AdminOrders() {
   const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(20)
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
-  const { data, isLoading, refetch } = useGetAdminOrdersQuery({ page, limit: 20, search, status })
-  const [reconcile, { isLoading: reconciling }] = useReconcilePaymentMutation()
+  const { data, isLoading } = useGetAdminOrdersQuery({ page, limit, search, status })
 
   const orders = data?.orders || []
   const pagination = data?.pagination || {}
-
-  const handleReconcile = async (txnid) => {
-    try {
-      await reconcile(txnid).unwrap()
-      toast.success('Payment synced')
-      refetch()
-    } catch (err) {
-      toast.error(err?.data?.message || 'Failed')
-    }
-  }
 
   if (isLoading) return <PageSpinner />
 
@@ -66,59 +55,48 @@ export default function AdminOrders() {
         </div>
       ) : (
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <table className="min-w-full divide-y divide-slate-100">
-            <thead className="bg-slate-50">
-              <tr>
-                {['User', 'Batch', 'Company', 'Amount', 'Payment', 'Status', 'Date', ''].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {orders.map((o) => (
-                <tr key={o.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3">
-                    <p className="text-sm font-medium text-slate-900">{o.user?.name}</p>
-                    <p className="text-xs text-slate-500">{o.user?.email}</p>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-600">{o.batch?.name}</td>
-                  <td className="px-4 py-3 text-sm text-slate-600">{o.batch?.company?.name}</td>
-                  <td className="px-4 py-3 text-sm font-semibold text-slate-900">{formatCurrency(o.amount || 0)}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1.5">
-                      <StatusBadge status={o.payments?.[0]?.status || 'PENDING'} />
-                      {(!o.payments?.[0]?.status || o.payments?.[0]?.status === 'INITIATED') && o.payments?.[0]?.payu_txn_id && (
-                        <button
-                          onClick={() => handleReconcile(o.payments[0].payu_txn_id)}
-                          disabled={reconciling}
-                          title="Reconcile"
-                          className="text-primary-600 hover:text-primary-700 disabled:opacity-50"
-                        >
-                          <RefreshCw className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3"><StatusBadge status={o.status} /></td>
-                  <td className="px-4 py-3 text-sm text-slate-500">{formatDate(o.created_at)}</td>
-                  <td className="px-4 py-3">
-                    {o.certificate?.certificate_serial && (
-                      <span className="font-mono text-xs text-slate-500">{o.certificate.certificate_serial}</span>
-                    )}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-100">
+              <thead className="bg-slate-50">
+                <tr>
+                  {['User', 'Batch', 'Company', 'Amount', 'Payment', 'Status', 'Date', ''].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {pagination.pages > 1 && (
-            <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3">
-              <p className="text-xs text-slate-500">Page {page} of {pagination.pages}</p>
-              <div className="flex gap-2">
-                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs disabled:opacity-40 hover:bg-slate-50">Prev</button>
-                <button onClick={() => setPage(p => Math.min(pagination.pages, p + 1))} disabled={page === pagination.pages} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs disabled:opacity-40 hover:bg-slate-50">Next</button>
-              </div>
-            </div>
-          )}
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {orders.map((o) => (
+                  <tr key={o.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-3">
+                      <p className="text-sm font-medium text-slate-900">{o.user?.name}</p>
+                      <p className="text-xs text-slate-500">{o.user?.email}</p>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-600">{o.batch?.name}</td>
+                    <td className="px-4 py-3 text-sm text-slate-600">{o.batch?.company?.name}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-slate-900">{formatCurrency(o.amount || 0)}</td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={o.payments?.[0]?.status || 'PENDING'} />
+                    </td>
+                    <td className="px-4 py-3"><StatusBadge status={o.status} /></td>
+                    <td className="px-4 py-3 text-sm text-slate-500">{formatDate(o.created_at)}</td>
+                    <td className="px-4 py-3">
+                      {o.certificate?.certificate_serial && (
+                        <span className="font-mono text-xs text-slate-500">{o.certificate.certificate_serial}</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <Pagination
+            page={page}
+            pages={pagination.pages}
+            total={pagination.total}
+            limit={limit}
+            onPageChange={setPage}
+            onLimitChange={(n) => { setLimit(n); setPage(1) }}
+          />
         </div>
       )}
     </div>

@@ -30,6 +30,10 @@ export const userApi = baseApi.injectEndpoints({
       transformResponse: (r) => r.data,
       providesTags: ['Invoice'],
     }),
+    getUserDeliveryLog: b.query({
+      query: () => '/user/delivery-log',
+      transformResponse: (r) => r.data,
+    }),
   }),
 })
 
@@ -37,4 +41,5 @@ export const {
   useGetUserProfileQuery, useGetUserOrdersQuery,
   useGetUserCertificatesQuery, useGetCertificateQuery,
   useDownloadCertificateMutation, useGetUserInvoicesQuery,
+  useGetUserDeliveryLogQuery,
 } = userApi

@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react'
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import axios from 'axios'
 import { useDispatch, useSelector } from 'react-redux'
 import { setCredentials, finishLoading, selectIsLoading, selectUserRole, selectIsAuthenticated } from './store/authSlice'
@@ -7,6 +7,7 @@ import { LoadingScreen } from './components/shared/LoadingScreen'
 import { ProtectedRoute } from './components/shared/ProtectedRoute'
 import { CompanyLayout } from './components/layouts/CompanyLayout'
 import { AdminLayout } from './components/layouts/AdminLayout'
+import { MasterAccountingLayout } from './components/layouts/MasterAccountingLayout'
 import { UserLayout } from './components/layouts/UserLayout'
 
 // Public pages
@@ -15,10 +16,7 @@ import TermsOfService from './pages/public/TermsOfService'
 import PrivacyPolicy from './pages/public/PrivacyPolicy'
 import RefundPolicy from './pages/public/RefundPolicy'
 import DeliveryPolicy from './pages/public/DeliveryPolicy'
-import OrderCertificate from './pages/public/OrderCertificate'
 import VerifyCertificate from './pages/public/VerifyCertificate'
-import PaymentSuccess from './pages/public/PaymentSuccess'
-import PaymentFailure from './pages/public/PaymentFailure'
 import NotFound from './pages/public/NotFound'
 import About from './pages/public/About'
 import Contact from './pages/public/Contact'
@@ -27,7 +25,6 @@ import Contact from './pages/public/Contact'
 import CompanyLogin from './pages/auth/CompanyLogin'
 import CompanyRegister from './pages/auth/CompanyRegister'
 import UserLogin from './pages/auth/UserLogin'
-import UserRegister from './pages/auth/UserRegister'
 import AdminLogin from './pages/auth/AdminLogin'
 import ForgotPassword from './pages/auth/ForgotPassword'
 import ResetPassword from './pages/auth/ResetPassword'
@@ -56,6 +53,18 @@ import AdminPricing from './pages/admin/Pricing'
 import AdminPayments from './pages/admin/Payments'
 import AdminBatchDetail from './pages/admin/BatchDetail'
 import AdminInvoices from './pages/admin/Invoices'
+import AdminAccounting from './pages/admin/Accounting'
+import AdminUsers from './pages/admin/Users'
+
+// Master Accounting pages
+import MasterAccountingDashboard from './pages/admin/master-accounting/Dashboard'
+import MasterAccountingBankLedger from './pages/admin/master-accounting/BankLedger'
+import MasterAccountingInvoices from './pages/admin/master-accounting/Invoices'
+import MasterAccountingSalesRegister from './pages/admin/master-accounting/SalesRegister'
+import MasterAccountingCategoriesRules from './pages/admin/master-accounting/CategoriesRules'
+import MasterAccountingImports from './pages/admin/master-accounting/Imports'
+import MasterAccountingFileArchive from './pages/admin/master-accounting/FileArchive'
+import MasterAccountingFileCompare from './pages/admin/master-accounting/FileCompare'
 
 // Company pages (invoices)
 import CompanyInvoices from './pages/company/Invoices'
@@ -78,19 +87,25 @@ function RootRedirect() {
 
 export default function App() {
   const dispatch = useDispatch()
-  const location = useLocation()
-  const hasAttemptedSessionRestore = useRef(false)
 
-  // Restore session in the background — does NOT block public page rendering.
-  // Skip backend calls on landing page for a faster, static-first experience.
+  // Restore session once at true app startup (does NOT block public page rendering) —
+  // reads location.pathname directly rather than depending on it, so this never re-runs
+  // on client-side navigation. Deliberately has no "already ran" ref guard: React 18
+  // StrictMode intentionally double-invokes effects in dev (mount → cleanup → mount) to
+  // surface exactly this class of bug. An earlier version added a ref that persisted
+  // across that double-invocation and returned early on the second (real) invocation,
+  // while the *first* invocation's cleanup had already set `cancelled = true` on the
+  // still-in-flight request — so its dispatch was silently skipped and the app was stuck
+  // on the loading screen forever after any hard refresh of an authenticated page. Firing
+  // /auth/refresh twice in that dev-only scenario is harmless (verified against
+  // auth.controller.js — refreshToken doesn't rotate or invalidate the cookie, it's a
+  // pure read-and-reissue), and StrictMode's double-invoke doesn't happen in production
+  // builds at all.
   useEffect(() => {
-    if (location.pathname === '/') {
+    if (window.location.pathname === '/') {
       dispatch(finishLoading())
       return
     }
-
-    if (hasAttemptedSessionRestore.current) return
-    hasAttemptedSessionRestore.current = true
 
     let cancelled = false
     const restoreSession = async () => {
@@ -115,7 +130,7 @@ export default function App() {
     }
     restoreSession()
     return () => { cancelled = true }
-  }, [dispatch, location.pathname])
+  }, [dispatch])
 
   return (
     <Routes>
@@ -133,16 +148,12 @@ export default function App() {
       <Route path="/contact" element={<Contact />} />
 
       {/* Public */}
-      <Route path="/order/:slug" element={<OrderCertificate />} />
       <Route path="/verify/:hash" element={<VerifyCertificate />} />
-      <Route path="/payment/success" element={<PaymentSuccess />} />
-      <Route path="/payment/failure" element={<PaymentFailure />} />
 
       {/* Auth */}
       <Route path="/auth/company/login" element={<CompanyLogin />} />
       <Route path="/auth/company/register" element={<CompanyRegister />} />
       <Route path="/auth/user/login" element={<UserLogin />} />
-      <Route path="/auth/user/register" element={<UserRegister />} />
       <Route path="/auth/admin/login" element={<AdminLogin />} />
       <Route path="/auth/forgot-password" element={<ForgotPassword />} />
       <Route path="/auth/reset-password" element={<ResetPassword />} />
@@ -201,14 +212,39 @@ export default function App() {
                 <Route path="companies/:id" element={<AdminCompanyDetail />} />
                 <Route path="batches" element={<AdminBatches />} />
                 <Route path="orders" element={<AdminOrders />} />
+                <Route path="users" element={<AdminUsers />} />
                 <Route path="pricing" element={<AdminPricing />} />
                 <Route path="payments" element={<AdminPayments />} />
                 <Route path="invoices" element={<AdminInvoices />} />
+                <Route path="accounting" element={<AdminAccounting />} />
                 <Route path="batches/:id" element={<AdminBatchDetail />} />
                 <Route path="" element={<Navigate to="dashboard" replace />} />
                 <Route path="*" element={<Navigate to="dashboard" replace />} />
               </Routes>
             </AdminLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Master Accounting (separate gated panel, still requires superadmin login) */}
+      <Route
+        path="/admin/master-accounting/*"
+        element={
+          <ProtectedRoute requiredRole="SUPERADMIN">
+            <MasterAccountingLayout>
+              <Routes>
+                <Route path="dashboard" element={<MasterAccountingDashboard />} />
+                <Route path="bank-ledger" element={<MasterAccountingBankLedger />} />
+                <Route path="invoices" element={<MasterAccountingInvoices />} />
+                <Route path="sales-register" element={<MasterAccountingSalesRegister />} />
+                <Route path="categories-rules" element={<MasterAccountingCategoriesRules />} />
+                <Route path="imports" element={<MasterAccountingImports />} />
+                <Route path="files" element={<MasterAccountingFileArchive />} />
+                <Route path="files/:id/compare" element={<MasterAccountingFileCompare />} />
+                <Route path="" element={<Navigate to="dashboard" replace />} />
+                <Route path="*" element={<Navigate to="dashboard" replace />} />
+              </Routes>
+            </MasterAccountingLayout>
           </ProtectedRoute>
         }
       />

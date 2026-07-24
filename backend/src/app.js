@@ -16,9 +16,8 @@ const { generalLimiter } = require('./middleware/rateLimiter');
 // Route modules
 const authRoutes = require('./modules/auth/auth.routes');
 const companyRoutes = require('./modules/company/company.routes');
-const { companyRouter: batchCompanyRoutes, publicRouter: batchPublicRoutes } = require('./modules/batch/batch.routes');
+const { companyRouter: batchCompanyRoutes } = require('./modules/batch/batch.routes');
 const { publicRouter: certPublicRoutes, userRouter: certUserRoutes } = require('./modules/certificate/certificate.routes');
-const paymentRoutes = require('./modules/payment/payment.routes');
 const userRoutes = require('./modules/user/user.routes');
 const adminRoutes = require('./modules/admin/admin.routes');
 
@@ -38,16 +37,10 @@ app.use(helmet({
 }));
 
 // ─── CORS ───────────────────────────────────────────────────────────────────
-// PayU POSTs to /api/payment/success and /api/payment/failure from its own
-// domain. These are browser form POSTs (not XHR), so we allow them separately
-// before the strict CORS policy runs.
-const PAYU_ORIGINS = ['https://secure.payu.in', 'https://test.payu.in'];
-
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
     if (env.ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
-    if (PAYU_ORIGINS.includes(origin)) return callback(null, true);
     return callback(new Error(`CORS policy violation: ${origin} is not allowed`));
   },
   credentials: true,
@@ -107,8 +100,6 @@ app.use('/api/company', companyRoutes);
 app.use('/api/company/batches', batchCompanyRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/user/certificates', certUserRoutes);
-app.use('/api/payment', paymentRoutes);
-app.use('/api/public', batchPublicRoutes);
 app.use('/api/public', certPublicRoutes);
 app.use('/api/admin', adminRoutes);
 

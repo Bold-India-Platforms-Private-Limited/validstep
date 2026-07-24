@@ -1,18 +1,29 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useGetUserCertificatesQuery, useGetUserOrdersQuery, useGetUserProfileQuery } from '../../store/api/userApi'
+import { useGetUserCertificatesQuery, useGetUserOrdersQuery, useGetUserProfileQuery, useGetUserDeliveryLogQuery } from '../../store/api/userApi'
 import { PageSpinner } from '../../components/ui/Spinner'
 import { StatusBadge } from '../../components/ui/Badge'
+import { BatchProgress } from '../../components/ui/BatchProgress'
 import { formatDate, formatCurrency } from '../../utils/formatDate'
 import { downloadInvoicePDF } from '../../utils/downloadInvoice'
-import { Award, ShoppingBag, Download, Eye, User, FileText } from 'lucide-react'
+import { Award, ShoppingBag, Download, Eye, User, FileText, ChevronRight, Clock } from 'lucide-react'
 import toast from 'react-hot-toast'
+
+const DELIVERY_EVENT_LABELS = {
+  PAYMENT_IMPORTED: 'Payment imported',
+  USER_CREATED: 'Account created',
+  BATCH_ASSIGNED: 'Enrolled in batch',
+  CERTIFICATE_GENERATED: 'Certificate generated',
+  CERTIFICATE_DOWNLOADED: 'Certificate downloaded',
+  INVOICE_DOWNLOADED: 'Invoice downloaded',
+}
 
 export default function UserDashboard() {
   const [downloadingId, setDownloadingId] = useState(null)
   const { data: profile } = useGetUserProfileQuery()
   const { data: certs, isLoading: certsLoading } = useGetUserCertificatesQuery()
   const { data: orders, isLoading: ordersLoading } = useGetUserOrdersQuery()
+  const { data: deliveryLog } = useGetUserDeliveryLogQuery()
 
   const handleDownloadInvoice = async (order) => {
     setDownloadingId(order.id)
@@ -44,18 +55,18 @@ export default function UserDashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 max-md:flex max-md:grid-cols-none max-md:snap-x max-md:snap-mandatory max-md:gap-3 max-md:overflow-x-auto max-md:-mx-4 max-md:px-4 max-md:pb-1">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm max-md:min-w-[128px] max-md:flex-shrink-0 max-md:snap-start max-md:rounded-2xl">
           <Award className="mb-2 h-5 w-5 text-primary-500" />
           <p className="text-2xl font-bold text-slate-900">{certificates.length}</p>
           <p className="text-xs text-slate-500">Certificates</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm max-md:min-w-[128px] max-md:flex-shrink-0 max-md:snap-start max-md:rounded-2xl">
           <ShoppingBag className="mb-2 h-5 w-5 text-emerald-500" />
           <p className="text-2xl font-bold text-slate-900">{orderList.length}</p>
           <p className="text-xs text-slate-500">Orders</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm col-span-2 sm:col-span-1">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm col-span-2 sm:col-span-1 max-md:col-span-1 max-md:min-w-[128px] max-md:flex-shrink-0 max-md:snap-start max-md:rounded-2xl">
           <ShoppingBag className="mb-2 h-5 w-5 text-amber-500" />
           <p className="text-2xl font-bold text-slate-900">
             {orderList.filter((o) => o.status === 'PENDING').length}
@@ -76,7 +87,7 @@ export default function UserDashboard() {
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {certificates.map((cert) => (
-              <div key={cert.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:shadow-md transition-shadow">
+              <div key={cert.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md max-md:rounded-2xl max-md:active:bg-slate-50">
                 <div className="mb-3 flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-slate-900 truncate">{cert.batch?.program?.name}</p>
@@ -84,9 +95,14 @@ export default function UserDashboard() {
                   </div>
                   <StatusBadge status={cert.is_issued ? 'ISSUED' : 'PENDING'} />
                 </div>
-                <p className="text-xs text-slate-400 mb-3">
-                  Issued: {cert.issued_at ? formatDate(cert.issued_at) : '—'}
-                </p>
+                <div className="mb-3">
+                  <BatchProgress
+                    startDate={cert.batch?.start_date}
+                    endDate={cert.batch?.end_date}
+                    certificateDeliveryDate={cert.batch?.certificate_delivery_date}
+                    issuedAt={cert.issued_at}
+                  />
+                </div>
                 <p className="mb-3 font-mono text-xs text-slate-500 bg-slate-50 rounded px-2 py-1">
                   {cert.certificate_serial}
                 </p>
@@ -129,7 +145,8 @@ export default function UserDashboard() {
               View all invoices
             </Link>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          {/* Table — tablet/desktop */}
+          <div className="hidden rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden md:block">
             <table className="min-w-full divide-y divide-slate-100">
               <thead className="bg-slate-50">
                 <tr>
@@ -170,6 +187,64 @@ export default function UserDashboard() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Native list-cards — mobile viewport only */}
+          <div className="space-y-2.5 md:hidden">
+            {orderList.map((o) => (
+              <div key={o.id} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm active:bg-slate-50">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-slate-900">{o.batch?.program?.name}</p>
+                  <p className="truncate text-xs text-slate-500">{o.batch?.name}</p>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <StatusBadge status={o.status} />
+                    <span className="text-xs text-slate-400">{formatDate(o.created_at)}</span>
+                  </div>
+                </div>
+                <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
+                  <p className="text-sm font-semibold text-slate-900">{formatCurrency(o.amount || 0)}</p>
+                  {o.status === 'PAID' && (
+                    <button
+                      onClick={() => handleDownloadInvoice(o)}
+                      disabled={downloadingId === o.id}
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-50 text-primary-600 disabled:opacity-50"
+                      title="Download Invoice"
+                    >
+                      {downloadingId === o.id
+                        ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary-300 border-t-primary-600 inline-block" />
+                        : <Download className="h-3.5 w-3.5" />
+                      }
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Delivery timeline */}
+      {deliveryLog?.events?.length > 0 && (
+        <div>
+          <h2 className="mb-3 flex items-center gap-1.5 font-semibold text-slate-900">
+            <Clock className="h-4 w-4 text-slate-400" />
+            Delivery Timeline
+          </h2>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="space-y-3">
+              {deliveryLog.events.map((e) => (
+                <div key={e.id} className="flex items-start gap-3">
+                  <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary-500" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-slate-800">{DELIVERY_EVENT_LABELS[e.event] || e.event}</p>
+                    <p className="text-xs text-slate-400">
+                      {formatDate(e.created_at)}
+                      {e.order?.batch?.name && ` · ${e.order.batch.name}`}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}

@@ -1,7 +1,9 @@
 'use strict';
 
 const adminService = require('./admin.service');
-const { getOrCreateInvoiceRecord, incrementInvoiceDownloadCount } = require('../payment/payment.service');
+const companyService = require('../company/company.service');
+const batchService = require('../batch/batch.service');
+const { getOrCreateInvoiceRecord, incrementInvoiceDownloadCount } = require('../../utils/invoiceRecords');
 const { sendSuccess, sendError } = require('../../utils/apiResponse');
 
 async function getCompanies(req, res) {
@@ -192,6 +194,161 @@ async function getAdminInvoices(req, res) {
   }
 }
 
+async function listUsers(req, res) {
+  try {
+    const result = await adminService.listUsers(req.query);
+    return sendSuccess(res, result, 'Users retrieved successfully');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function createUser(req, res) {
+  try {
+    const result = await adminService.registerUserForBatch(req.body);
+    return sendSuccess(res, result, 'User registered successfully');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function bulkUploadUsers(req, res) {
+  try {
+    if (!req.file) {
+      return sendError(res, 'No file uploaded', 400);
+    }
+    const result = await adminService.bulkUploadUsers({
+      company_id: req.body.company_id,
+      batch_id: req.body.batch_id,
+      file: req.file,
+    });
+    return sendSuccess(res, result, 'Bulk upload processed');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function importPayuButtonCustomers(req, res) {
+  try {
+    const result = await adminService.importPayuButtonCustomers();
+    return sendSuccess(res, result, 'PayU Button customers imported');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function createCompany(req, res) {
+  try {
+    const company = await adminService.createCompany(req.body);
+    return sendSuccess(res, company, 'Company created successfully');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function enrollExistingUsers(req, res) {
+  try {
+    const result = await adminService.enrollExistingUsers({
+      company_id: req.params.companyId,
+      batch_id: req.params.id,
+      user_ids: req.body.user_ids,
+    });
+    return sendSuccess(res, result, 'Users enrolled');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function importPayuTransactions(req, res) {
+  try {
+    if (!req.file) {
+      return sendError(res, 'No file uploaded', 400);
+    }
+    const result = await adminService.importPayuTransactions(req.file);
+    return sendSuccess(res, result, 'PayU transactions imported');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function getAssignableTransactions(req, res) {
+  try {
+    const result = await adminService.getAssignableTransactions(req.query);
+    return sendSuccess(res, result, 'Assignable transactions retrieved');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function assignTransactionsToBatch(req, res) {
+  try {
+    const result = await adminService.assignTransactionsToBatch({
+      company_id: req.params.companyId,
+      batch_id: req.params.id,
+      payu_ids: req.body.payu_ids,
+    });
+    return sendSuccess(res, result, 'Transactions assigned');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+// ─── Admin acting on behalf of a company (create/manage programs & batches) ───────────────
+
+async function createCompanyProgram(req, res) {
+  try {
+    const program = await companyService.createProgram(req.params.companyId, req.body);
+    return sendSuccess(res, program, 'Program created successfully');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function getCompanyPrograms(req, res) {
+  try {
+    const result = await companyService.getPrograms(req.params.companyId, req.query);
+    return sendSuccess(res, result, 'Programs retrieved successfully');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function updateCompanyProgram(req, res) {
+  try {
+    const program = await companyService.updateProgram(req.params.companyId, req.params.programId, req.body);
+    return sendSuccess(res, program, 'Program updated successfully');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function deleteCompanyProgram(req, res) {
+  try {
+    await companyService.deleteProgram(req.params.companyId, req.params.programId);
+    return sendSuccess(res, null, 'Program deleted successfully');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function createCompanyBatch(req, res) {
+  try {
+    const batch = await batchService.createBatch(req.params.companyId, req.body);
+    return sendSuccess(res, batch, 'Batch created successfully');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function updateCompanyBatch(req, res) {
+  try {
+    const batch = await batchService.updateBatch(req.params.companyId, req.params.id, req.body);
+    return sendSuccess(res, batch, 'Batch updated successfully');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
 module.exports = {
   getCompanies,
   getCompanyById,
@@ -210,4 +367,19 @@ module.exports = {
   exportAdminBatchOrders,
   getAdminBatchCertificates,
   issueCertificatesAdmin,
+  listUsers,
+  createUser,
+  bulkUploadUsers,
+  importPayuButtonCustomers,
+  createCompany,
+  enrollExistingUsers,
+  importPayuTransactions,
+  getAssignableTransactions,
+  assignTransactionsToBatch,
+  createCompanyProgram,
+  getCompanyPrograms,
+  updateCompanyProgram,
+  deleteCompanyProgram,
+  createCompanyBatch,
+  updateCompanyBatch,
 };

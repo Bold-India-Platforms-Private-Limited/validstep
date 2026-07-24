@@ -1,0 +1,22 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "backend",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "DATABASE_URL=postgresql://gk@localhost:5432/validstep_local",
+        "REDIS_URL=redis://localhost:6379",
+        "PORT=5050",
+        "npm", "--prefix", "backend", "run", "dev"
+      ],
+      "port": 5050
+    },
+    {
+      "name": "frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "frontend", "run", "dev"],
+      "port": 3000
+    }
+  ]
+}

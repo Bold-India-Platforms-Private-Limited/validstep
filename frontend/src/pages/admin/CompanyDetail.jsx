@@ -1,22 +1,133 @@
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import toast from 'react-hot-toast'
-import { useGetAdminCompanyQuery, useUpdateCompanyStatusMutation } from '../../store/api/adminApi'
+import {
+  useGetAdminCompanyQuery, useUpdateCompanyStatusMutation,
+  useCreateAdminCompanyProgramMutation, useCreateAdminCompanyBatchMutation,
+} from '../../store/api/adminApi'
 import { PageSpinner } from '../../components/ui/Spinner'
 import { StatusBadge } from '../../components/ui/Badge'
+import { Modal } from '../../components/ui/Modal'
+import { Input, Select, Textarea } from '../../components/ui/Input'
+import { Button } from '../../components/ui/Button'
 import { formatDate, formatCurrency } from '../../utils/formatDate'
-import { ArrowLeft, Building2, Mail, Phone, Globe, Layers, CheckCircle, XCircle, ToggleLeft, ToggleRight } from 'lucide-react'
+import { ArrowLeft, Building2, Mail, Phone, Globe, Layers, CheckCircle, XCircle, ToggleLeft, ToggleRight, Plus } from 'lucide-react'
+
+const PROGRAM_TYPES = ['INTERNSHIP', 'COURSE', 'PARTICIPATION', 'HACKATHON', 'OTHER']
+
+const programSchema = z.object({
+  name: z.string().min(2, 'Name required'),
+  type: z.enum(PROGRAM_TYPES),
+  description: z.string().optional(),
+})
+
+const batchSchema = z.object({
+  program_id: z.string().uuid('Select a program'),
+  name: z.string().min(2, 'Batch name required'),
+  start_date: z.string().min(1, 'Start date required'),
+  end_date: z.string().min(1, 'End date required'),
+  certificate_delivery_date: z.string().optional(),
+  description: z.string().optional(),
+  role: z.string().optional(),
+  id_prefix: z.string().min(2).max(10).optional().or(z.literal('')),
+  certificate_price: z.string().refine((v) => !isNaN(parseFloat(v)) && parseFloat(v) >= 0, 'Valid price required'),
+  currency: z.string().default('INR'),
+})
+
+function NewProgramModal({ open, onClose, companyId }) {
+  const { register, handleSubmit, reset, formState: { errors } } = useForm({ resolver: zodResolver(programSchema) })
+  const [createProgram, { isLoading }] = useCreateAdminCompanyProgramMutation()
+
+  const handleClose = () => { reset(); onClose() }
+
+  const onSubmit = async (data) => {
+    try {
+      await createProgram({ companyId, ...data }).unwrap()
+      toast.success('Program created')
+      handleClose()
+    } catch (err) {
+      toast.error(err?.data?.message || 'Failed to create program')
+    }
+  }
+
+  return (
+    <Modal open={open} onClose={handleClose} title="New Program">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <Input label="Program Name" required error={errors.name?.message} {...register('name')} />
+        <Select label="Type" required error={errors.type?.message} {...register('type')}>
+          {PROGRAM_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+        </Select>
+        <Textarea label="Description" rows={3} placeholder="Optional description" {...register('description')} />
+        <div className="flex justify-end gap-3">
+          <Button variant="secondary" type="button" onClick={handleClose}>Cancel</Button>
+          <Button type="submit" isLoading={isLoading}>Create</Button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+function NewBatchModal({ open, onClose, companyId, programs }) {
+  const { register, handleSubmit, reset, formState: { errors } } = useForm({ resolver: zodResolver(batchSchema) })
+  const [createBatch, { isLoading }] = useCreateAdminCompanyBatchMutation()
+
+  const handleClose = () => { reset(); onClose() }
+
+  const onSubmit = async (data) => {
+    try {
+      await createBatch({ companyId, ...data, certificate_price: parseFloat(data.certificate_price) }).unwrap()
+      toast.success('Batch created')
+      handleClose()
+    } catch (err) {
+      toast.error(err?.data?.message || 'Failed to create batch')
+    }
+  }
+
+  return (
+    <Modal open={open} onClose={handleClose} title="New Batch" size="lg">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <Select label="Program" required error={errors.program_id?.message} {...register('program_id')}>
+          <option value="">Select a program</option>
+          {programs.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.type})</option>)}
+        </Select>
+        <Input label="Batch Name" placeholder="e.g. Summer Internship 2025" required error={errors.name?.message} {...register('name')} />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Input label="Start Date" type="date" required error={errors.start_date?.message} {...register('start_date')} />
+          <Input label="End Date" type="date" required error={errors.end_date?.message} {...register('end_date')} />
+        </div>
+        <Input label="Certificate Delivery Date" type="date" error={errors.certificate_delivery_date?.message} {...register('certificate_delivery_date')} />
+        <Textarea label="Description" rows={2} placeholder="Optional description" {...register('description')} />
+        <Input label="Role / Designation" placeholder="e.g. Software Engineer Intern" {...register('role')} />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Input label="ID Prefix" placeholder="CERT" {...register('id_prefix')} />
+          <Input label="Certificate Price (₹)" type="number" step="0.01" required error={errors.certificate_price?.message} {...register('certificate_price')} />
+        </div>
+        <div className="flex justify-end gap-3">
+          <Button variant="secondary" type="button" onClick={handleClose}>Cancel</Button>
+          <Button type="submit" isLoading={isLoading}>Create</Button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
 
 export default function AdminCompanyDetail() {
   const { id } = useParams()
   const { data, isLoading } = useGetAdminCompanyQuery(id)
   const [updateStatus, { isLoading: updating }] = useUpdateCompanyStatusMutation()
+  const [showNewProgram, setShowNewProgram] = useState(false)
+  const [showNewBatch, setShowNewBatch] = useState(false)
 
   if (isLoading) return <PageSpinner />
   if (!data) return <p className="p-6 text-slate-500">Company not found</p>
 
   // Backend returns programs[].batches[] — flatten to a single batches array
   const company = data
-  const batches = (data.programs || []).flatMap((p) =>
+  const programs = data.programs || []
+  const batches = programs.flatMap((p) =>
     (p.batches || []).map((b) => ({ ...b, program: { name: p.name, type: p.type } }))
   )
 
@@ -144,7 +255,13 @@ export default function AdminCompanyDetail() {
 
         {/* Batches */}
         <div className="lg:col-span-2">
-          <h2 className="mb-3 font-semibold text-slate-900">Batches</h2>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="font-semibold text-slate-900">Batches</h2>
+            <div className="flex gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setShowNewProgram(true)} leftIcon={<Plus className="h-3.5 w-3.5" />}>New Program</Button>
+              <Button size="sm" onClick={() => setShowNewBatch(true)} leftIcon={<Plus className="h-3.5 w-3.5" />}>New Batch</Button>
+            </div>
+          </div>
           {batches.length === 0 ? (
             <div className="rounded-xl border-2 border-dashed border-slate-200 py-10 text-center">
               <p className="text-sm text-slate-400">No batches yet</p>
@@ -177,6 +294,9 @@ export default function AdminCompanyDetail() {
           )}
         </div>
       </div>
+
+      <NewProgramModal open={showNewProgram} onClose={() => setShowNewProgram(false)} companyId={id} />
+      <NewBatchModal open={showNewBatch} onClose={() => setShowNewBatch(false)} companyId={id} programs={programs} />
     </div>
   )
 }
