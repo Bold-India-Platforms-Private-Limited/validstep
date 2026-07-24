@@ -135,7 +135,7 @@ export default function About() {
           <div className="text-center mb-8">
             <span className="inline-block px-3 py-1 bg-gray-700 text-gray-300 text-xs font-bold uppercase tracking-wider rounded-full mb-3">Built by</span>
             <h2 className="text-2xl font-bold text-white">Bold India Platforms Private Limited</h2>
-            <p className="text-gray-500 text-sm mt-1">CIN: U85499PN2025PTC246360 · Incorporated 2025 · Pune, Maharashtra, India</p>
+            <p className="text-gray-500 text-sm mt-1">CIN: U85499PN2025PTC246360 · </p>
           </div>
           <div className="grid sm:grid-cols-3 gap-6 text-sm">
             <div className="bg-gray-800 rounded-xl p-5">

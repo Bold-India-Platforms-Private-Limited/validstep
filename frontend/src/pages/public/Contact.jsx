@@ -69,7 +69,7 @@ export default function Contact() {
 
             <ContactCard
               icon={<MapPin className="w-5 h-5 text-violet-600" />}
-              label="Office Address"
+              label="Registered Office Address"
               bg="bg-violet-50"
               className="sm:col-span-2"
             >

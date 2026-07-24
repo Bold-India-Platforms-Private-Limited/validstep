@@ -5,29 +5,27 @@ const env = require('../config/env');
 
 // The invoice issuer is always Bold India Platforms (the entity that actually receives
 // payment via PayU) — `companyName` passed into this function is the customer's employer
-// / program provider (e.g. "Acme Corp"), which is contextual info about the certificate,
-// not who issued the invoice, so it must never appear in the ISSUED BY block.
+// / program provider (e.g. "Acme Corp"), which is the "Issuing Organisation" for the
+// certificate itself, not who issued the invoice.
 const COMPANY = {
-  legalName: 'Bold India Platforms Private Limited',
-  cin: 'U85499PN2025PTC246360',
+  legalName: 'BOLD INDIA PLATFORMS PRIVATE LIMITED',
+  cin: env.COMPANY_CIN || 'U85499PN2025PTC246360',
+  pan: env.COMPANY_PAN || 'AANCB9446K',
+  address: env.COMPANY_ADDRESS || 'Sn 242/1/2 Baner, Tejaswini Soc, DP Road, N.I.A., Pune, Maharashtra 411045, India',
+  email: 'hello@boldindia.in | hello@validstep.com',
 };
 
-function hexToRgb(hex) {
-  const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return r ? rgb(parseInt(r[1], 16) / 255, parseInt(r[2], 16) / 255, parseInt(r[3], 16) / 255) : rgb(0, 0, 0);
-}
+const GST_RATE = 0.18;
 
-function fmt(d) {
+function fmtDateTime(d) {
   if (!d) return '—';
-  return new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' });
+  return new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' }) + ' IST';
 }
 
 function fmtDate(d) {
   if (!d) return '—';
-  return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+  return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
 }
-
-const GST_RATE = 0.18;
 
 /**
  * GST only applies to orders paid on/after the company's registration takes effect —
@@ -39,204 +37,221 @@ function isGstApplicable(paidAt) {
   return new Date(paidAt) >= new Date(env.COMPANY_GST_EFFECTIVE_FROM);
 }
 
-/** Amount is treated as GST-inclusive; this splits it into taxable value + GST for display only. */
 function splitGstInclusive(amount) {
   const taxable = amount / (1 + GST_RATE);
   return { taxable, gst: amount - taxable };
 }
 
+const PROGRAM_TYPE_LABEL = {
+  INTERNSHIP: 'Internship Program',
+  COURSE: 'Course Program',
+  PARTICIPATION: 'Participation Program',
+  HACKATHON: 'Hackathon Program',
+  OTHER: 'Program',
+};
+
+/** Greedy word-wrap — pdf-lib has no built-in text wrapping. */
+function wrapText(text, font, size, maxWidth) {
+  const words = String(text).split(' ');
+  const lines = [];
+  let line = '';
+  for (const word of words) {
+    const candidate = line ? `${line} ${word}` : word;
+    if (font.widthOfTextAtSize(candidate, size) > maxWidth && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = candidate;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function rightAlign(page, text, rightX, y, size, font, color) {
+  const w = font.widthOfTextAtSize(text, size);
+  page.drawText(text, { x: rightX - w, y, size, font, color });
+}
+
 /**
- * Generate invoice PDF for an order
- * data: { orderId, invoiceNumber, userName, userEmail, userPhone, companyName, batchName, programName, programType, role, startDate, endDate, certificateSerial, amount, currency, paidAt, txnId, issuedAt, verificationHash }
+ * Generate a tax-invoice PDF for an order, matching Validstep's official invoice format
+ * (FROM / BILL TO / SERVICE DESCRIPTION / item table / PAYMENT INFORMATION).
+ * data: { orderId, invoiceNumber, invoiceDate, userName, userEmail, userPhone, companyName,
+ *   batchName, programName, programType, startDate, endDate, certificateDeliveryDate,
+ *   isIssued, isManualEnrollment, certificateSerial, amount, currency, paidAt, txnId }
  */
 async function generateInvoicePDF(data) {
   const {
-    orderId, invoiceNumber, userName, userEmail, userPhone,
-    companyName, batchName, programName, programType, role,
-    startDate, endDate, certificateSerial, amount, currency,
-    paidAt, txnId, verificationHash,
+    invoiceNumber, invoiceDate, userName, userEmail,
+    companyName, programType, startDate, endDate, certificateDeliveryDate,
+    isIssued, isManualEnrollment, amount, currency, paidAt, txnId,
   } = data;
 
   const pdfDoc = await PDFDocument.create();
-  // A4 portrait
-  const page = pdfDoc.addPage([595.28, 841.89]);
+  const page = pdfDoc.addPage([595.28, 841.89]); // A4 portrait
   const { width, height } = page.getSize();
 
   const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const regular = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const oblique = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
 
-  const primary = hexToRgb('#4F46E5');
   const dark = rgb(0.1, 0.1, 0.15);
-  const gray = rgb(0.45, 0.45, 0.5);
-  const light = rgb(0.96, 0.96, 0.98);
-  const white = rgb(1, 1, 1);
-  const green = hexToRgb('#16a34a');
+  const gray = rgb(0.4, 0.4, 0.45);
+  const light = rgb(0.95, 0.95, 0.97);
+  const border = rgb(0.85, 0.85, 0.88);
+  const primary = rgb(0.31, 0.27, 0.9);
 
   const marginX = 48;
-  let y = height - 48;
+  const rightX = width - marginX;
+  let y = height - 50;
 
-  // Header background
-  page.drawRectangle({ x: 0, y: height - 100, width, height: 100, color: primary });
-
-  // Logo / Brand
-  page.drawText('Validstep.com', { x: marginX, y: height - 45, size: 20, font: bold, color: white });
-  page.drawText('Digital Certificate Platform', { x: marginX, y: height - 65, size: 10, font: regular, color: rgb(0.8, 0.8, 1) });
-
-  // INVOICE label (right)
-  page.drawText('INVOICE', { x: width - marginX - 80, y: height - 42, size: 22, font: bold, color: white });
-  const invNumW = regular.widthOfTextAtSize(invoiceNumber, 10);
-  page.drawText(invoiceNumber, { x: width - marginX - invNumW, y: height - 60, size: 10, font: regular, color: rgb(0.8, 0.8, 1) });
-  const dateStr = fmt(paidAt || new Date());
-  const dateW = regular.widthOfTextAtSize(dateStr, 9);
-  page.drawText(dateStr, { x: width - marginX - dateW, y: height - 76, size: 9, font: regular, color: rgb(0.75, 0.75, 0.95) });
-
-  y = height - 130;
-
-  // Status badge
-  const isPaid = !!paidAt;
-  // Plain ASCII only — pdf-lib's standard WinAnsi font encoding throws on Unicode
-  // glyphs like a checkmark, which would crash every paid-invoice download.
-  const statusLabel = isPaid ? 'PAID' : 'PENDING';
-  const statusColor = isPaid ? green : hexToRgb('#d97706');
-  const statusBg = isPaid ? hexToRgb('#dcfce7') : hexToRgb('#fef3c7');
-  page.drawRectangle({ x: marginX, y: y - 6, width: 80, height: 22, color: statusBg, borderRadius: 4 });
-  page.drawText(statusLabel, { x: marginX + 10, y: y + 2, size: 11, font: bold, color: statusColor });
-
-  y -= 36;
-
-  // Bill to + Bill from columns
-  const colW = (width - marginX * 2 - 20) / 2;
-
-  // Bill To
-  page.drawText('BILL TO', { x: marginX, y, size: 8, font: bold, color: gray });
-  y -= 18;
-  page.drawText(userName, { x: marginX, y, size: 13, font: bold, color: dark });
+  // Header
+  page.drawText('Validstep', { x: marginX, y, size: 22, font: bold, color: primary });
+  page.drawText('.com', { x: marginX + bold.widthOfTextAtSize('Validstep', 22), y, size: 22, font: bold, color: dark });
+  rightAlign(page, 'TAX INVOICE', rightX, y + 2, 16, bold, dark);
   y -= 16;
-  page.drawText(userEmail, { x: marginX, y, size: 10, font: regular, color: gray });
-  if (userPhone) { y -= 14; page.drawText(userPhone, { x: marginX, y, size: 10, font: regular, color: gray }); }
+  page.drawText('A product by Bold India Platforms Private Limited', { x: marginX, y, size: 9, font: regular, color: gray });
+  rightAlign(page, `Invoice No.: ${invoiceNumber}`, rightX, y, 9.5, bold, dark);
+  y -= 13;
+  rightAlign(page, `Invoice Date: ${fmtDate(invoiceDate || new Date())}`, rightX, y, 9, regular, gray);
 
-  // Bill From (right column)
-  const gstApplicable = isGstApplicable(paidAt);
-  const col2X = marginX + colW + 20;
-  let y2 = y + (userPhone ? 48 : 34);
-  page.drawText('ISSUED BY', { x: col2X, y: y2, size: 8, font: bold, color: gray });
-  y2 -= 18;
-  page.drawText(COMPANY.legalName, { x: col2X, y: y2, size: 12, font: bold, color: dark });
-  y2 -= 15;
-  page.drawText(`CIN: ${COMPANY.cin}`, { x: col2X, y: y2, size: 8.5, font: regular, color: gray });
-  y2 -= 13;
-  page.drawText('via Validstep.com Platform', { x: col2X, y: y2, size: 9, font: oblique, color: gray });
-  // PAN/registered address are true regardless of GST registration status, unlike the GST
-  // breakdown below — never gate these behind isGstApplicable.
-  if (env.COMPANY_PAN) {
-    y2 -= 13;
-    page.drawText(`PAN: ${env.COMPANY_PAN}`, { x: col2X, y: y2, size: 8.5, font: regular, color: gray });
-  }
-  if (gstApplicable) {
-    y2 -= 13;
-    page.drawText(`GSTIN: ${env.COMPANY_GSTIN}`, { x: col2X, y: y2, size: 8.5, font: regular, color: gray });
-  }
-  if (env.COMPANY_ADDRESS) {
-    y2 -= 13;
-    page.drawText(env.COMPANY_ADDRESS.slice(0, 55), { x: col2X, y: y2, size: 8.5, font: regular, color: gray });
-  }
-
-  y = Math.min(y, y2) - 32;
-
-  // Divider
-  page.drawLine({ start: { x: marginX, y }, end: { x: width - marginX, y }, thickness: 1, color: hexToRgb('#e2e8f0') });
+  y -= 26;
+  page.drawLine({ start: { x: marginX, y }, end: { x: rightX, y }, thickness: 1, color: border });
   y -= 24;
 
-  // --- Item table ---
-  const tableW = width - marginX * 2;
+  // FROM / BILL TO
+  const colW = (width - marginX * 2 - 24) / 2;
+  const col2X = marginX + colW + 24;
 
-  // Table header
-  page.drawRectangle({ x: marginX, y: y - 4, width: tableW, height: 24, color: light });
-  page.drawText('DESCRIPTION', { x: marginX + 10, y: y + 4, size: 9, font: bold, color: gray });
-  page.drawText('SERIAL NO.', { x: marginX + tableW * 0.55, y: y + 4, size: 9, font: bold, color: gray });
-  page.drawText('AMOUNT', { x: width - marginX - 60, y: y + 4, size: 9, font: bold, color: gray });
-  y -= 30;
-
-  // Item row
-  const desc = `${programType === 'INTERNSHIP' ? 'Internship / Fellowship' : programType === 'COURSE' ? 'Course' : programType === 'HACKATHON' ? 'Hackathon' : programType === 'OTHER' ? 'Other' : 'Participation'} Certificate – ${batchName}`;
-  page.drawText(desc.slice(0, 52), { x: marginX + 10, y, size: 10, font: regular, color: dark });
-  page.drawText(certificateSerial, { x: marginX + tableW * 0.55, y, size: 10, font: regular, color: dark, fontFamily: 'monospace' });
-  const amtStr = `${currency || 'INR'} ${Number(amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
-  const amtW = bold.widthOfTextAtSize(amtStr, 11);
-  page.drawText(amtStr, { x: width - marginX - amtW, y, size: 11, font: bold, color: dark });
-
-  // Company/role are context about the certificate, not who issued the invoice (see ISSUED BY above)
-  const subLines = [companyName && `Program by: ${companyName}`, role && `Role: ${role}`].filter(Boolean);
-  let subY = y - 14;
-  for (const line of subLines) {
-    page.drawText(line, { x: marginX + 10, y: subY, size: 9, font: oblique, color: gray });
-    subY -= 13;
-  }
-
-  y -= (subLines.length ? 16 + subLines.length * 13 : 30);
-
-  // Divider
-  page.drawLine({ start: { x: marginX, y }, end: { x: width - marginX, y }, thickness: 0.5, color: hexToRgb('#e2e8f0') });
-  y -= 20;
-
-  // GST breakdown (informational only — the total charged never changes; see isGstApplicable)
-  if (gstApplicable) {
-    const { taxable, gst } = splitGstInclusive(Number(amount));
-    const taxableStr = `${currency || 'INR'} ${taxable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
-    const gstStr = `${currency || 'INR'} ${gst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
-    page.drawText('Taxable Value', { x: marginX + 10, y, size: 9.5, font: regular, color: dark });
-    const taxableW = regular.widthOfTextAtSize(taxableStr, 9.5);
-    page.drawText(taxableStr, { x: width - marginX - taxableW, y, size: 9.5, font: regular, color: dark });
-    y -= 15;
-    page.drawText('GST (18%, included)', { x: marginX + 10, y, size: 9.5, font: regular, color: dark });
-    const gstW = regular.widthOfTextAtSize(gstStr, 9.5);
-    page.drawText(gstStr, { x: width - marginX - gstW, y, size: 9.5, font: regular, color: dark });
-    y -= 22;
-  }
-
-  // Total row
-  page.drawText('TOTAL PAID', { x: marginX + 10, y, size: 11, font: bold, color: dark });
-  const totalW = bold.widthOfTextAtSize(amtStr, 14);
-  page.drawText(amtStr, { x: width - marginX - totalW, y, size: 14, font: bold, color: primary });
-  y -= 36;
-
-  // Payment details box
-  page.drawRectangle({ x: marginX, y: y - 72, width: tableW, height: 82, color: light, borderRadius: 6 });
-  y -= 10;
-
-  const details = [
-    ['Transaction ID', txnId || '—'],
-    ['Order ID', orderId],
-    ['Program', `${programName} (${programType})`],
-    ['Duration', `${fmtDate(startDate)} – ${fmtDate(endDate)}`],
-    ['Payment Date', fmt(paidAt)],
-  ];
-
-  details.forEach(([label, val]) => {
-    page.drawText(label + ':', { x: marginX + 12, y, size: 9, font: bold, color: gray });
-    page.drawText(String(val).slice(0, 60), { x: marginX + 130, y, size: 9, font: regular, color: dark });
-    y -= 14;
-  });
+  page.drawText('FROM', { x: marginX, y, size: 9, font: bold, color: gray });
+  page.drawText('BILL TO', { x: col2X, y, size: 9, font: bold, color: gray });
   y -= 16;
 
-  // Verification section
-  if (verificationHash) {
-    const verifyUrl = `${env.FRONTEND_URL}/verify/${verificationHash}`;
-    page.drawRectangle({ x: marginX, y: y - 34, width: tableW, height: 44, color: hexToRgb('#eff6ff'), borderRadius: 6 });
-    page.drawText('Certificate Verification Link:', { x: marginX + 12, y: y - 8, size: 9, font: bold, color: hexToRgb('#1d4ed8') });
-    page.drawText(verifyUrl.slice(0, 70), { x: marginX + 12, y: y - 22, size: 8, font: regular, color: hexToRgb('#1d4ed8') });
+  let yL = y;
+  page.drawText(COMPANY.legalName, { x: marginX, y: yL, size: 10.5, font: bold, color: dark }); yL -= 13;
+  page.drawText('Brand: Validstep', { x: marginX, y: yL, size: 9, font: regular, color: dark }); yL -= 13;
+  for (const line of wrapText(COMPANY.address, regular, 9, colW)) {
+    page.drawText(line, { x: marginX, y: yL, size: 9, font: regular, color: gray }); yL -= 12;
+  }
+  page.drawText(`CIN: ${COMPANY.cin}`, { x: marginX, y: yL, size: 9, font: regular, color: gray }); yL -= 12;
+  page.drawText(`PAN: ${COMPANY.pan}`, { x: marginX, y: yL, size: 9, font: regular, color: gray }); yL -= 12;
+  const gstApplicable = isGstApplicable(paidAt);
+  page.drawText(gstApplicable ? `GSTIN: ${env.COMPANY_GSTIN}` : 'GSTIN: Not Applicable (Unregistered)', { x: marginX, y: yL, size: 9, font: regular, color: gray }); yL -= 12;
+  page.drawText(`Email: ${COMPANY.email}`, { x: marginX, y: yL, size: 9, font: regular, color: gray }); yL -= 12;
+
+  let yR = y;
+  page.drawText(userName, { x: col2X, y: yR, size: 10.5, font: bold, color: dark }); yR -= 13;
+  page.drawText(`Email: ${userEmail}`, { x: col2X, y: yR, size: 9, font: regular, color: gray }); yR -= 12;
+  page.drawText('Address: Not Available', { x: col2X, y: yR, size: 9, font: regular, color: gray }); yR -= 12;
+  page.drawText('GSTIN: Not Applicable (Individual / Unregistered)', { x: col2X, y: yR, size: 9, font: regular, color: gray }); yR -= 12;
+
+  y = Math.min(yL, yR) - 16;
+  page.drawLine({ start: { x: marginX, y }, end: { x: rightX, y }, thickness: 0.75, color: border });
+  y -= 22;
+
+  // SERVICE DESCRIPTION
+  page.drawText('SERVICE DESCRIPTION', { x: marginX, y, size: 9, font: bold, color: gray });
+  y -= 16;
+
+  const svcRows = [
+    ['Issuing Organisation:', companyName || '—'],
+    ['Program Type:', PROGRAM_TYPE_LABEL[programType] || 'Program'],
+    ['Batch Duration:', `${fmtDate(startDate)} – ${fmtDate(endDate)}`],
+    ['Participant Status:', isIssued ? 'Certificate Issued' : 'Enrolled'],
+    ['Certificate Delivery Date:', fmtDate(certificateDeliveryDate || endDate)],
+  ];
+  const labelW = 150;
+  for (const [label, val] of svcRows) {
+    page.drawText(label, { x: marginX, y, size: 9.5, font: bold, color: dark });
+    page.drawText(String(val), { x: marginX + labelW, y, size: 9.5, font: regular, color: dark });
+    y -= 15;
+  }
+  page.drawText('Delivery Tracking:', { x: marginX, y, size: 9.5, font: bold, color: dark });
+  y -= 14;
+  const trackingText = 'Participants may log in to the Validstep web application (validstep.com) using their registered email ID to view real-time enrollment status and track the progress of certificate delivery.';
+  for (const line of wrapText(trackingText, regular, 9, width - marginX * 2)) {
+    page.drawText(line, { x: marginX, y, size: 9, font: regular, color: gray });
+    y -= 12;
+  }
+
+  y -= 12;
+
+  // Item table
+  const tableW = width - marginX * 2;
+  const qtyColX = marginX + tableW - 140;
+  const amtColX = marginX + tableW - 10;
+
+  page.drawRectangle({ x: marginX, y: y - 6, width: tableW, height: 22, color: light });
+  page.drawText('DESCRIPTION', { x: marginX + 10, y, size: 8.5, font: bold, color: gray });
+  page.drawText('QTY', { x: qtyColX, y, size: 8.5, font: bold, color: gray });
+  rightAlign(page, 'AMOUNT (INR)', amtColX, y, 8.5, bold, gray);
+  y -= 26;
+
+  const descText = 'Validstep SaaS Platform Fee – Participant Enrollment, Digital Certificate Infrastructure, Certificate Management & Public Verification Services';
+  const descLines = wrapText(descText, regular, 9.5, qtyColX - marginX - 20);
+  for (const line of descLines) {
+    page.drawText(line, { x: marginX + 10, y, size: 9.5, font: regular, color: dark });
+    y -= 13;
+  }
+  const rowTopY = y + descLines.length * 13 - 3;
+  page.drawText('1', { x: qtyColX, y: rowTopY, size: 9.5, font: regular, color: dark });
+  const amountStr = `Rs. ${Number(amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  rightAlign(page, amountStr, amtColX, rowTopY, 9.5, regular, dark);
+
+  y -= 10;
+  page.drawLine({ start: { x: marginX, y }, end: { x: rightX, y }, thickness: 0.5, color: border });
+  y -= 16;
+
+  if (gstApplicable) {
+    const { taxable, gst } = splitGstInclusive(Number(amount));
+    page.drawText('Subtotal', { x: qtyColX, y, size: 9.5, font: regular, color: dark });
+    rightAlign(page, `Rs. ${taxable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, amtColX, y, 9.5, regular, dark);
+    y -= 15;
+    page.drawText('GST (18%, included)', { x: qtyColX, y, size: 9.5, font: regular, color: dark });
+    rightAlign(page, `Rs. ${gst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, amtColX, y, 9.5, regular, dark);
+    y -= 15;
+  } else {
+    page.drawText('Subtotal', { x: qtyColX, y, size: 9.5, font: regular, color: dark });
+    rightAlign(page, amountStr, amtColX, y, 9.5, regular, dark);
+    y -= 15;
+    page.drawText('GST', { x: qtyColX, y, size: 9.5, font: regular, color: dark });
+    rightAlign(page, 'Not Applicable', amtColX, y, 9.5, regular, dark);
+    y -= 15;
+  }
+  page.drawLine({ start: { x: qtyColX - 10, y: y + 4 }, end: { x: rightX, y: y + 4 }, thickness: 0.5, color: border });
+  y -= 4;
+  page.drawText('Total Amount Paid', { x: qtyColX, y, size: 10, font: bold, color: dark });
+  rightAlign(page, amountStr, amtColX, y, 10, bold, dark);
+  y -= 30;
+
+  // PAYMENT INFORMATION — omitted entirely for manual/comp enrollments (no real payment to describe)
+  if (!isManualEnrollment) {
+    page.drawText('PAYMENT INFORMATION', { x: marginX, y, size: 9, font: bold, color: gray });
+    y -= 18;
+    page.drawRectangle({ x: marginX, y: y - 34, width: tableW, height: 50, color: light, borderRadius: 4 });
+    page.drawText(`PayU Transaction ID: ${txnId || '—'}`, { x: marginX + 12, y: y - 10, size: 9.5, font: regular, color: dark });
+    page.drawText(`Payment Date & Time: ${fmtDateTime(paidAt)}`, { x: marginX + 12, y: y - 26, size: 9.5, font: regular, color: dark });
     y -= 50;
   }
 
   y -= 20;
+  rightAlign(page, 'For BOLD INDIA PLATFORMS PRIVATE LIMITED', rightX, y, 9.5, bold, dark);
+  y -= 26;
+  rightAlign(page, 'Authorized Signatory', rightX, y, 9.5, regular, gray);
 
-  // Footer note
-  page.drawLine({ start: { x: marginX, y }, end: { x: width - marginX, y }, thickness: 0.5, color: hexToRgb('#e2e8f0') });
-  y -= 18;
-  page.drawText('This is a computer-generated invoice. No signature required.', { x: marginX, y, size: 9, font: oblique, color: gray });
-  y -= 14;
-  page.drawText(`Generated on ${fmt(new Date())} | ${env.FRONTEND_URL}`, { x: marginX, y, size: 8, font: regular, color: hexToRgb('#94a3b8') });
+  // Footer
+  const footerY = 56;
+  page.drawLine({ start: { x: marginX, y: footerY + 24 }, end: { x: rightX, y: footerY + 24 }, thickness: 0.5, color: border });
+  const disclaimer = 'This is a computer-generated invoice and does not require a physical signature. For queries, contact hello@validstep.com or hello@boldindia.in.';
+  const disclaimerLines = wrapText(disclaimer, regular, 8, width - marginX * 2);
+  let fy = footerY + 10;
+  for (const line of disclaimerLines) {
+    const w = regular.widthOfTextAtSize(line, 8);
+    page.drawText(line, { x: (width - w) / 2, y: fy, size: 8, font: regular, color: gray });
+    fy -= 11;
+  }
+  const footerLine = `Bold India Platforms Private Limited · CIN ${COMPANY.cin} · www.boldindia.in · www.validstep.com`;
+  const flw = regular.widthOfTextAtSize(footerLine, 7.5);
+  page.drawText(footerLine, { x: (width - flw) / 2, y: fy - 4, size: 7.5, font: regular, color: gray });
 
   const pdfBytes = await pdfDoc.save();
   return Buffer.from(pdfBytes);

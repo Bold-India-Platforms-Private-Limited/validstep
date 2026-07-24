@@ -6,6 +6,10 @@ export const adminApi = baseApi.injectEndpoints({
       query: () => '/admin/dashboard',
       transformResponse: (r) => r.data,
     }),
+    getAdminAnalytics: b.query({
+      query: (params) => ({ url: '/admin/analytics', params }),
+      transformResponse: (r) => r.data,
+    }),
     getAdminCompanies: b.query({
       query: (params) => ({ url: '/admin/companies', params }),
       transformResponse: (r) => r.data,
@@ -36,11 +40,6 @@ export const adminApi = baseApi.injectEndpoints({
     getAdminBatchOrders: b.query({
       query: ({ id, ...params }) => ({ url: `/admin/batches/${id}/orders`, params }),
       transformResponse: (r) => r.data,
-    }),
-    getAdminOrders: b.query({
-      query: (params) => ({ url: '/admin/orders', params }),
-      transformResponse: (r) => r.data,
-      providesTags: ['Order'],
     }),
     getAdminPayments: b.query({
       query: (params) => ({ url: '/admin/payments', params }),
@@ -75,14 +74,22 @@ export const adminApi = baseApi.injectEndpoints({
     }),
     createAdminUser: b.mutation({
       query: (body) => ({ url: '/admin/users', method: 'POST', body }),
+      transformResponse: (r) => r.data,
+      invalidatesTags: ['User'],
+    }),
+    deleteAdminUsers: b.mutation({
+      query: (user_ids) => ({ url: '/admin/users', method: 'DELETE', body: { user_ids } }),
+      transformResponse: (r) => r.data,
       invalidatesTags: ['User'],
     }),
     bulkUploadAdminUsers: b.mutation({
       query: (formData) => ({ url: '/admin/users/bulk-upload', method: 'POST', body: formData }),
+      transformResponse: (r) => r.data,
       invalidatesTags: ['User'],
     }),
     importPayuButtonCustomers: b.mutation({
       query: () => ({ url: '/admin/users/import-payu-customers', method: 'POST' }),
+      transformResponse: (r) => r.data,
       invalidatesTags: ['User'],
     }),
     getAdminCompanyPrograms: b.query({
@@ -92,14 +99,17 @@ export const adminApi = baseApi.injectEndpoints({
     }),
     createAdminCompanyProgram: b.mutation({
       query: ({ companyId, ...body }) => ({ url: `/admin/companies/${companyId}/programs`, method: 'POST', body }),
+      transformResponse: (r) => r.data,
       invalidatesTags: (result, error, { companyId }) => ['Program', { type: 'Company', id: companyId }],
     }),
     createAdminCompanyBatch: b.mutation({
       query: ({ companyId, ...body }) => ({ url: `/admin/companies/${companyId}/batches`, method: 'POST', body }),
+      transformResponse: (r) => r.data,
       invalidatesTags: (result, error, { companyId }) => ['Batch', { type: 'Company', id: companyId }],
     }),
     createAdminCompany: b.mutation({
       query: (body) => ({ url: '/admin/companies', method: 'POST', body }),
+      transformResponse: (r) => r.data,
       invalidatesTags: ['Company'],
     }),
     enrollUsersInBatch: b.mutation({
@@ -108,11 +118,8 @@ export const adminApi = baseApi.injectEndpoints({
         method: 'POST',
         body: { user_ids },
       }),
+      transformResponse: (r) => r.data,
       invalidatesTags: ['Order', 'User'],
-    }),
-    importPayuTransactions: b.mutation({
-      query: (formData) => ({ url: '/admin/users/import-payu-transactions', method: 'POST', body: formData }),
-      invalidatesTags: ['User'],
     }),
     getAssignableTransactions: b.query({
       query: (params) => ({ url: '/admin/payu-transactions/assignable', params }),
@@ -124,24 +131,53 @@ export const adminApi = baseApi.injectEndpoints({
         method: 'POST',
         body: { payu_ids },
       }),
+      transformResponse: (r) => r.data,
       invalidatesTags: ['Order', 'User'],
+    }),
+    getAdminOrderLog: b.query({
+      query: (params) => ({ url: '/admin/order-log', params }),
+      transformResponse: (r) => r.data,
+      providesTags: ['OrderLog'],
+    }),
+    getAdminOrderDetail: b.query({
+      query: (orderId) => `/admin/order-log/${orderId}`,
+      transformResponse: (r) => r.data,
+      providesTags: (result, error, orderId) => [{ type: 'OrderLog', id: orderId }],
+    }),
+    resolveAdminQuery: b.mutation({
+      query: (queryId) => ({ url: `/admin/queries/${queryId}/resolve`, method: 'PUT' }),
+      transformResponse: (r) => r.data,
+      invalidatesTags: ['OrderLog'],
+    }),
+    resendUserPassword: b.mutation({
+      query: (userId) => ({ url: `/admin/users/${userId}/resend-password`, method: 'POST' }),
+      transformResponse: (r) => r.data,
+      invalidatesTags: ['OrderLog'],
+    }),
+    resendCertificateEmail: b.mutation({
+      query: (orderId) => ({ url: `/admin/order-log/${orderId}/send-certificate-email`, method: 'POST' }),
+      transformResponse: (r) => r.data,
+      invalidatesTags: ['OrderLog'],
     }),
   }),
 })
 
 export const {
-  useGetAdminDashboardQuery, useGetAdminCompaniesQuery,
+  useGetAdminDashboardQuery, useGetAdminAnalyticsQuery, useGetAdminCompaniesQuery,
   useGetAdminCompanyQuery, useUpdateCompanyStatusMutation,
   useGetAdminBatchesQuery, useGetAdminBatchQuery,
   useGetAdminBatchStatsQuery, useGetAdminBatchOrdersQuery,
-  useGetAdminOrdersQuery, useGetAdminPaymentsQuery,
+  useGetAdminPaymentsQuery,
   useGetPricingQuery, useUpdatePricingMutation,
   useIssueCertificatesAdminMutation,
   useGetAdminInvoicesQuery,
   useGetAdminUsersQuery, useCreateAdminUserMutation, useBulkUploadAdminUsersMutation,
+  useDeleteAdminUsersMutation,
   useImportPayuButtonCustomersMutation,
   useGetAdminCompanyProgramsQuery, useCreateAdminCompanyProgramMutation,
   useCreateAdminCompanyBatchMutation,
   useCreateAdminCompanyMutation, useEnrollUsersInBatchMutation,
-  useImportPayuTransactionsMutation, useGetAssignableTransactionsQuery, useAssignTransactionsToBatchMutation,
+  useGetAssignableTransactionsQuery, useAssignTransactionsToBatchMutation,
+  useGetAdminOrderLogQuery, useGetAdminOrderDetailQuery, useResolveAdminQueryMutation,
+  useResendUserPasswordMutation, useResendCertificateEmailMutation,
 } = adminApi

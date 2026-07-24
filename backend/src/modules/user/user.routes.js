@@ -30,6 +30,12 @@ const paymentsQuerySchema = z.object({
   status: z.enum(['INITIATED', 'SUCCESS', 'FAILURE', 'REFUNDED']).optional(),
 });
 
+const createQuerySchema = z.object({
+  order_id: z.string().uuid().optional(),
+  subject: z.string().min(2).max(200),
+  message: z.string().min(2).max(2000),
+});
+
 router.get('/dashboard', controller.getDashboard);
 router.get('/profile', controller.getProfile);
 router.put('/profile', validate({ body: updateProfileSchema }), controller.updateProfile);
@@ -38,5 +44,7 @@ router.get('/payments', validate({ query: paymentsQuerySchema }), controller.get
 router.get('/invoices', controller.getInvoices);
 router.get('/orders/:orderId/invoice', controller.downloadInvoice);
 router.get('/delivery-log', controller.getDeliveryLog);
+router.get('/queries', controller.getMyQueries);
+router.post('/queries', validate({ body: createQuerySchema }), controller.createQuery);
 
 module.exports = router;

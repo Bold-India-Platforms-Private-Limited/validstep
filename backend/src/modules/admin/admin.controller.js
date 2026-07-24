@@ -42,15 +42,6 @@ async function getAllBatches(req, res) {
   }
 }
 
-async function getAllOrders(req, res) {
-  try {
-    const result = await adminService.getAllOrders(req.query);
-    return sendSuccess(res, result, 'Orders retrieved successfully');
-  } catch (err) {
-    return sendError(res, err.message, err.statusCode || 500);
-  }
-}
-
 async function getPricing(req, res) {
   try {
     const configs = await adminService.getPricingConfigs();
@@ -79,6 +70,15 @@ async function getDashboard(req, res) {
   }
 }
 
+async function getMonthlyAnalytics(req, res) {
+  try {
+    const result = await adminService.getMonthlyAnalytics(req.query);
+    return sendSuccess(res, result, 'Analytics retrieved');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
 async function getAllPayments(req, res) {
   try {
     const result = await adminService.getAllPayments(req.query);
@@ -99,6 +99,7 @@ async function downloadInvoice(req, res) {
     const pdfBuffer = await generateInvoicePDF({
       orderId: order.id,
       invoiceNumber: invoiceRecord.invoice_number,
+      invoiceDate: invoiceRecord.generated_at,
       userName: order.user.name,
       userEmail: order.user.email,
       userPhone: order.user.phone || '',
@@ -109,6 +110,9 @@ async function downloadInvoice(req, res) {
       role: order.batch.role,
       startDate: order.batch.start_date,
       endDate: order.batch.end_date,
+      certificateDeliveryDate: order.batch.certificate_delivery_date,
+      isIssued: order.certificate?.is_issued || false,
+      isManualEnrollment: order.is_manual_enrollment,
       certificateSerial: order.certificate_serial,
       amount: order.amount,
       currency: order.currency,
@@ -203,6 +207,33 @@ async function listUsers(req, res) {
   }
 }
 
+async function deleteUsers(req, res) {
+  try {
+    const result = await adminService.deleteUsers(req.body.user_ids);
+    return sendSuccess(res, result, 'Users deleted');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function resendUserPassword(req, res) {
+  try {
+    const result = await adminService.resendUserPassword(req.params.userId);
+    return sendSuccess(res, result, 'System-generated password sent');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function resendCertificateEmail(req, res) {
+  try {
+    const result = await adminService.resendCertificateEmail(req.params.orderId);
+    return sendSuccess(res, result, 'Certificate email sent');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
 async function createUser(req, res) {
   try {
     const result = await adminService.registerUserForBatch(req.body);
@@ -259,18 +290,6 @@ async function enrollExistingUsers(req, res) {
   }
 }
 
-async function importPayuTransactions(req, res) {
-  try {
-    if (!req.file) {
-      return sendError(res, 'No file uploaded', 400);
-    }
-    const result = await adminService.importPayuTransactions(req.file);
-    return sendSuccess(res, result, 'PayU transactions imported');
-  } catch (err) {
-    return sendError(res, err.message, err.statusCode || 500);
-  }
-}
-
 async function getAssignableTransactions(req, res) {
   try {
     const result = await adminService.getAssignableTransactions(req.query);
@@ -288,6 +307,33 @@ async function assignTransactionsToBatch(req, res) {
       payu_ids: req.body.payu_ids,
     });
     return sendSuccess(res, result, 'Transactions assigned');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function getOrderLog(req, res) {
+  try {
+    const result = await adminService.getOrderLog(req.query);
+    return sendSuccess(res, result, 'Order log retrieved');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function getOrderDetail(req, res) {
+  try {
+    const result = await adminService.getOrderDetail(req.params.orderId);
+    return sendSuccess(res, result, 'Order detail retrieved');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function resolveQuery(req, res) {
+  try {
+    const result = await adminService.resolveQuery(req.params.queryId);
+    return sendSuccess(res, result, 'Query updated');
   } catch (err) {
     return sendError(res, err.message, err.statusCode || 500);
   }
@@ -354,13 +400,13 @@ module.exports = {
   getCompanyById,
   updateCompanyStatus,
   getAllBatches,
-  getAllOrders,
   getAllPayments,
   downloadInvoice,
   getAdminInvoices,
   getPricing,
   updatePricing,
   getDashboard,
+  getMonthlyAnalytics,
   getAdminBatch,
   getAdminBatchStats,
   getAdminBatchOrders,
@@ -368,14 +414,19 @@ module.exports = {
   getAdminBatchCertificates,
   issueCertificatesAdmin,
   listUsers,
+  deleteUsers,
+  resendUserPassword,
+  resendCertificateEmail,
   createUser,
   bulkUploadUsers,
   importPayuButtonCustomers,
   createCompany,
   enrollExistingUsers,
-  importPayuTransactions,
   getAssignableTransactions,
   assignTransactionsToBatch,
+  getOrderLog,
+  getOrderDetail,
+  resolveQuery,
   createCompanyProgram,
   getCompanyPrograms,
   updateCompanyProgram,

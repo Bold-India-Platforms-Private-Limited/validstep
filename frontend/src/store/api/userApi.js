@@ -34,6 +34,16 @@ export const userApi = baseApi.injectEndpoints({
       query: () => '/user/delivery-log',
       transformResponse: (r) => r.data,
     }),
+    getMyQueries: b.query({
+      query: () => '/user/queries',
+      transformResponse: (r) => r.data,
+      providesTags: ['Query'],
+    }),
+    createQuery: b.mutation({
+      query: (body) => ({ url: '/user/queries', method: 'POST', body }),
+      transformResponse: (r) => r.data,
+      invalidatesTags: ['Query'],
+    }),
   }),
 })
 
@@ -42,4 +52,5 @@ export const {
   useGetUserCertificatesQuery, useGetCertificateQuery,
   useDownloadCertificateMutation, useGetUserInvoicesQuery,
   useGetUserDeliveryLogQuery,
+  useGetMyQueriesQuery, useCreateQueryMutation,
 } = userApi

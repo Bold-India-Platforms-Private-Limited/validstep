@@ -39,7 +39,7 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard icon={Building2} label="Companies" value={stats.companies || 0} color="primary" />
+        <StatCard icon={Building2} label="Organizations" value={stats.companies || 0} color="primary" />
         <StatCard icon={Layers} label="Batches" value={stats.batches || 0} color="violet" />
         <StatCard icon={ShoppingBag} label="Orders" value={stats.orders || 0} color="emerald" />
         <StatCard icon={CreditCard} label="Revenue" value={formatCurrency(stats.revenue || 0)} color="amber" />

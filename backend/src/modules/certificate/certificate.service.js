@@ -5,6 +5,7 @@ const { isRedisAvailable } = require('../../config/redis');
 const { generateCertificate } = require('./generator');
 const { generateVerificationHash } = require('../../utils/hash');
 const { sendCertificateIssuedEmail } = require('../../utils/email');
+const { logDeliveryEvent } = require('../../utils/deliveryLog');
 const path = require('path');
 const fs = require('fs').promises;
 const env = require('../../config/env');
@@ -174,6 +175,7 @@ async function processCertificateJob(jobData) {
       verificationUrl: `${env.FRONTEND_URL}/verify/${verificationHash}`,
       downloadUrl: certificateUrl,
     });
+    logDeliveryEvent(order.user_id, 'CERTIFICATE_ISSUED_EMAIL_SENT', orderId);
   } catch (emailErr) {
     console.error('Certificate email failed (non-fatal):', emailErr.message);
   }

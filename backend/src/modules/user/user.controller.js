@@ -61,6 +61,7 @@ async function downloadInvoice(req, res) {
     const pdfBuffer = await generateInvoicePDF({
       orderId: order.id,
       invoiceNumber: invoiceRecord.invoice_number,
+      invoiceDate: invoiceRecord.generated_at,
       userName: order.user.name,
       userEmail: order.user.email,
       userPhone: order.user.phone || '',
@@ -71,6 +72,9 @@ async function downloadInvoice(req, res) {
       role: order.batch.role,
       startDate: order.batch.start_date,
       endDate: order.batch.end_date,
+      certificateDeliveryDate: order.batch.certificate_delivery_date,
+      isIssued: order.certificate?.is_issued || false,
+      isManualEnrollment: order.is_manual_enrollment,
       certificateSerial: order.certificate_serial,
       amount: order.amount,
       currency: order.currency,
@@ -108,6 +112,24 @@ async function getDeliveryLog(req, res) {
   }
 }
 
+async function createQuery(req, res) {
+  try {
+    const query = await userService.createQuery(req.user.id, req.body);
+    return sendSuccess(res, query, 'Query submitted');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function getMyQueries(req, res) {
+  try {
+    const result = await userService.getMyQueries(req.user.id);
+    return sendSuccess(res, result, 'Queries retrieved');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
 module.exports = {
   getDashboard,
   getOrders,
@@ -117,4 +139,6 @@ module.exports = {
   downloadInvoice,
   getInvoices,
   getDeliveryLog,
+  createQuery,
+  getMyQueries,
 };

@@ -300,6 +300,36 @@ async function sendCompanyWelcomeEmail({ name, email, setPasswordUrl }) {
   });
 }
 
+/**
+ * Admin-triggered "resend credentials" action — generates a brand new password for an
+ * existing account and emails the literal password (not a set-link), so the customer can
+ * log in immediately. Used when a customer says they never got/lost their original
+ * login email.
+ */
+async function sendSystemGeneratedPasswordEmail({ name, email, password, loginUrl }) {
+  const html = baseLayout(`
+    <h2 style="margin:0 0 8px;color:#1e293b;">🔑 Your Validstep.com login details</h2>
+    <p style="color:#64748b;margin:0 0 24px;">Hi <strong>${name}</strong>, here's a new system-generated password for your account.</p>
+
+    <div class="info-box">
+      <div class="info-row"><span class="label">Login Email</span><span class="value">${email}</span></div>
+      <div class="info-row"><span class="label">Password</span><span class="value">${password}</span></div>
+    </div>
+
+    <div style="text-align:center;margin:28px 0;">
+      <a href="${loginUrl}" class="btn">Log In Now</a>
+    </div>
+
+    <p style="font-size:13px;color:#64748b;">For your security, we recommend logging in and keeping this email somewhere safe. Contact us if you didn't request this.</p>
+  `);
+
+  return sendEmail({
+    to: email,
+    subject: `🔑 Your Validstep.com password`,
+    html,
+  });
+}
+
 module.exports = {
   sendEmail,
   sendCertificateIssuedEmail,
@@ -308,4 +338,5 @@ module.exports = {
   sendUserWelcomeEmail,
   sendBatchEnrollmentEmail,
   sendCompanyWelcomeEmail,
+  sendSystemGeneratedPasswordEmail,
 };

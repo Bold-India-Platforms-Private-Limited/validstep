@@ -186,6 +186,7 @@ model User {
   orders          Order[]
   certificates    Certificate[]
   delivery_events DeliveryEvent[]
+  queries         CustomerQuery[]
 
   @@index([email])
   @@map("users")
@@ -200,7 +201,8 @@ model DeliveryEvent {
   user_id    String
   order_id   String?
   /// PAYMENT_IMPORTED | USER_CREATED | BATCH_ASSIGNED | CERTIFICATE_GENERATED |
-  /// CERTIFICATE_DOWNLOADED | INVOICE_DOWNLOADED
+  /// CERTIFICATE_DOWNLOADED | INVOICE_DOWNLOADED | WELCOME_EMAIL_SENT |
+  /// ENROLLMENT_EMAIL_SENT | CERTIFICATE_ISSUED_EMAIL_SENT
   event      String
   metadata   Json?
   created_at DateTime @default(now())
@@ -211,6 +213,28 @@ model DeliveryEvent {
   @@index([user_id])
   @@index([order_id])
   @@map("delivery_events")
+}
+
+/// A customer-raised query/correction request (e.g. "my name is misspelled on the
+/// certificate") — optionally scoped to a specific order. Deliberately minimal: no
+/// threaded replies or email notifications yet, just a status admin can toggle.
+model CustomerQuery {
+  id         String   @id @default(uuid())
+  user_id    String
+  order_id   String?
+  subject    String
+  message    String
+  status     String   @default("OPEN") // OPEN | RESOLVED
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user  User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  order Order? @relation(fields: [order_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id])
+  @@index([order_id])
+  @@index([status])
+  @@map("customer_queries")
 }
 
 model Order {
@@ -239,6 +263,7 @@ model Order {
   invoice     Invoice?
   transaction     PayuTransaction?
   delivery_events DeliveryEvent[]
+  queries         CustomerQuery[]
 
   @@index([user_id])
   @@index([batch_id])

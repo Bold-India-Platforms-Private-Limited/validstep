@@ -8,7 +8,7 @@ const masterAccountingRoutes = require('../master-accounting/masterAccounting.ro
 const { validate } = require('../../middleware/validate');
 const { requireSuperAdmin } = require('../../middleware/auth');
 const { generalLimiter } = require('../../middleware/rateLimiter');
-const { uploadUserImportFile, uploadAccountingFile } = require('../../middleware/upload');
+const { uploadUserImportFile } = require('../../middleware/upload');
 
 const router = Router();
 
@@ -46,14 +46,6 @@ const issueCertsSchema = z.object({
   order_ids: z.array(z.string().uuid()).min(1),
 });
 
-const ordersQuerySchema = z.object({
-  page: z.string().optional().transform(v => v ? parseInt(v) : 1),
-  limit: z.string().optional().transform(v => v ? Math.min(parseInt(v), 100) : 20),
-  status: z.enum(['PENDING', 'PAID', 'FAILED', 'REFUNDED']).optional(),
-  company_id: z.string().uuid().optional(),
-  search: z.string().optional(),
-});
-
 const updateStatusSchema = z.object({
   is_active: z.boolean().optional(),
   is_verified: z.boolean().optional(),
@@ -82,6 +74,12 @@ const usersQuerySchema = z.object({
   page: z.string().optional().transform(v => v ? parseInt(v) : 1),
   limit: z.string().optional().transform(v => v ? Math.min(parseInt(v), 100) : 20),
   search: z.string().optional(),
+  company_id: z.string().uuid().optional(),
+  batch_id: z.string().uuid().optional(),
+});
+
+const deleteUsersSchema = z.object({
+  user_ids: z.array(z.string().uuid()).min(1, 'Select at least one user'),
 });
 
 const createUserSchema = z.object({
@@ -150,6 +148,16 @@ const assignableTransactionsQuerySchema = z.object({
   search: z.string().optional(),
 });
 
+const orderLogQuerySchema = z.object({
+  page: z.string().optional().transform(v => v ? parseInt(v) : 1),
+  limit: z.string().optional().transform(v => v ? Math.min(parseInt(v), 100) : 20),
+  from: z.string().optional(),
+  to: z.string().optional(),
+  status: z.string().optional(),
+  company_id: z.string().uuid().optional(),
+  search: z.string().optional(),
+});
+
 const updateCompanyBatchSchema = z.object({
   name: z.string().min(2).max(200).optional(),
   start_date: z.string().optional(),
@@ -164,8 +172,13 @@ const updateCompanyBatchSchema = z.object({
   status: z.enum(['DRAFT', 'ACTIVE', 'HOLD', 'COMPLETED']).optional(),
 });
 
+const analyticsQuerySchema = z.object({
+  months: z.string().optional().transform(v => v ? Math.min(parseInt(v), 24) : 12),
+});
+
 // Routes
 router.get('/dashboard', controller.getDashboard);
+router.get('/analytics', validate({ query: analyticsQuerySchema }), controller.getMonthlyAnalytics);
 router.get('/companies', validate({ query: listQuerySchema }), controller.getCompanies);
 router.get('/companies/:id', controller.getCompanyById);
 router.put('/companies/:id/status', validate({ body: updateStatusSchema }), controller.updateCompanyStatus);
@@ -176,7 +189,6 @@ router.get('/batches/:id/orders', validate({ query: batchOrdersQuerySchema }), c
 router.get('/batches/:id/orders/export', controller.exportAdminBatchOrders);
 router.get('/batches/:id/certificates', controller.getAdminBatchCertificates);
 router.post('/batches/:id/issue', validate({ body: issueCertsSchema }), controller.issueCertificatesAdmin);
-router.get('/orders', validate({ query: ordersQuerySchema }), controller.getAllOrders);
 router.get('/payments', validate({ query: paymentsQuerySchema }), controller.getAllPayments);
 router.get('/invoices', validate({ query: invoicesQuerySchema }), controller.getAdminInvoices);
 router.get('/orders/:orderId/invoice', controller.downloadInvoice);
@@ -184,12 +196,17 @@ router.get('/pricing', controller.getPricing);
 router.put('/pricing', validate({ body: updatePricingSchema }), controller.updatePricing);
 router.get('/users', validate({ query: usersQuerySchema }), controller.listUsers);
 router.post('/users', validate({ body: createUserSchema }), controller.createUser);
+router.delete('/users', validate({ body: deleteUsersSchema }), controller.deleteUsers);
+router.post('/users/:userId/resend-password', controller.resendUserPassword);
+router.post('/order-log/:orderId/send-certificate-email', controller.resendCertificateEmail);
 router.post('/users/bulk-upload', uploadUserImportFile, validate({ body: bulkUploadUsersSchema }), controller.bulkUploadUsers);
 router.post('/users/import-payu-customers', controller.importPayuButtonCustomers);
 router.post('/companies', validate({ body: createCompanySchema }), controller.createCompany);
 router.post('/companies/:companyId/batches/:id/enroll-users', validate({ body: enrollUsersSchema }), controller.enrollExistingUsers);
-router.post('/users/import-payu-transactions', uploadAccountingFile, controller.importPayuTransactions);
 router.get('/payu-transactions/assignable', validate({ query: assignableTransactionsQuerySchema }), controller.getAssignableTransactions);
+router.get('/order-log', validate({ query: orderLogQuerySchema }), controller.getOrderLog);
+router.get('/order-log/:orderId', controller.getOrderDetail);
+router.put('/queries/:queryId/resolve', controller.resolveQuery);
 router.post('/companies/:companyId/batches/:id/assign-transactions', validate({ body: assignTransactionsSchema }), controller.assignTransactionsToBatch);
 
 // Admin acting on behalf of a company — create/manage programs & batches for them

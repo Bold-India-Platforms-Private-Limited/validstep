@@ -87,6 +87,7 @@ async function downloadInvoice(req, res) {
     const pdfBuffer = await generateInvoicePDF({
       orderId: order.id,
       invoiceNumber: invoiceRecord.invoice_number,
+      invoiceDate: invoiceRecord.generated_at,
       userName: order.user.name,
       userEmail: order.user.email,
       userPhone: order.user.phone || '',
@@ -97,6 +98,9 @@ async function downloadInvoice(req, res) {
       role: order.batch.role,
       startDate: order.batch.start_date,
       endDate: order.batch.end_date,
+      certificateDeliveryDate: order.batch.certificate_delivery_date,
+      isIssued: order.certificate?.is_issued || false,
+      isManualEnrollment: order.is_manual_enrollment,
       certificateSerial: order.certificate_serial,
       amount: order.amount,
       currency: order.currency,

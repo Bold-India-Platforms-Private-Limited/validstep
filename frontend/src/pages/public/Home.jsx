@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import HeroBg from '../../components/shared/HeroBg'
+import { SystemStatusBadge } from '../../components/shared/SystemStatusBadge'
 import { Link, useNavigate } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { selectIsAuthenticated, selectUserRole } from '../../store/authSlice'
@@ -2145,10 +2146,10 @@ function Footer() {
               <p className="text-gray-500 font-semibold mb-1">Parent Legal Company</p>
               <p>Bold India Platforms Private Limited</p>
               <p>CIN: U85499PN2025PTC246360</p>
-              <p>Incorporated 2025 · Pune, Maharashtra, India</p>
+              <p></p>
             </div>
             <div>
-              <p className="text-gray-500 font-semibold mb-1">Office Address</p>
+              <p className="text-gray-500 font-semibold mb-1">Registered Office Address</p>
               <p>Sn 242/1/2 Baner, Tejaswini Soc,</p>
               <p>DP Road, N.I.A., Pune,</p>
               <p>Maharashtra 411045</p>
@@ -2164,7 +2165,7 @@ function Footer() {
               © {new Date().getFullYear()} Validstep.com. All rights reserved.
             </p>
             <div className="flex items-center gap-4 text-xs text-gray-600">
-              <span>Digital certificates only — no physical delivery</span>
+              <SystemStatusBadge dark />
               <span>·</span>
               <Link to="/auth/admin/login" className="hover:text-gray-400 transition-colors">Admin</Link>
             </div>

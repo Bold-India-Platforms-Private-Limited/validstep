@@ -76,8 +76,8 @@ export default function AdminCompanies() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Companies</h1>
-          <p className="text-sm text-slate-500">Manage all registered companies</p>
+          <h1 className="text-2xl font-bold text-slate-900">Organizations</h1>
+          <p className="text-sm text-slate-500">Manage all registered organizations</p>
         </div>
         <Button onClick={() => setShowNew(true)} leftIcon={<Plus className="h-4 w-4" />}>New Company</Button>
       </div>

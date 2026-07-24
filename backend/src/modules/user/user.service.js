@@ -269,6 +269,27 @@ async function getDeliveryLog(userId) {
   return { events };
 }
 
+/**
+ * Raise a query/correction request — optionally scoped to a specific order (e.g. "my
+ * certificate has a typo"). Order, if given, must actually belong to this user.
+ */
+async function createQuery(userId, { order_id, subject, message }) {
+  if (order_id) {
+    const order = await db.order.findFirst({ where: { id: order_id, user_id: userId } });
+    if (!order) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
+  }
+  return db.customerQuery.create({ data: { user_id: userId, order_id: order_id || null, subject, message } });
+}
+
+async function getMyQueries(userId) {
+  const queries = await db.customerQuery.findMany({
+    where: { user_id: userId },
+    orderBy: { created_at: 'desc' },
+    include: { order: { select: { certificate_serial: true, batch: { select: { name: true } } } } },
+  });
+  return { queries };
+}
+
 module.exports = {
   getDashboard,
   getOrders,
@@ -278,4 +299,6 @@ module.exports = {
   getOrderForInvoice,
   getUserInvoices,
   getDeliveryLog,
+  createQuery,
+  getMyQueries,
 };
