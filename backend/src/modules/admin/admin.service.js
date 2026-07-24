@@ -928,7 +928,7 @@ async function bulkUploadUsers({ company_id, batch_id, file }) {
   // awaiting that per row made even a moderate-sized roster feel like it hung (same class of
   // bug found and fixed for the PayU import paths earlier). Run rows concurrently in bounded
   // batches instead — generateCertificateSerial's atomic increment makes this safe.
-  const CONCURRENCY = 10;
+  const CONCURRENCY = 5;
   for (let i = 0; i < rows.length; i += CONCURRENCY) {
     const batch = rows.slice(i, i + CONCURRENCY);
     const outcomes = await Promise.allSettled(batch.map((row) => registerUserForBatch({
@@ -948,6 +948,7 @@ async function bulkUploadUsers({ company_id, batch_id, file }) {
         result.errors.push({ rowNum: row.rowNum, email: row.email, reason: outcome.reason.message });
       }
     });
+    await new Promise((resolve) => setImmediate(resolve));
   }
 
   return result;
@@ -977,17 +978,24 @@ async function importPayuButtonCustomers() {
 
   const toCreate = candidates.filter((c) => !existingEmails.has(c.email.toLowerCase().trim()));
 
-  // bcrypt hashing is CPU-bound (~150-250ms each at this app's SALT_ROUNDS) — hashing
-  // thousands of rows one at a time in series would take minutes. Promise.all lets Node's
-  // libuv threadpool run them concurrently instead.
-  const rows = await Promise.all(
-    toCreate.map(async (c) => {
+  // bcrypt (bcryptjs, pure-JS, no native thread offload) is CPU-bound — an unbounded
+  // Promise.all over thousands of rows queues that many CPU-bound continuations back-to-back
+  // on the single event loop, starving every other request on this process (confirmed: this
+  // exact pattern froze the entire server, including login, for 5+ minutes). Bounded batches
+  // + an explicit yield between them keeps the server responsive throughout.
+  const HASH_BATCH_SIZE = 5;
+  const rows = [];
+  for (let i = 0; i < toCreate.length; i += HASH_BATCH_SIZE) {
+    const batch = toCreate.slice(i, i + HASH_BATCH_SIZE);
+    const hashed = await Promise.all(batch.map(async (c) => {
       const email = c.email.toLowerCase().trim();
       const name = [c.firstname, c.lastname].filter(Boolean).join(' ').trim() || email.split('@')[0];
       const password_hash = await hashPassword(email);
       return { name, email, phone: c.phone || null, password_hash, is_verified: true };
-    })
-  );
+    }));
+    rows.push(...hashed);
+    await new Promise((resolve) => setImmediate(resolve));
+  }
 
   if (rows.length > 0) {
     await db.user.createMany({ data: rows, skipDuplicates: true });
@@ -1085,15 +1093,28 @@ async function importPayuTransactions(file) {
     const existingUserEmails = new Set(existingUsers.map((u) => u.email));
     const toCreate = candidateEmails.filter((e) => !existingUserEmails.has(e));
 
-    const userRows = await Promise.all(toCreate.map(async (email) => {
-      const info = capturedNewByEmail.get(email);
-      const name = [info.firstname, info.lastname].filter(Boolean).join(' ').trim() || email.split('@')[0];
-      // No welcome/set-password email is sent for imported transactions (bulk, high-volume) —
-      // password = email so the account is immediately usable, same tradeoff already confirmed
-      // for importPayuButtonCustomers.
-      const password_hash = await hashPassword(email);
-      return { name, email, phone: info.phone || null, password_hash, is_verified: true };
-    }));
+    // bcrypt (bcryptjs, pure-JS, no native thread offload) is CPU-bound — firing all hashes
+    // via one unbounded Promise.all doesn't actually parallelize them, it just queues hundreds
+    // of CPU-bound continuations back-to-back on the single event loop, which starves *every*
+    // other request on this process (including login) for the whole duration. A small bounded
+    // batch size + an explicit yield between batches keeps the server responsive to other
+    // traffic throughout a large import, at the cost of the import itself taking a bit longer.
+    const HASH_BATCH_SIZE = 5;
+    const userRows = [];
+    for (let i = 0; i < toCreate.length; i += HASH_BATCH_SIZE) {
+      const batch = toCreate.slice(i, i + HASH_BATCH_SIZE);
+      const hashed = await Promise.all(batch.map(async (email) => {
+        const info = capturedNewByEmail.get(email);
+        const name = [info.firstname, info.lastname].filter(Boolean).join(' ').trim() || email.split('@')[0];
+        // No welcome/set-password email is sent for imported transactions (bulk, high-volume) —
+        // password = email so the account is immediately usable, same tradeoff already confirmed
+        // for importPayuButtonCustomers.
+        const password_hash = await hashPassword(email);
+        return { name, email, phone: info.phone || null, password_hash, is_verified: true };
+      }));
+      userRows.push(...hashed);
+      await new Promise((resolve) => setImmediate(resolve));
+    }
 
     if (userRows.length > 0) {
       await db.user.createMany({ data: userRows, skipDuplicates: true });
