@@ -14,7 +14,7 @@ const TYPE_VARIANTS = { ORDER: 'primary', PAYU_BUTTON: 'info' }
 
 export default function AdminInvoices() {
   const [page, setPage] = useState(1)
-  const [limit, setLimit] = useState(20)
+  const limit = 20
   const [search, setSearch] = useState('')
   const [downloadingId, setDownloadingId] = useState(null)
   const { data, isLoading } = useGetAdminInvoicesQuery({ page, limit, search: search || undefined })
@@ -121,9 +121,7 @@ export default function AdminInvoices() {
             page={page}
             pages={pagination.pages}
             total={pagination.total}
-            limit={limit}
             onPageChange={setPage}
-            onLimitChange={(n) => { setLimit(n); setPage(1) }}
           />
         </div>
       )}
