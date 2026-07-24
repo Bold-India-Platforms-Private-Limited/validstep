@@ -90,6 +90,31 @@ function readFirstSheetAsObjects(buffer) {
   return XLSX.utils.sheet_to_json(ws, { defval: null, raw: true });
 }
 
+/**
+ * Real-world exports vary a header's exact text (a stray leading/trailing space, a BOM on
+ * the first column, "Txn Id" vs "txnid") even when it's conceptually the same column —
+ * previously an exact-key lookup on any of these variants silently produced `undefined`
+ * for that field on every row, which for a required field like `txnid` meant the entire
+ * file "imported" zero rows with no error message. Normalizing to lowercase/trimmed/
+ * underscored before matching makes lookups tolerant of that formatting noise.
+ */
+function normalizeHeaderKey(h) {
+  return String(h).replace(/^﻿/, '').trim().toLowerCase().replace(/[\s_]+/g, '_');
+}
+
+function buildHeaderMap(sampleRow) {
+  const map = {};
+  for (const key of Object.keys(sampleRow || {})) {
+    map[normalizeHeaderKey(key)] = key;
+  }
+  return map;
+}
+
+function field(row, headerMap, name) {
+  const actualKey = headerMap[normalizeHeaderKey(name)];
+  return actualKey === undefined ? undefined : row[actualKey];
+}
+
 function readFirstSheetAsGrid(buffer) {
   const wb = XLSX.read(buffer, { type: 'buffer' });
   const ws = wb.Sheets[wb.SheetNames[0]];
@@ -97,53 +122,61 @@ function readFirstSheetAsGrid(buffer) {
 }
 
 /**
- * Parse a PayU transaction report export (one row per transaction attempt).
- * `txnid` is NOT unique — PayU logs a new row per retry and legacy website-checkout orders
- * reused the same txnid deterministically, so `id` (PayU's own row id, unique across the
- * whole export) is used as the de-dupe key downstream.
+ * Parse a PayU transaction report export (one row per transaction attempt). Only `txnid` is
+ * strictly required — the ~80 other columns a real PayU export can carry (card details,
+ * shipping address, UDFs, gateway diagnostics, ...) are all optional and irrelevant to Order
+ * Log / Accounting, which only need status, txnid, addedon, success_at, id, amount,
+ * productinfo, firstname, lastname, email, phone.
+ *
+ * `id` (PayU's own row id, unique across the whole export) is preferred as the de-dupe key
+ * since `txnid` is NOT unique — PayU logs a new row per retry and legacy website-checkout
+ * orders reused the same txnid deterministically. When `id` is missing from a given export,
+ * `txnid` is used as the fallback key so the row still imports instead of being dropped.
  */
 function parseTransactionReport(buffer) {
   const rows = readFirstSheetAsObjects(buffer);
+  const headerMap = buildHeaderMap(rows[0]);
+  const get = (row, name) => field(row, headerMap, name);
   const parsed = [];
   let skipped = 0;
 
   for (const row of rows) {
-    const txnid = toStr(row.txnid);
-    const payu_id = toStr(row.id);
-    if (!txnid || !payu_id) { skipped += 1; continue; }
+    const txnid = toStr(get(row, 'txnid'));
+    if (!txnid) { skipped += 1; continue; }
+    const payu_id = toStr(get(row, 'id')) || txnid;
 
-    const productinfo = toStr(row.productinfo);
+    const productinfo = toStr(get(row, 'productinfo'));
     parsed.push({
       txnid,
       payu_id,
       source_channel: classifyChannel(txnid, productinfo),
-      status: toStr(row.status) || 'unknown',
-      addedon: parsePayuDateTime(row.addedon),
-      success_at: parsePayuDateTime(row.success_at),
-      amount: toNum(row.amount),
+      status: toStr(get(row, 'status')) || 'unknown',
+      addedon: parsePayuDateTime(get(row, 'addedon')),
+      success_at: parsePayuDateTime(get(row, 'success_at')),
+      amount: toNum(get(row, 'amount')),
       productinfo,
-      firstname: toStr(row.firstname),
-      lastname: toStr(row.lastname),
-      email: toStr(row.email),
-      phone: toStr(row.phone),
-      bank_name: toStr(row.bank_name),
-      mode: toStr(row.mode),
-      error_code: toStr(row.error_code),
-      error_message: toStr(row.error_message) || toStr(row.errorDescription),
-      transaction_fee: toNum(row.transaction_fee),
-      service_fees: toNum(row.service_fees),
-      convenience_fee: toNum(row.convenience_fee),
-      tsp_charges: toNum(row.tsp_charges),
-      mer_service_fee: toNum(row.mer_service_fee),
-      cgst: toNum(row.cgst),
-      sgst: toNum(row.sgst),
-      igst: toNum(row.igst),
-      settlement_amount: toNum(row.settlement_amount),
-      settlement_date: parsePayuDateTime(row.settlement_date),
-      utr: toStr(row.utr),
-      recon_ref_number: toStr(row.recon_ref_number),
-      category: toStr(row.category),
-      sub_category: toStr(row.sub_category),
+      firstname: toStr(get(row, 'firstname')),
+      lastname: toStr(get(row, 'lastname')),
+      email: toStr(get(row, 'email')),
+      phone: toStr(get(row, 'phone')),
+      bank_name: toStr(get(row, 'bank_name')),
+      mode: toStr(get(row, 'mode')),
+      error_code: toStr(get(row, 'error_code')),
+      error_message: toStr(get(row, 'error_message')) || toStr(get(row, 'errorDescription')),
+      transaction_fee: toNum(get(row, 'transaction_fee')),
+      service_fees: toNum(get(row, 'service_fees')),
+      convenience_fee: toNum(get(row, 'convenience_fee')),
+      tsp_charges: toNum(get(row, 'tsp_charges')),
+      mer_service_fee: toNum(get(row, 'mer_service_fee')),
+      cgst: toNum(get(row, 'cgst')),
+      sgst: toNum(get(row, 'sgst')),
+      igst: toNum(get(row, 'igst')),
+      settlement_amount: toNum(get(row, 'settlement_amount')),
+      settlement_date: parsePayuDateTime(get(row, 'settlement_date')),
+      utr: toStr(get(row, 'utr')),
+      recon_ref_number: toStr(get(row, 'recon_ref_number')),
+      category: toStr(get(row, 'category')),
+      sub_category: toStr(get(row, 'sub_category')),
       raw: row,
     });
   }

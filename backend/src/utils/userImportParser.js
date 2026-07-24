@@ -17,12 +17,27 @@ function toStr(v) {
  */
 const HEADER_ALIASES = {
   name: ['name', 'fullname', 'full name', 'student name', 'participant name'],
+  firstname: ['firstname', 'first name', 'fname'],
+  lastname: ['lastname', 'last name', 'lname'],
   email: ['email', 'emailid', 'email id', 'e-mail'],
   phone: ['phone', 'mobile', 'mobileno', 'mobile no', 'mobile number', 'phone number', 'contact', 'contact number'],
 };
 
 function normalizeHeader(h) {
   return String(h || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+// A handful of column names that only ever appear in a raw PayU transaction-report export,
+// never in a hand-built Name/Email/Mobile roster. Used only to produce a specific, actionable
+// error message when the file genuinely can't be read as a roster (see parseUserImportFile) —
+// it no longer blocks the file outright, since a PayU export's firstname/lastname/email/phone
+// columns are enough to derive a roster directly (see buildFieldMap below).
+const PAYU_REPORT_SIGNATURE = ['txnid', 'addedon', 'success_at', 'productinfo', 'merchant_id', 'settlement_date', 'bank_ref_no'];
+
+function looksLikePayuReport(headerRow) {
+  const normalized = new Set(headerRow.map(normalizeHeader));
+  const matches = PAYU_REPORT_SIGNATURE.filter((col) => normalized.has(col));
+  return matches.length >= 2;
 }
 
 function buildFieldMap(headerRow) {
@@ -33,6 +48,10 @@ function buildFieldMap(headerRow) {
       if (!map[field] && aliases.includes(norm)) map[field] = raw;
     }
   }
+  // A raw PayU export (or any export) splits the name into firstname/lastname instead of a
+  // single "name" column — treat that pair as equivalent to "name" so those files work here
+  // without the admin having to hand-build a separate roster first.
+  if (!map.name && (map.firstname || map.lastname)) map.name = '__firstname_lastname__';
   return map;
 }
 
@@ -57,12 +76,18 @@ function parseUserImportFile(buffer) {
 
   const fieldMap = buildFieldMap(grid[0]);
   if (!fieldMap.name || !fieldMap.email) {
-    errors.push({ rowNum: 1, reason: 'Missing required "Name" and/or "Email" column header' });
+    const reason = looksLikePayuReport(grid[0])
+      ? 'This looks like a raw PayU transaction report, not a Name/Email/Mobile roster. Bulk Upload only accepts a clean roster with Name, Email, and (optionally) Mobile columns — build one from your PayU export first, then upload it here.'
+      : 'Missing required "Name" and/or "Email" column header';
+    errors.push({ rowNum: 1, reason });
     return { rows, errors };
   }
 
   const headerRow = grid[0];
-  const nameIdx = headerRow.indexOf(fieldMap.name);
+  const usesFirstLastName = fieldMap.name === '__firstname_lastname__';
+  const nameIdx = usesFirstLastName ? -1 : headerRow.indexOf(fieldMap.name);
+  const firstNameIdx = fieldMap.firstname ? headerRow.indexOf(fieldMap.firstname) : -1;
+  const lastNameIdx = fieldMap.lastname ? headerRow.indexOf(fieldMap.lastname) : -1;
   const emailIdx = headerRow.indexOf(fieldMap.email);
   const phoneIdx = fieldMap.phone ? headerRow.indexOf(fieldMap.phone) : -1;
 
@@ -71,7 +96,9 @@ function parseUserImportFile(buffer) {
     const row = grid[i];
     if (!row || row.every((c) => c === null)) continue; // skip blank rows
 
-    const name = toStr(row[nameIdx]);
+    const name = usesFirstLastName
+      ? [firstNameIdx >= 0 ? toStr(row[firstNameIdx]) : null, lastNameIdx >= 0 ? toStr(row[lastNameIdx]) : null].filter(Boolean).join(' ') || null
+      : toStr(row[nameIdx]);
     const email = toStr(row[emailIdx])?.toLowerCase();
     const phone = phoneIdx >= 0 ? toStr(row[phoneIdx]) : null;
 
