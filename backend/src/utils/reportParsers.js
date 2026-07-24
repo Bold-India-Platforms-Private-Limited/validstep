@@ -115,6 +115,20 @@ function field(row, headerMap, name) {
   return actualKey === undefined ? undefined : row[actualKey];
 }
 
+/**
+ * Distinguishes a raw PayU transaction-report export from a hand-built Name/Email roster —
+ * `amount` + `txnid` together only ever appear in the former. Used by Bulk Upload (see
+ * admin.service.js bulkUploadUsers) to decide whether an uploaded file should create real
+ * paid orders (real amount, Payment, Invoice) or plain manual/comp enrollments.
+ */
+function looksLikePayuTransactionReport(buffer) {
+  const rows = readFirstSheetAsObjects(buffer);
+  if (rows.length === 0) return false;
+  const headerMap = buildHeaderMap(rows[0]);
+  return headerMap[normalizeHeaderKey('amount')] !== undefined
+    && headerMap[normalizeHeaderKey('txnid')] !== undefined;
+}
+
 function readFirstSheetAsGrid(buffer) {
   const wb = XLSX.read(buffer, { type: 'buffer' });
   const ws = wb.Sheets[wb.SheetNames[0]];
@@ -338,4 +352,5 @@ module.exports = {
   parseSettlementReport,
   parsePayuSettlementSummaryReport,
   parseBankStatement,
+  looksLikePayuTransactionReport,
 };

@@ -9,6 +9,7 @@ const { hashPassword, generateVerificationHash, generateRandomToken, sha256 } = 
 const { sendCompanyWelcomeEmail, sendSystemGeneratedPasswordEmail, sendCertificateIssuedEmail } = require('../../utils/email');
 const { generateCertificateSerial } = require('../batch/batch.service');
 const { parseUserImportFile } = require('../../utils/userImportParser');
+const { parseTransactionReport, looksLikePayuTransactionReport } = require('../../utils/reportParsers');
 const { logDeliveryEvent } = require('../../utils/deliveryLog');
 const env = require('../../config/env');
 
@@ -1063,9 +1064,20 @@ async function enrollExistingUsers({ company_id, batch_id, user_ids }) {
 /**
  * Bulk-enroll users from an uploaded Excel/CSV file into one company + batch. One bad row never
  * aborts the rest — each row is processed independently and results are aggregated.
+ *
+ * Auto-detects a raw PayU transaction-report export (has both `amount` and `txnid` columns)
+ * and routes it to bulkImportPayuTransactionsToBatch instead — that path creates real PAID
+ * orders with the file's actual amount, a Payment, and an Invoice, rather than the ₹0
+ * manual-enrollment orders a plain Name/Email roster produces. This is the single place PayU
+ * export data enters the system (the standalone Accounting import page was removed).
  */
 async function bulkUploadUsers({ company_id, batch_id, file }) {
   const buffer = fs.readFileSync(file.path);
+
+  if (looksLikePayuTransactionReport(buffer)) {
+    return bulkImportPayuTransactionsToBatch({ company_id, batch_id, buffer });
+  }
+
   const { rows, errors: parseErrors } = parseUserImportFile(buffer);
 
   const result = { total_rows: rows.length, created: 0, enrolled_existing: 0, errors: [...parseErrors] };
@@ -1098,6 +1110,154 @@ async function bulkUploadUsers({ company_id, batch_id, file }) {
   }
 
   return result;
+}
+
+/**
+ * Bulk-enroll from a raw PayU transaction-report export directly into one company + batch —
+ * combines what used to be a two-step flow (Accounting import → per-batch Assign Transactions)
+ * into the single Bulk Upload action. Every row is still upserted into payu_transactions (so
+ * Order Log stays a complete record of every payment received, matched or not); only
+ * `captured` rows go on to create a real Order + Certificate + Payment + Invoice.
+ */
+async function bulkImportPayuTransactionsToBatch({ company_id, batch_id, buffer }) {
+  const batch = await db.batch.findUnique({
+    where: { id: batch_id },
+    include: { company: { select: { id: true, name: true, is_active: true } } },
+  });
+  if (!batch) throw Object.assign(new Error('Batch not found'), { statusCode: 404 });
+  if (batch.company_id !== company_id) {
+    throw Object.assign(new Error('Batch does not belong to the selected company'), { statusCode: 400 });
+  }
+  if (!batch.company?.is_active) {
+    throw Object.assign(new Error('This company account is inactive'), { statusCode: 400 });
+  }
+
+  const { rows } = parseTransactionReport(buffer);
+  const result = { total_rows: rows.length, created: 0, enrolled_existing: 0, skipped_not_captured: 0, errors: [] };
+
+  const CONCURRENCY = 5;
+  for (let i = 0; i < rows.length; i += CONCURRENCY) {
+    const chunk = rows.slice(i, i + CONCURRENCY);
+    const outcomes = await Promise.allSettled(chunk.map((row) => importOnePayuRowToBatch(row, batch, company_id)));
+
+    outcomes.forEach((outcome, idx) => {
+      const row = chunk[idx];
+      if (outcome.status === 'fulfilled') {
+        if (outcome.value === 'not_captured') result.skipped_not_captured += 1;
+        else if (outcome.value === 'created') result.created += 1;
+        else result.enrolled_existing += 1;
+      } else {
+        result.errors.push({ email: row.email, reason: outcome.reason.message });
+      }
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+
+  return result;
+}
+
+/**
+ * One row of a PayU transaction-report import: always upserts the raw transaction (audit
+ * trail, regardless of outcome); only `captured` rows with an email go on to create a real
+ * enrollment. Mirrors assignTransactionsToBatch's order/certificate/payment/invoice shape.
+ */
+async function importOnePayuRowToBatch(txn, batch, company_id) {
+  await db.payuTransaction.upsert({
+    where: { payu_id: txn.payu_id },
+    create: txn,
+    update: txn,
+  });
+
+  if ((txn.status || '').toLowerCase() !== 'captured') return 'not_captured';
+  if (!txn.email) throw new Error('Captured transaction has no customer email');
+
+  const email = txn.email.toLowerCase().trim();
+  let user = await db.user.findUnique({ where: { email } });
+  let isNewUser = false;
+  if (!user) {
+    isNewUser = true;
+    const name = [txn.firstname, txn.lastname].filter(Boolean).join(' ').trim() || email.split('@')[0];
+    // Same tradeoff as importPayuButtonCustomers — no email step, password = email.
+    const password_hash = await hashPassword(email);
+    user = await db.user.create({
+      data: { name, email, phone: txn.phone || null, password_hash, is_verified: true },
+    });
+  }
+
+  const existingOrder = await db.order.findFirst({ where: { user_id: user.id, batch_id: batch.id } });
+  if (existingOrder) return 'enrolled_existing';
+
+  const paidAt = txn.success_at || txn.addedon || new Date();
+  const amount = txn.amount || 0;
+
+  await withUniqueCertificateSerial(batch.id, (certificateSerial) => db.$transaction(async (tx) => {
+    const order = await tx.order.create({
+      data: {
+        user_id: user.id,
+        batch_id: batch.id,
+        company_id,
+        certificate_serial: certificateSerial,
+        amount,
+        currency: batch.currency || 'INR',
+        status: 'PAID',
+        payu_txn_id: txn.txnid,
+        is_manual_enrollment: false,
+      },
+    });
+
+    const verificationHash = generateVerificationHash(certificateSerial, user.id, batch.id);
+    const template = await tx.certificateTemplate.findFirst({
+      where: { batch_id: batch.id, is_active: true },
+      orderBy: { created_at: 'desc' },
+    });
+    await tx.certificate.create({
+      data: {
+        order_id: order.id,
+        user_id: user.id,
+        batch_id: batch.id,
+        company_id,
+        certificate_serial: certificateSerial,
+        template_id: template?.id || null,
+        is_issued: false,
+        verification_hash: verificationHash,
+      },
+    });
+
+    await tx.payment.create({
+      data: {
+        order_id: order.id,
+        payu_txn_id: txn.txnid,
+        payu_payment_id: txn.payu_id,
+        amount,
+        currency: batch.currency || 'INR',
+        status: 'SUCCESS',
+        gateway_response: txn.raw || {},
+        created_at: paidAt,
+      },
+    });
+
+    await tx.invoice.create({
+      data: {
+        order_id: order.id,
+        invoice_number: `INV-${certificateSerial}`,
+        amount,
+        currency: batch.currency || 'INR',
+        payu_txn_id: txn.txnid,
+        paid_at: paidAt,
+      },
+    });
+
+    await tx.payuTransaction.update({ where: { payu_id: txn.payu_id }, data: { order_id: order.id } });
+
+    if (isNewUser) {
+      await tx.deliveryEvent.create({ data: { user_id: user.id, event: 'USER_CREATED' } });
+    }
+    await tx.deliveryEvent.create({ data: { user_id: user.id, order_id: order.id, event: 'BATCH_ASSIGNED' } });
+
+    return order;
+  }));
+
+  return isNewUser ? 'created' : 'enrolled_existing';
 }
 
 /**

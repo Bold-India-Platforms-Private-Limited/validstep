@@ -45,16 +45,16 @@ import UserInvoices from './pages/user/Invoices'
 
 // Admin pages
 import AdminDashboard from './pages/admin/Dashboard'
+import AdminAnalytics from './pages/admin/Analytics'
 import AdminCompanies from './pages/admin/Companies'
 import AdminCompanyDetail from './pages/admin/CompanyDetail'
 import AdminBatches from './pages/admin/Batches'
-import AdminOrders from './pages/admin/Orders'
 import AdminPricing from './pages/admin/Pricing'
 import AdminPayments from './pages/admin/Payments'
 import AdminBatchDetail from './pages/admin/BatchDetail'
 import AdminInvoices from './pages/admin/Invoices'
-import AdminAccounting from './pages/admin/Accounting'
 import AdminUsers from './pages/admin/Users'
+import AdminOrderLog from './pages/admin/OrderLog'
 
 // Master Accounting pages
 import MasterAccountingDashboard from './pages/admin/master-accounting/Dashboard'
@@ -208,15 +208,15 @@ export default function App() {
             <AdminLayout>
               <Routes>
                 <Route path="dashboard" element={<AdminDashboard />} />
+                <Route path="analytics" element={<AdminAnalytics />} />
                 <Route path="companies" element={<AdminCompanies />} />
                 <Route path="companies/:id" element={<AdminCompanyDetail />} />
                 <Route path="batches" element={<AdminBatches />} />
-                <Route path="orders" element={<AdminOrders />} />
                 <Route path="users" element={<AdminUsers />} />
+                <Route path="order-log" element={<AdminOrderLog />} />
                 <Route path="pricing" element={<AdminPricing />} />
                 <Route path="payments" element={<AdminPayments />} />
                 <Route path="invoices" element={<AdminInvoices />} />
-                <Route path="accounting" element={<AdminAccounting />} />
                 <Route path="batches/:id" element={<AdminBatchDetail />} />
                 <Route path="" element={<Navigate to="dashboard" replace />} />
                 <Route path="*" element={<Navigate to="dashboard" replace />} />
