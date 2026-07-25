@@ -34,7 +34,6 @@ jobs:
             npx prisma migrate deploy
 
             pm2 reload validstep --update-env
-            pm2 reload validstep-worker --update-env
             pm2 save
 
             echo "✅ Validstep deployed at $(date)"

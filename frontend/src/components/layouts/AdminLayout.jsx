@@ -165,7 +165,7 @@ export function AdminLayout({ children }) {
           <SystemStatusBadge />
           <div className="flex items-center gap-3">
             {whoami?.ip && (
-              <span className="hidden items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 font-mono text-xs text-slate-500 sm:flex" title="Your current IP address">
+              <span className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 font-mono text-xs font-medium text-slate-600" title="Your current IP address (logged in as this admin)">
                 <Wifi className="h-3.5 w-3.5 text-slate-400" />
                 {whoami.ip}
               </span>
