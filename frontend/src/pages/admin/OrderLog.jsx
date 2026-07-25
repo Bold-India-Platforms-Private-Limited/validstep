@@ -60,6 +60,11 @@ const EVENT_LABELS = {
   INVOICE_DOWNLOADED: 'Invoice downloaded by customer',
 }
 
+// Payment, order creation, account creation, and batch enrollment are folded into one fixed
+// flow (see Order Timeline below) — always shown together, all dated to the payment date.
+const CORE_FLOW_LABELS = ['Payment Received', 'Order Created', 'Account Created', 'Enrolled in Batch']
+const CORE_FLOW_EVENT_TYPES = new Set(['PAYMENT_IMPORTED', 'USER_CREATED', 'BATCH_ASSIGNED'])
+
 const TABS = [
   { key: 'overview', label: 'Overview' },
   { key: 'certificate', label: 'Certificate' },
@@ -91,6 +96,7 @@ function OrderDetailModal({ orderId, onClose }) {
 
   const order = data?.order
   const events = data?.events || []
+  const otherEvents = events.filter((e) => !CORE_FLOW_EVENT_TYPES.has(e.event))
   const queries = data?.queries || []
 
   useEffect(() => {
@@ -267,15 +273,21 @@ function OrderDetailModal({ orderId, onClose }) {
                     </button>
                   </div>
                   <div className="space-y-3">
-                    <div className="flex items-start gap-3">
-                      <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary-500" />
-                      <div>
-                        <p className="text-sm font-medium text-slate-800">Order created</p>
-                        <p className="text-xs text-slate-400">{formatDate(orderCreatedDate)}</p>
+                    {/* Payment, order creation, account creation, and batch enrollment all
+                        happen together at import time — shown as one flow, all dated to the
+                        payment date, rather than each DeliveryEvent's own insert timestamp
+                        (which can trail the actual payment by days on a bulk/imported order). */}
+                    {CORE_FLOW_LABELS.map((label) => (
+                      <div key={label} className="flex items-start gap-3">
+                        <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary-500" />
+                        <div>
+                          <p className="text-sm font-medium text-slate-800">{label}</p>
+                          <p className="text-xs text-slate-400">{formatDate(orderCreatedDate)}</p>
+                        </div>
                       </div>
-                    </div>
-                    {events.length === 0 && <p className="text-xs text-slate-400">No further events recorded yet.</p>}
-                    {events.map((e) => (
+                    ))}
+                    {otherEvents.length === 0 && <p className="text-xs text-slate-400">No further events recorded yet.</p>}
+                    {otherEvents.map((e) => (
                       <div key={e.id} className="flex items-start gap-3">
                         <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary-500" />
                         <div>
