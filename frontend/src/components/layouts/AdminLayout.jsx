@@ -6,9 +6,10 @@ import { clearCredentials, selectUser } from '../../store/authSlice'
 import {
   LayoutDashboard, Building2, Layers, DollarSign,
   CreditCard, LogOut, Menu, X, FileText, ShieldCheck, Users,
-  PanelLeftClose, PanelLeftOpen, Clock, ClipboardList, BarChart3, Globe,
+  PanelLeftClose, PanelLeftOpen, Clock, ClipboardList, BarChart3, Globe, Wifi,
 } from 'lucide-react'
 import { SystemStatusBadge } from '../shared/SystemStatusBadge'
+import { useGetAdminWhoamiQuery } from '../../store/api/adminApi'
 
 const nav = [
   { to: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -66,6 +67,7 @@ export function AdminLayout({ children }) {
   const [loadedAt] = useState(() => Date.now())
   const lastUpdated = useRelativeTime(loadedAt)
   const now = useClock()
+  const { data: whoami } = useGetAdminWhoamiQuery()
   const dispatch = useDispatch()
   const navigate = useNavigate()
   const user = useSelector(selectUser)
@@ -162,6 +164,12 @@ export function AdminLayout({ children }) {
         <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-2 md:px-6">
           <SystemStatusBadge />
           <div className="flex items-center gap-3">
+            {whoami?.ip && (
+              <span className="hidden items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 font-mono text-xs text-slate-500 sm:flex" title="Your current IP address">
+                <Wifi className="h-3.5 w-3.5 text-slate-400" />
+                {whoami.ip}
+              </span>
+            )}
             <span className="font-mono text-xs text-slate-500">
               {now.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })}
             </span>

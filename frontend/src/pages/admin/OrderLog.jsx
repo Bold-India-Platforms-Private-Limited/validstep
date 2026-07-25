@@ -163,40 +163,38 @@ function OrderDetailModal({ orderId, onClose }) {
 
   const orderCreatedDate = order?.payments?.[0]?.created_at || order?.created_at
 
+  const headerContent = order && (
+    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5">
+      <p className="truncate text-base font-semibold text-slate-900">{order.user?.name}</p>
+      <p className="truncate text-xs text-slate-500">{order.user?.email}</p>
+      {order.user?.phone && <p className="text-xs text-slate-500">{order.user.phone}</p>}
+      <p className="font-mono text-xs text-slate-400">{order.certificate_serial}</p>
+      <StatusBadge status={order.status} />
+      <button
+        onClick={handleViewInvoice}
+        disabled={loadingPreview}
+        className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+      >
+        <Eye className="h-3.5 w-3.5" />
+        {loadingPreview ? 'Loading…' : 'View Invoice'}
+      </button>
+      <button
+        onClick={handleDownloadInvoice}
+        disabled={downloading}
+        className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+      >
+        <FileText className="h-3.5 w-3.5" />
+        {downloading ? 'Downloading…' : 'Download Invoice'}
+      </button>
+    </div>
+  )
+
   return (
-    <Modal open={!!orderId} onClose={onClose} title="Order Detail" size="wide">
+    <Modal open={!!orderId} onClose={onClose} title="Order Detail" headerContent={headerContent} size="wide">
       {isLoading || !order ? (
         <div className="py-16"><PageSpinner /></div>
       ) : (
-        <div className="space-y-6">
-          {/* Header */}
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-lg font-semibold text-slate-900">{order.user?.name}</p>
-              <p className="text-sm text-slate-500">{order.user?.email} {order.user?.phone && `· ${order.user.phone}`}</p>
-              <p className="mt-1 font-mono text-xs text-slate-400">{order.certificate_serial}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <StatusBadge status={order.status} />
-              <button
-                onClick={handleViewInvoice}
-                disabled={loadingPreview}
-                className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-              >
-                <Eye className="h-3.5 w-3.5" />
-                {loadingPreview ? 'Loading…' : 'View Invoice'}
-              </button>
-              <button
-                onClick={handleDownloadInvoice}
-                disabled={downloading}
-                className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-              >
-                <FileText className="h-3.5 w-3.5" />
-                {downloading ? 'Downloading…' : 'Download Invoice'}
-              </button>
-            </div>
-          </div>
-
+        <div className="space-y-4">
           {/* Tabs */}
           <div className="flex gap-1 border-b border-slate-200">
             {TABS.map((t) => (
@@ -211,20 +209,20 @@ function OrderDetailModal({ orderId, onClose }) {
           </div>
 
           {tab === 'overview' && (
-            <div className="space-y-6">
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-5 shadow-sm">
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 shadow-sm">
                   <div className="flex items-center gap-2.5">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-100">
                       <Building2 className="h-4.5 w-4.5 text-blue-600" />
                     </div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Company / Program</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Organization / Program / Batch</p>
                   </div>
                   <p className="mt-3 truncate text-base font-semibold text-slate-900">{order.company?.name}</p>
                   <p className="text-sm text-slate-500">{order.batch?.program?.name} · {order.batch?.name}</p>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-indigo-50/50 p-5 shadow-sm">
+                <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-indigo-50/50 p-4 shadow-sm">
                   <div className="flex items-center gap-2.5">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-100">
                       <Calendar className="h-4.5 w-4.5 text-indigo-600" />
@@ -241,7 +239,7 @@ function OrderDetailModal({ orderId, onClose }) {
                   />
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-emerald-50/50 p-5 shadow-sm">
+                <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-emerald-50/50 p-4 shadow-sm">
                   <div className="flex items-center gap-2.5">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100">
                       <Wallet className="h-4.5 w-4.5 text-emerald-600" />
@@ -255,10 +253,10 @@ function OrderDetailModal({ orderId, onClose }) {
                 </div>
               </div>
 
-              <div className="grid gap-4 lg:grid-cols-2">
+              <div className="grid gap-3 lg:grid-cols-2">
                 {/* Timeline */}
-                <div className="rounded-xl border border-slate-200 p-4">
-                  <div className="mb-3 flex items-center justify-between gap-2">
+                <div className="rounded-xl border border-slate-200 p-3.5">
+                  <div className="mb-2.5 flex items-center justify-between gap-2">
                     <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
                       <ClipboardList className="h-4 w-4 text-slate-400" />
                       Order Timeline
@@ -272,27 +270,23 @@ function OrderDetailModal({ orderId, onClose }) {
                       {sendingPassword ? 'Sending…' : 'Send Login Email'}
                     </button>
                   </div>
-                  <div className="space-y-3">
+                  <div>
                     {/* Payment, order creation, account creation, and batch enrollment all
                         happen together at import time — shown as one flow, all dated to the
                         payment date, rather than each DeliveryEvent's own insert timestamp
                         (which can trail the actual payment by days on a bulk/imported order). */}
-                    {CORE_FLOW_LABELS.map((label) => (
-                      <div key={label} className="flex items-start gap-3">
-                        <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary-500" />
+                    {[
+                      ...CORE_FLOW_LABELS.map((label) => ({ key: label, label, date: orderCreatedDate })),
+                      ...otherEvents.map((e) => ({ key: e.id, label: EVENT_LABELS[e.event] || e.event, date: e.created_at })),
+                    ].map((item, i, arr) => (
+                      <div key={item.key} className="relative flex items-start gap-3 pb-3.5 last:pb-0">
+                        {i < arr.length - 1 && (
+                          <div className="absolute left-[3px] top-3 bottom-0 w-px bg-slate-200" />
+                        )}
+                        <div className="relative z-10 mt-1 h-2 w-2 shrink-0 rounded-full bg-primary-500 ring-4 ring-white" />
                         <div>
-                          <p className="text-sm font-medium text-slate-800">{label}</p>
-                          <p className="text-xs text-slate-400">{formatDate(orderCreatedDate)}</p>
-                        </div>
-                      </div>
-                    ))}
-                    {otherEvents.length === 0 && <p className="text-xs text-slate-400">No further events recorded yet.</p>}
-                    {otherEvents.map((e) => (
-                      <div key={e.id} className="flex items-start gap-3">
-                        <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary-500" />
-                        <div>
-                          <p className="text-sm font-medium text-slate-800">{EVENT_LABELS[e.event] || e.event}</p>
-                          <p className="text-xs text-slate-400">{formatDate(e.created_at)}</p>
+                          <p className="text-sm font-medium text-slate-800">{item.label}</p>
+                          <p className="text-xs text-slate-400">{formatDate(item.date)}</p>
                         </div>
                       </div>
                     ))}
@@ -300,30 +294,30 @@ function OrderDetailModal({ orderId, onClose }) {
                 </div>
 
                 {/* Verification + Queries */}
-                <div className="space-y-4">
-                  <div className="rounded-xl border border-slate-200 p-4">
-                    <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-900">
+                <div className="space-y-3">
+                  <div className="rounded-xl border border-slate-200 p-3.5">
+                    <h3 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-slate-900">
                       <ShieldCheck className="h-4 w-4 text-slate-400" />
                       Certificate Verification
                     </h3>
-                    <p className="text-2xl font-bold text-slate-900">{data.verification_count}</p>
+                    <p className="text-xl font-bold text-slate-900">{data.verification_count}</p>
                     <p className="text-xs text-slate-500">Total verification requests received for this certificate</p>
                   </div>
 
-                  <div className="rounded-xl border border-slate-200 p-4">
-                    <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-900">
+                  <div className="rounded-xl border border-slate-200 p-3.5">
+                    <h3 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-slate-900">
                       <FolderOpen className="h-4 w-4 text-slate-400" />
                       Document Wallet
                     </h3>
                     <div className="flex items-center justify-between">
-                      <p className="text-2xl font-bold text-slate-300">—</p>
+                      <p className="text-xl font-bold text-slate-300">—</p>
                       <Badge variant="default">0</Badge>
                     </div>
                     <p className="text-xs text-slate-500">Number of documents this customer has stored in the Validstep web app</p>
                   </div>
 
-                  <div className="rounded-xl border border-slate-200 p-4">
-                    <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-slate-900">
+                  <div className="rounded-xl border border-slate-200 p-3.5">
+                    <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-900">
                       <MessageSquareText className="h-4 w-4 text-slate-400" />
                       Customer Queries
                     </h3>
@@ -481,7 +475,7 @@ export default function AdminOrderLog() {
           onChange={(e) => { setCompanyFilter(e.target.value); setPage(1) }}
           className="rounded-lg border border-slate-200 py-2 pl-3 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
         >
-          <option value="">All companies</option>
+          <option value="">All organizations</option>
           {(companiesData?.companies || []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         <select
@@ -525,7 +519,7 @@ export default function AdminOrderLog() {
             <table className="min-w-full divide-y divide-slate-100">
               <thead className="bg-slate-50">
                 <tr>
-                  {['Participant', 'Company / Program / Batch', 'Duration / Delivery', 'Amount / Status', 'Order Created', ''].map((h) => (
+                  {['Participant', 'Organization / Program / Batch', 'Duration / Delivery', 'Amount / Status', 'Order Created', ''].map((h) => (
                     <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>

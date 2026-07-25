@@ -61,6 +61,10 @@ async function updatePricing(req, res) {
   }
 }
 
+async function getWhoami(req, res) {
+  return sendSuccess(res, { ip: req.ip, email: req.user?.email || null, name: req.user?.name || null }, 'Current session info retrieved');
+}
+
 async function getDashboard(req, res) {
   try {
     const stats = await adminService.getDashboardStats();
@@ -396,6 +400,7 @@ async function updateCompanyBatch(req, res) {
 }
 
 module.exports = {
+  getWhoami,
   getCompanies,
   getCompanyById,
   updateCompanyStatus,

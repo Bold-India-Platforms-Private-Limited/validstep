@@ -177,6 +177,7 @@ const analyticsQuerySchema = z.object({
 });
 
 // Routes
+router.get('/whoami', controller.getWhoami);
 router.get('/dashboard', controller.getDashboard);
 router.get('/analytics', validate({ query: analyticsQuerySchema }), controller.getMonthlyAnalytics);
 router.get('/companies', validate({ query: listQuerySchema }), controller.getCompanies);

@@ -6,6 +6,10 @@ export const adminApi = baseApi.injectEndpoints({
       query: () => '/admin/dashboard',
       transformResponse: (r) => r.data,
     }),
+    getAdminWhoami: b.query({
+      query: () => '/admin/whoami',
+      transformResponse: (r) => r.data,
+    }),
     getAdminAnalytics: b.query({
       query: (params) => ({ url: '/admin/analytics', params }),
       transformResponse: (r) => r.data,
@@ -163,7 +167,7 @@ export const adminApi = baseApi.injectEndpoints({
 })
 
 export const {
-  useGetAdminDashboardQuery, useGetAdminAnalyticsQuery, useGetAdminCompaniesQuery,
+  useGetAdminDashboardQuery, useGetAdminWhoamiQuery, useGetAdminAnalyticsQuery, useGetAdminCompaniesQuery,
   useGetAdminCompanyQuery, useUpdateCompanyStatusMutation,
   useGetAdminBatchesQuery, useGetAdminBatchQuery,
   useGetAdminBatchStatsQuery, useGetAdminBatchOrdersQuery,
