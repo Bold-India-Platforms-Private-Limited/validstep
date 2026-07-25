@@ -20,7 +20,7 @@ const addUserSchema = z.object({
   name: z.string().min(2, 'Name required'),
   email: z.string().email('Valid email required'),
   phone: z.string().optional(),
-  company_id: z.string().uuid('Select a company'),
+  company_id: z.string().uuid('Select an organization'),
   batch_id: z.string().uuid('Select a batch'),
 })
 
@@ -51,12 +51,12 @@ function AddUserModal({ open, onClose }) {
         <Input label="Name" required error={errors.name?.message} {...register('name')} />
         <Input label="Email" type="email" required error={errors.email?.message} {...register('email')} />
         <Input label="Phone" {...register('phone')} />
-        <Select label="Company" required error={errors.company_id?.message} {...register('company_id')}>
-          <option value="">Select a company</option>
+        <Select label="Organization" required error={errors.company_id?.message} {...register('company_id')}>
+          <option value="">Select an organization</option>
           {(companiesData?.companies || []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </Select>
         <Select label="Batch" required disabled={!companyId} error={errors.batch_id?.message} {...register('batch_id')}>
-          <option value="">{companyId ? 'Select a batch' : 'Select a company first'}</option>
+          <option value="">{companyId ? 'Select a batch' : 'Select an organization first'}</option>
           {(batchesData?.batches || []).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
         </Select>
         <div className="flex justify-end gap-3">
@@ -81,7 +81,7 @@ function BulkUploadModal({ open, onClose }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!companyId || !batchId || !file) { toast.error('Company, batch, and file are all required'); return }
+    if (!companyId || !batchId || !file) { toast.error('Organization, batch, and file are all required'); return }
     const formData = new FormData()
     formData.append('company_id', companyId)
     formData.append('batch_id', batchId)
@@ -102,14 +102,14 @@ function BulkUploadModal({ open, onClose }) {
           <p className="text-xs text-slate-500">
             Either a clean roster (<strong>Name</strong>, <strong>Email</strong>, optionally <strong>Mobile</strong>) for manual/comp enrollment,
             or a raw <strong>PayU transaction report</strong> export (detected automatically) — captured rows are enrolled as real paid orders with their actual amount, a Payment, and an Invoice.
-            Everyone goes into the company + batch chosen below.
+            Everyone goes into the organization + batch chosen below.
           </p>
-          <Select label="Company" required value={companyId} onChange={(e) => { setCompanyId(e.target.value); setBatchId('') }}>
-            <option value="">Select a company</option>
+          <Select label="Organization" required value={companyId} onChange={(e) => { setCompanyId(e.target.value); setBatchId('') }}>
+            <option value="">Select an organization</option>
             {(companiesData?.companies || []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </Select>
           <Select label="Batch" required disabled={!companyId} value={batchId} onChange={(e) => setBatchId(e.target.value)}>
-            <option value="">{companyId ? 'Select a batch' : 'Select a company first'}</option>
+            <option value="">{companyId ? 'Select a batch' : 'Select an organization first'}</option>
             {(batchesData?.batches || []).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
           </Select>
           <div className="space-y-1">
@@ -231,7 +231,7 @@ export default function AdminUsers() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Users</h1>
-          <p className="text-sm text-slate-500">Register or bulk-import participants for any company's batch</p>
+          <p className="text-sm text-slate-500">Register or bulk-import participants for any organization's batch</p>
         </div>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={() => setShowBulk(true)} leftIcon={<Upload className="h-4 w-4" />}>Bulk Upload</Button>
@@ -255,7 +255,7 @@ export default function AdminUsers() {
           onChange={(e) => { setCompanyFilter(e.target.value); setBatchFilter(''); setPage(1) }}
           className="rounded-lg border border-slate-200 py-2 pl-3 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
         >
-          <option value="">All companies</option>
+          <option value="">All organizations</option>
           {(companiesData?.companies || []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         <select
@@ -293,7 +293,7 @@ export default function AdminUsers() {
                   <th className="px-4 py-3">
                     <input type="checkbox" checked={selected.length === users.length && users.length > 0} onChange={toggleAll} className="rounded border-slate-300" />
                   </th>
-                  {['Name', 'Email', 'Phone', 'Company / Batch', 'Joined'].map((h) => (
+                  {['Name', 'Email', 'Phone', 'Organization / Batch', 'Joined'].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>

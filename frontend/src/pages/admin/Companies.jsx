@@ -30,17 +30,17 @@ function NewCompanyModal({ open, onClose }) {
   const onSubmit = async (data) => {
     try {
       await createCompany(data).unwrap()
-      toast.success('Company created — a set-password email has been sent')
+      toast.success('Organization created — a set-password email has been sent')
       handleClose()
     } catch (err) {
-      toast.error(err?.data?.message || 'Failed to create company')
+      toast.error(err?.data?.message || 'Failed to create organization')
     }
   }
 
   return (
-    <Modal open={open} onClose={handleClose} title="New Company">
+    <Modal open={open} onClose={handleClose} title="New Organization">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <Input label="Company Name" required error={errors.name?.message} {...register('name')} />
+        <Input label="Organization Name" required error={errors.name?.message} {...register('name')} />
         <Input label="Email" type="email" required error={errors.email?.message} {...register('email')} />
         <Input label="Phone" {...register('phone')} />
         <Input label="Website" placeholder="https://" error={errors.website?.message} {...register('website')} />
@@ -79,7 +79,7 @@ export default function AdminCompanies() {
           <h1 className="text-2xl font-bold text-slate-900">Organizations</h1>
           <p className="text-sm text-slate-500">Manage all registered organizations</p>
         </div>
-        <Button onClick={() => setShowNew(true)} leftIcon={<Plus className="h-4 w-4" />}>New Company</Button>
+        <Button onClick={() => setShowNew(true)} leftIcon={<Plus className="h-4 w-4" />}>New Organization</Button>
       </div>
 
       <div className="flex gap-3 flex-wrap">
@@ -87,7 +87,7 @@ export default function AdminCompanies() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <input
             type="text"
-            placeholder="Search companies..."
+            placeholder="Search organizations..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1) }}
             className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -107,7 +107,7 @@ export default function AdminCompanies() {
       {companies.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 py-16 text-center">
           <Building2 className="mb-3 h-10 w-10 text-slate-300" />
-          <p className="font-medium text-slate-600">No companies found</p>
+          <p className="font-medium text-slate-600">No organizations found</p>
         </div>
       ) : (
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
@@ -115,7 +115,7 @@ export default function AdminCompanies() {
             <table className="min-w-full divide-y divide-slate-100">
               <thead className="bg-slate-50">
                 <tr>
-                  {['Company', 'Email', 'Status', 'Joined', ''].map((h) => (
+                  {['Organization', 'Email', 'Status', 'Joined', ''].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>

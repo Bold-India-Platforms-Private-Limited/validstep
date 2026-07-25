@@ -281,7 +281,7 @@ function OrderDetailModal({ orderId, onClose }) {
                     ].map((item, i, arr) => (
                       <div key={item.key} className="relative flex items-start gap-3 pb-3.5 last:pb-0">
                         {i < arr.length - 1 && (
-                          <div className="absolute left-[3px] top-3 bottom-0 w-px bg-slate-200" />
+                          <div className="absolute left-[3px] top-3 bottom-0 w-0.5 -ml-px bg-primary-200" />
                         )}
                         <div className="relative z-10 mt-1 h-2 w-2 shrink-0 rounded-full bg-primary-500 ring-4 ring-white" />
                         <div>

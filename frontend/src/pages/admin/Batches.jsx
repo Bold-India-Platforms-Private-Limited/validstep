@@ -65,7 +65,7 @@ export default function AdminBatches() {
             <table className="min-w-full divide-y divide-slate-100">
               <thead className="bg-slate-50">
                 <tr>
-                  {['Batch', 'Company', 'Price', 'Orders', 'Status', 'Dates', ''].map((h) => (
+                  {['Batch', 'Organization', 'Price', 'Orders', 'Status', 'Dates', ''].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>

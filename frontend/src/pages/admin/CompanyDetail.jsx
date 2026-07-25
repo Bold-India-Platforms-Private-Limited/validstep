@@ -122,7 +122,7 @@ export default function AdminCompanyDetail() {
   const [showNewBatch, setShowNewBatch] = useState(false)
 
   if (isLoading) return <PageSpinner />
-  if (!data) return <p className="p-6 text-slate-500">Company not found</p>
+  if (!data) return <p className="p-6 text-slate-500">Organization not found</p>
 
   // Backend returns programs[].batches[] — flatten to a single batches array
   const company = data
@@ -134,7 +134,7 @@ export default function AdminCompanyDetail() {
   const handleVerify = async (is_verified) => {
     try {
       await updateStatus({ id, is_verified }).unwrap()
-      toast.success(is_verified ? 'Company verified' : 'Verification revoked')
+      toast.success(is_verified ? 'Organization verified' : 'Verification revoked')
     } catch (err) {
       toast.error(err?.data?.message || 'Failed')
     }
@@ -143,7 +143,7 @@ export default function AdminCompanyDetail() {
   const handleToggleActive = async () => {
     try {
       await updateStatus({ id, is_active: !company.is_active }).unwrap()
-      toast.success(company.is_active ? 'Company deactivated' : 'Company activated')
+      toast.success(company.is_active ? 'Organization deactivated' : 'Organization activated')
     } catch (err) {
       toast.error(err?.data?.message || 'Failed')
     }
@@ -157,7 +157,7 @@ export default function AdminCompanyDetail() {
         </Link>
         <div>
           <h1 className="text-2xl font-bold text-slate-900">{company.name}</h1>
-          <p className="text-sm text-slate-500">Company details</p>
+          <p className="text-sm text-slate-500">Organization details</p>
         </div>
       </div>
 
@@ -221,7 +221,7 @@ export default function AdminCompanyDetail() {
                   className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
                 >
                   <CheckCircle className="h-4 w-4" />
-                  Verify Company
+                  Verify Organization
                 </button>
               ) : (
                 <button

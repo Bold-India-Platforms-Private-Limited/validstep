@@ -70,7 +70,7 @@ export default function AdminInvoices() {
             <table className="min-w-full divide-y divide-slate-100">
               <thead className="bg-slate-50">
                 <tr>
-                  {['Invoice #', 'Type', 'User', 'Company / Batch', 'Total Price', 'PayU Fee', 'Net (Credited)', 'Paid On', 'Downloads', ''].map((h) => (
+                  {['Invoice #', 'Type', 'User', 'Organization / Batch', 'Total Price', 'PayU Fee', 'Net (Credited)', 'Paid On', 'Downloads', ''].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
