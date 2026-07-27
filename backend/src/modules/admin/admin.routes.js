@@ -9,15 +9,20 @@ const { validate } = require('../../middleware/validate');
 const { requireSuperAdmin } = require('../../middleware/auth');
 const { generalLimiter } = require('../../middleware/rateLimiter');
 const { uploadUserImportFile } = require('../../middleware/upload');
+const { enforceReviewReadOnly, blockReviewFromMasterAccounting, maskSensitiveDataForReview } = require('../../middleware/reviewAccountGuard');
 
 const router = Router();
 
 // All admin routes require superadmin authentication
 router.use(requireSuperAdmin);
 router.use(generalLimiter);
+// Demo/reviewer accounts (access_level: 'review'): read-only, phone numbers masked,
+// and fully blocked from Master Accounting — applied before any route/subrouter below.
+router.use(enforceReviewReadOnly);
+router.use(maskSensitiveDataForReview);
 
 router.use('/accounting', accountingRoutes);
-router.use('/master-accounting', masterAccountingRoutes);
+router.use('/master-accounting', blockReviewFromMasterAccounting, masterAccountingRoutes);
 
 // Validation schemas
 const listQuerySchema = z.object({
@@ -183,6 +188,8 @@ router.get('/analytics', validate({ query: analyticsQuerySchema }), controller.g
 router.get('/companies', validate({ query: listQuerySchema }), controller.getCompanies);
 router.get('/companies/:id', controller.getCompanyById);
 router.put('/companies/:id/status', validate({ body: updateStatusSchema }), controller.updateCompanyStatus);
+router.delete('/companies/:id', controller.deleteCompany);
+router.post('/companies/:id/resend-password', controller.resendCompanyPassword);
 router.get('/batches', validate({ query: batchesQuerySchema }), controller.getAllBatches);
 router.get('/batches/:id', controller.getAdminBatch);
 router.get('/batches/:id/stats', controller.getAdminBatchStats);
@@ -217,5 +224,6 @@ router.put('/companies/:companyId/programs/:programId', validate({ body: updateP
 router.delete('/companies/:companyId/programs/:programId', controller.deleteCompanyProgram);
 router.post('/companies/:companyId/batches', validate({ body: createCompanyBatchSchema }), controller.createCompanyBatch);
 router.put('/companies/:companyId/batches/:id', validate({ body: updateCompanyBatchSchema }), controller.updateCompanyBatch);
+router.delete('/companies/:companyId/batches/:id', controller.deleteCompanyBatch);
 
 module.exports = router;

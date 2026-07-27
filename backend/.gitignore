@@ -4,7 +4,9 @@ node_modules/
 # Environment
 .env
 .env.*
-!.env.example
+
+# Database dumps/backups (contain real data)
+db_backups/
 
 # Logs
 logs/

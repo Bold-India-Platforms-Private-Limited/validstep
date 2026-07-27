@@ -2,7 +2,6 @@
 
 const userService = require('./user.service');
 const { getOrCreateInvoiceRecord, incrementInvoiceDownloadCount } = require('../../utils/invoiceRecords');
-const { logDeliveryEvent } = require('../../utils/deliveryLog');
 const { sendSuccess, sendError } = require('../../utils/apiResponse');
 
 async function getDashboard(req, res) {
@@ -84,7 +83,6 @@ async function downloadInvoice(req, res) {
     });
 
     incrementInvoiceDownloadCount(order.id).catch(() => {});
-    logDeliveryEvent(req.user.id, 'INVOICE_DOWNLOADED', order.id);
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="invoice-${order.certificate_serial}.pdf"`);

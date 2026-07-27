@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -7,6 +7,7 @@ import toast from 'react-hot-toast'
 import {
   useGetAdminCompanyQuery, useUpdateCompanyStatusMutation,
   useCreateAdminCompanyProgramMutation, useCreateAdminCompanyBatchMutation,
+  useDeleteAdminCompanyMutation, useDeleteAdminCompanyBatchMutation, useResendCompanyPasswordMutation,
 } from '../../store/api/adminApi'
 import { PageSpinner } from '../../components/ui/Spinner'
 import { StatusBadge } from '../../components/ui/Badge'
@@ -14,7 +15,7 @@ import { Modal } from '../../components/ui/Modal'
 import { Input, Select, Textarea } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { formatDate, formatCurrency } from '../../utils/formatDate'
-import { ArrowLeft, Building2, Mail, Phone, Globe, Layers, CheckCircle, XCircle, ToggleLeft, ToggleRight, Plus } from 'lucide-react'
+import { ArrowLeft, Building2, Mail, Phone, Globe, Layers, CheckCircle, XCircle, ToggleLeft, ToggleRight, Plus, KeyRound, Trash2 } from 'lucide-react'
 
 const PROGRAM_TYPES = ['INTERNSHIP', 'COURSE', 'PARTICIPATION', 'HACKATHON', 'OTHER']
 
@@ -114,12 +115,112 @@ function NewBatchModal({ open, onClose, companyId, programs }) {
   )
 }
 
+function DeleteBatchModal({ batch, companyId, onClose }) {
+  const [deleteBatch, { isLoading }] = useDeleteAdminCompanyBatchMutation()
+
+  const handleConfirm = async () => {
+    try {
+      await deleteBatch({ companyId, id: batch.id }).unwrap()
+      toast.success(`${batch.name} deleted`)
+      onClose()
+    } catch (err) {
+      toast.error(err?.data?.message || 'Failed to delete batch')
+    }
+  }
+
+  return (
+    <Modal open={!!batch} onClose={onClose} title="Delete Batch" size="sm">
+      <div className="space-y-4">
+        <p className="text-sm text-slate-600">
+          Permanently delete <strong>{batch?.name}</strong>? This only works if the batch has no orders or certificates on record — otherwise it's blocked to protect that history.
+        </p>
+        <div className="flex justify-end gap-3">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <button
+            onClick={handleConfirm}
+            disabled={isLoading}
+            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+function DeleteCompanyModal({ company, onClose, onDeleted }) {
+  const [deleteCompany, { isLoading }] = useDeleteAdminCompanyMutation()
+
+  const handleConfirm = async () => {
+    try {
+      await deleteCompany(company.id).unwrap()
+      toast.success(`${company.name} deleted`)
+      onDeleted()
+    } catch (err) {
+      toast.error(err?.data?.message || 'Failed to delete organization')
+    }
+  }
+
+  return (
+    <Modal open={!!company} onClose={onClose} title="Delete Organization" size="sm">
+      <div className="space-y-4">
+        <p className="text-sm text-slate-600">
+          Permanently delete <strong>{company?.name}</strong>? This only works if the organization has no orders or certificates on record — otherwise it's blocked to protect that history.
+        </p>
+        <div className="flex justify-end gap-3">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <button
+            onClick={handleConfirm}
+            disabled={isLoading}
+            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+function ResetPasswordModal({ company, onClose }) {
+  const [resendPassword, { isLoading }] = useResendCompanyPasswordMutation()
+
+  const handleConfirm = async () => {
+    try {
+      await resendPassword(company.id).unwrap()
+      toast.success(`New login password emailed to ${company.email}`)
+      onClose()
+    } catch (err) {
+      toast.error(err?.data?.message || 'Failed to reset password')
+    }
+  }
+
+  return (
+    <Modal open={!!company} onClose={onClose} title="Reset Login Password" size="sm">
+      <div className="space-y-4">
+        <p className="text-sm text-slate-600">
+          Generate a new login password for <strong>{company?.name}</strong> and email it to {company?.email}? Their current password stops working immediately.
+        </p>
+        <div className="flex justify-end gap-3">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleConfirm} isLoading={isLoading}>Reset & Send</Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 export default function AdminCompanyDetail() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const { data, isLoading } = useGetAdminCompanyQuery(id)
   const [updateStatus, { isLoading: updating }] = useUpdateCompanyStatusMutation()
   const [showNewProgram, setShowNewProgram] = useState(false)
   const [showNewBatch, setShowNewBatch] = useState(false)
+  const [showDeleteCompany, setShowDeleteCompany] = useState(false)
+  const [showResetPassword, setShowResetPassword] = useState(false)
+  const [deleteBatchTarget, setDeleteBatchTarget] = useState(null)
 
   if (isLoading) return <PageSpinner />
   if (!data) return <p className="p-6 text-slate-500">Organization not found</p>
@@ -247,6 +348,20 @@ export default function AdminCompanyDetail() {
                   : <><ToggleLeft className="h-4 w-4" /> Activate</>
                 }
               </button>
+              <button
+                onClick={() => setShowResetPassword(true)}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                <KeyRound className="h-4 w-4" />
+                Reset Login Password
+              </button>
+              <button
+                onClick={() => setShowDeleteCompany(true)}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-red-200 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete Organization
+              </button>
             </div>
 
             <p className="mt-3 text-xs text-slate-400">Joined {formatDate(company.created_at)}</p>
@@ -279,9 +394,18 @@ export default function AdminCompanyDetail() {
                       <p className="text-sm text-slate-500 mt-0.5">{b.program?.name} · {b.program?.type}</p>
                       <p className="text-xs text-slate-400 mt-1">{formatDate(b.start_date)} — {formatDate(b.end_date)}</p>
                     </div>
-                    <Link to={`/admin/batches/${b.id}`} className="shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors">
-                      View
-                    </Link>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Link to={`/admin/batches/${b.id}`} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+                        View
+                      </Link>
+                      <button
+                        onClick={() => setDeleteBatchTarget(b)}
+                        title="Delete batch"
+                        className="rounded-lg border border-slate-200 p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
                   <div className="mt-2 flex gap-4 text-xs text-slate-500">
                     <span>{formatCurrency(b.certificate_price)} per cert</span>
@@ -297,6 +421,13 @@ export default function AdminCompanyDetail() {
 
       <NewProgramModal open={showNewProgram} onClose={() => setShowNewProgram(false)} companyId={id} />
       <NewBatchModal open={showNewBatch} onClose={() => setShowNewBatch(false)} companyId={id} programs={programs} />
+      <ResetPasswordModal company={showResetPassword ? company : null} onClose={() => setShowResetPassword(false)} />
+      <DeleteCompanyModal
+        company={showDeleteCompany ? company : null}
+        onClose={() => setShowDeleteCompany(false)}
+        onDeleted={() => navigate('/admin/companies')}
+      />
+      <DeleteBatchModal batch={deleteBatchTarget} companyId={id} onClose={() => setDeleteBatchTarget(null)} />
     </div>
   )
 }

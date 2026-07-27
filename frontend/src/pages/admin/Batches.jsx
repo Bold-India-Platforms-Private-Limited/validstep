@@ -1,17 +1,62 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useGetAdminBatchesQuery } from '../../store/api/adminApi'
+import toast from 'react-hot-toast'
+import { useGetAdminBatchesQuery, useUpdateAdminCompanyBatchMutation, useGetAdminWhoamiQuery } from '../../store/api/adminApi'
 import { PageSpinner } from '../../components/ui/Spinner'
-import { StatusBadge } from '../../components/ui/Badge'
 import { Pagination } from '../../components/ui/Pagination'
 import { formatDate, formatCurrency } from '../../utils/formatDate'
 import { Layers, Search, ChevronRight } from 'lucide-react'
+
+const BATCH_STATUSES = ['DRAFT', 'ACTIVE', 'HOLD', 'COMPLETED']
+
+const statusStyles = {
+  DRAFT: 'bg-slate-100 text-slate-600',
+  ACTIVE: 'bg-emerald-100 text-emerald-700',
+  HOLD: 'bg-amber-100 text-amber-700',
+  COMPLETED: 'bg-blue-100 text-blue-700',
+}
+
+function BatchStatusSelect({ batch, readOnly }) {
+  const [updateBatch, { isLoading }] = useUpdateAdminCompanyBatchMutation()
+
+  const handleChange = async (e) => {
+    const newStatus = e.target.value
+    if (newStatus === batch.status) return
+    try {
+      await updateBatch({ companyId: batch.company?.id, id: batch.id, status: newStatus }).unwrap()
+      toast.success(`${batch.name} marked ${newStatus}`)
+    } catch (err) {
+      toast.error(err?.data?.message || 'Failed to update status')
+    }
+  }
+
+  if (readOnly) {
+    return (
+      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusStyles[batch.status] || 'bg-slate-100 text-slate-600'}`}>
+        {batch.status}
+      </span>
+    )
+  }
+
+  return (
+    <select
+      value={batch.status}
+      onChange={handleChange}
+      disabled={isLoading}
+      className={`rounded-full border-0 px-2 py-0.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 ${statusStyles[batch.status] || 'bg-slate-100 text-slate-600'}`}
+    >
+      {BATCH_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+    </select>
+  )
+}
 
 export default function AdminBatches() {
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(20)
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
+  const { data: whoami } = useGetAdminWhoamiQuery()
+  const isReview = whoami?.access_level === 'review'
   const { data, isLoading } = useGetAdminBatchesQuery({
     page,
     limit,
@@ -80,7 +125,7 @@ export default function AdminBatches() {
                     <td className="px-4 py-3 text-sm text-slate-600">{b.company?.name}</td>
                     <td className="px-4 py-3 text-sm font-semibold text-slate-900">{formatCurrency(b.certificate_price)}</td>
                     <td className="px-4 py-3 text-sm text-slate-600">{b._count?.orders || 0}</td>
-                    <td className="px-4 py-3"><StatusBadge status={b.status} /></td>
+                    <td className="px-4 py-3"><BatchStatusSelect batch={b} readOnly={isReview} /></td>
                     <td className="px-4 py-3 text-xs text-slate-500">
                       {formatDate(b.start_date)}<br />{formatDate(b.end_date)}
                     </td>

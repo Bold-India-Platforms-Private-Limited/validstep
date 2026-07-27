@@ -1,7 +1,11 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
 const env = require('../config/env');
+
+const SIGNATURE_PATH = path.join(__dirname, '../assets/authorized-signatory.png');
 
 // The invoice issuer is always Bold India Platforms (the entity that actually receives
 // payment via PayU) — `companyName` passed into this function is the customer's employer
@@ -201,25 +205,29 @@ async function generateInvoicePDF(data) {
   page.drawLine({ start: { x: marginX, y }, end: { x: rightX, y }, thickness: 0.5, color: border });
   y -= 16;
 
+  // Wider than qtyColX (which only needs to fit "QTY"/"1") — "Total Amount Paid" and
+  // "GST (18%, included)" are long enough at qtyColX's width to run into the right-aligned
+  // amount column, so the totals block gets its own, further-left label column.
+  const totalsLabelX = amtColX - 220;
   if (gstApplicable) {
     const { taxable, gst } = splitGstInclusive(Number(amount));
-    page.drawText('Subtotal', { x: qtyColX, y, size: 9.5, font: regular, color: dark });
+    page.drawText('Subtotal', { x: totalsLabelX, y, size: 9.5, font: regular, color: dark });
     rightAlign(page, `Rs. ${taxable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, amtColX, y, 9.5, regular, dark);
     y -= 15;
-    page.drawText('GST (18%, included)', { x: qtyColX, y, size: 9.5, font: regular, color: dark });
+    page.drawText('GST (18%, included)', { x: totalsLabelX, y, size: 9.5, font: regular, color: dark });
     rightAlign(page, `Rs. ${gst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, amtColX, y, 9.5, regular, dark);
     y -= 15;
   } else {
-    page.drawText('Subtotal', { x: qtyColX, y, size: 9.5, font: regular, color: dark });
+    page.drawText('Subtotal', { x: totalsLabelX, y, size: 9.5, font: regular, color: dark });
     rightAlign(page, amountStr, amtColX, y, 9.5, regular, dark);
     y -= 15;
-    page.drawText('GST', { x: qtyColX, y, size: 9.5, font: regular, color: dark });
+    page.drawText('GST', { x: totalsLabelX, y, size: 9.5, font: regular, color: dark });
     rightAlign(page, 'Not Applicable', amtColX, y, 9.5, regular, dark);
     y -= 15;
   }
-  page.drawLine({ start: { x: qtyColX - 10, y: y + 4 }, end: { x: rightX, y: y + 4 }, thickness: 0.5, color: border });
+  page.drawLine({ start: { x: totalsLabelX - 10, y: y + 4 }, end: { x: rightX, y: y + 4 }, thickness: 0.5, color: border });
   y -= 4;
-  page.drawText('Total Amount Paid', { x: qtyColX, y, size: 10, font: bold, color: dark });
+  page.drawText('Total Amount Paid', { x: totalsLabelX, y, size: 10, font: bold, color: dark });
   rightAlign(page, amountStr, amtColX, y, 10, bold, dark);
   y -= 30;
 
@@ -235,7 +243,19 @@ async function generateInvoicePDF(data) {
 
   y -= 20;
   rightAlign(page, 'For BOLD INDIA PLATFORMS PRIVATE LIMITED', rightX, y, 9.5, bold, dark);
-  y -= 26;
+  y -= 8;
+
+  if (fs.existsSync(SIGNATURE_PATH)) {
+    const signatureImage = await pdfDoc.embedPng(fs.readFileSync(SIGNATURE_PATH));
+    const sigW = 90;
+    const sigH = signatureImage.height * (sigW / signatureImage.width);
+    y -= sigH;
+    page.drawImage(signatureImage, { x: rightX - sigW, y, width: sigW, height: sigH });
+    y -= 6;
+  } else {
+    y -= 26;
+  }
+
   rightAlign(page, 'Authorized Signatory', rightX, y, 9.5, regular, gray);
 
   // Footer

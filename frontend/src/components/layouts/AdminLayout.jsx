@@ -6,24 +6,25 @@ import { clearCredentials, selectUser } from '../../store/authSlice'
 import {
   LayoutDashboard, Building2, Layers, DollarSign,
   CreditCard, LogOut, Menu, X, FileText, ShieldCheck, Users,
-  PanelLeftClose, PanelLeftOpen, Clock, ClipboardList, BarChart3, Globe, Wifi,
+  PanelLeftClose, PanelLeftOpen, Clock, ClipboardList, BarChart3, Globe, Wifi, Eye, Lock,
 } from 'lucide-react'
+import toast from 'react-hot-toast'
 import { SystemStatusBadge } from '../shared/SystemStatusBadge'
 import { useGetAdminWhoamiQuery } from '../../store/api/adminApi'
 
 const nav = [
   { to: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/admin/analytics', icon: BarChart3, label: 'Analytics' },
-  { to: '/admin/companies', icon: Building2, label: 'Organizations' },
-  { to: '/admin/batches', icon: Layers, label: 'Batches' },
-  { to: '/admin/users', icon: Users, label: 'Users' },
-  { to: '/admin/order-log', icon: ClipboardList, label: 'Order' },
-  { to: '/admin/payments', icon: CreditCard, label: 'Payments' },
-  { to: '/admin/invoices', icon: FileText, label: 'Invoices' },
+  { to: '/admin/companies', icon: Building2, label: 'Organizations', scopeKey: 'companies' },
+  { to: '/admin/batches', icon: Layers, label: 'Batches', scopeKey: 'batches' },
+  { to: '/admin/users', icon: Users, label: 'Users', scopeKey: 'users' },
+  { to: '/admin/order-log', icon: ClipboardList, label: 'Order', scopeKey: 'orders' },
+  { to: '/admin/payments', icon: CreditCard, label: 'Payments', hideForReview: true },
+  { to: '/admin/invoices', icon: FileText, label: 'Invoices', hideForReview: true },
   { to: '/admin/pricing', icon: DollarSign, label: 'Pricing' },
 ]
 
-function NavItem({ to, icon: Icon, label, onClick, collapsed }) {
+function NavItem({ to, icon: Icon, label, onClick, collapsed, badge }) {
   return (
     <NavLink
       to={to}
@@ -33,7 +34,11 @@ function NavItem({ to, icon: Icon, label, onClick, collapsed }) {
         `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${collapsed ? 'justify-center' : ''} ${isActive ? 'bg-violet-50 text-violet-700' : 'text-slate-600 hover:bg-slate-100'}`
       }
     >
-      <Icon className="h-4 w-4 shrink-0" />{!collapsed && label}
+      <Icon className="h-4 w-4 shrink-0" />
+      {!collapsed && <span className="flex-1">{label}</span>}
+      {!collapsed && badge != null && (
+        <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">{badge}</span>
+      )}
     </NavLink>
   )
 }
@@ -72,6 +77,8 @@ export function AdminLayout({ children }) {
   const navigate = useNavigate()
   const user = useSelector(selectUser)
   const [logout] = useLogoutMutation()
+  const isReview = whoami?.access_level === 'review'
+  const [noticeDismissed, setNoticeDismissed] = useState(false)
 
   useEffect(() => {
     localStorage.setItem('adminSidebarCollapsed', collapsed ? '1' : '0')
@@ -96,23 +103,42 @@ export function AdminLayout({ children }) {
         </div>
       </div>
       <nav className="flex-1 space-y-1 p-3">
-        {nav.map((item) => <NavItem key={item.to} {...item} collapsed={collapsed} onClick={() => setOpen(false)} />)}
+        {nav.filter((item) => !(item.hideForReview && isReview)).map((item) => (
+          <NavItem
+            key={item.to}
+            {...item}
+            collapsed={collapsed}
+            onClick={() => setOpen(false)}
+            badge={isReview && item.scopeKey ? whoami?.scope?.[item.scopeKey] : null}
+          />
+        ))}
       </nav>
       <div className="border-t border-slate-100 p-3">
-        <NavLink
-          to="/admin/master-accounting"
-          onClick={() => setOpen(false)}
-          title={collapsed ? 'Master Accounting' : undefined}
-          className={`flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100 transition-colors ${collapsed ? 'justify-center' : ''}`}
-        >
-          <ShieldCheck className="h-4 w-4 shrink-0" /> {!collapsed && 'Master Accounting'}
-        </NavLink>
+        {isReview ? (
+          <button
+            type="button"
+            onClick={() => toast.error('For Dummy Account, not allowed to enter in Accounting')}
+            title="For Dummy Account, not allowed to enter in Accounting"
+            className={`flex w-full items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-400 cursor-not-allowed ${collapsed ? 'justify-center' : ''}`}
+          >
+            <Lock className="h-4 w-4 shrink-0" /> {!collapsed && 'Accounting Panel'}
+          </button>
+        ) : (
+          <NavLink
+            to="/admin/master-accounting"
+            onClick={() => setOpen(false)}
+            title={collapsed ? 'Master Accounting' : undefined}
+            className={`flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100 transition-colors ${collapsed ? 'justify-center' : ''}`}
+          >
+            <ShieldCheck className="h-4 w-4 shrink-0" /> {!collapsed && 'Master Accounting'}
+          </NavLink>
+        )}
       </div>
       <div className="border-t border-slate-100 p-3">
         {!collapsed && (
           <div className="mb-2 px-3 py-1">
             <p className="text-xs font-medium text-slate-900 truncate">{user?.name}</p>
-            <p className="text-xs text-slate-500">Super Admin</p>
+            <p className="text-xs text-slate-500">{isReview ? 'Demo Account (Read Only)' : 'Super Admin'}</p>
           </div>
         )}
         <button
@@ -184,7 +210,43 @@ export function AdminLayout({ children }) {
             </a>
           </div>
         </div>
-        <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
+        {isReview && !noticeDismissed && (
+          <div className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-800 md:px-6">
+            <Eye className="h-3.5 w-3.5 shrink-0" />
+            <span className="flex-1">
+              For company and customer privacy and security, this Dummy Account has been granted access to only 2 customers' transaction data. All other records, along with full admin actions, features and Master Accounting, are prohibited for this account.
+            </span>
+            <button
+              onClick={() => setNoticeDismissed(true)}
+              title="Dismiss"
+              className="shrink-0 rounded p-0.5 text-amber-600 hover:bg-amber-100 hover:text-amber-800"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+        <main className="relative flex-1 overflow-auto p-4 md:p-6">
+          {isReview && (
+            <>
+              <div className="pointer-events-none fixed inset-0 z-30 flex items-center justify-center overflow-hidden">
+                <span className="rotate-[-30deg] select-none whitespace-nowrap text-6xl font-bold text-slate-900/[0.06] md:text-8xl">
+                  DUMMY ACCOUNT — VIEW ONLY
+                </span>
+              </div>
+              <div className="pointer-events-none fixed bottom-3 right-3 z-30 max-w-[260px] rounded-lg bg-slate-900/5 px-3 py-2 text-right text-[10px] leading-tight text-slate-400">
+                <p className="font-semibold text-slate-500">View Only Mode Access Granted</p>
+                {whoami?.geo && (
+                  <p className="mt-0.5">
+                    IP: {whoami.geo.ip}{whoami.geo.local && ' (local)'}
+                    {whoami.geo.city && ` · ${[whoami.geo.city, whoami.geo.region, whoami.geo.country].filter(Boolean).join(', ')}`}
+                    {whoami.geo.isp && ` · ${whoami.geo.isp}`}
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+          {children}
+        </main>
       </div>
     </div>
   )

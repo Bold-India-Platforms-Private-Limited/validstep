@@ -4,14 +4,17 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import toast from 'react-hot-toast'
-import { useGetAdminCompaniesQuery, useCreateAdminCompanyMutation } from '../../store/api/adminApi'
+import {
+  useGetAdminCompaniesQuery, useCreateAdminCompanyMutation,
+  useDeleteAdminCompanyMutation, useResendCompanyPasswordMutation,
+} from '../../store/api/adminApi'
 import { PageSpinner } from '../../components/ui/Spinner'
 import { Pagination } from '../../components/ui/Pagination'
 import { Modal } from '../../components/ui/Modal'
 import { Input, Textarea } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { formatDate } from '../../utils/formatDate'
-import { Building2, Search, ChevronRight, Plus } from 'lucide-react'
+import { Building2, Search, ChevronRight, Plus, KeyRound, Trash2 } from 'lucide-react'
 
 const createCompanySchema = z.object({
   name: z.string().min(2, 'Name required'),
@@ -54,12 +57,76 @@ function NewCompanyModal({ open, onClose }) {
   )
 }
 
+function ResetPasswordModal({ company, onClose }) {
+  const [resendPassword, { isLoading }] = useResendCompanyPasswordMutation()
+
+  const handleConfirm = async () => {
+    try {
+      await resendPassword(company.id).unwrap()
+      toast.success(`New login password emailed to ${company.email}`)
+      onClose()
+    } catch (err) {
+      toast.error(err?.data?.message || 'Failed to reset password')
+    }
+  }
+
+  return (
+    <Modal open={!!company} onClose={onClose} title="Reset Login Password" size="sm">
+      <div className="space-y-4">
+        <p className="text-sm text-slate-600">
+          Generate a new login password for <strong>{company?.name}</strong> and email it to {company?.email}? Their current password stops working immediately.
+        </p>
+        <div className="flex justify-end gap-3">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleConfirm} isLoading={isLoading}>Reset & Send</Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+function DeleteCompanyModal({ company, onClose }) {
+  const [deleteCompany, { isLoading }] = useDeleteAdminCompanyMutation()
+
+  const handleConfirm = async () => {
+    try {
+      await deleteCompany(company.id).unwrap()
+      toast.success(`${company.name} deleted`)
+      onClose()
+    } catch (err) {
+      toast.error(err?.data?.message || 'Failed to delete organization')
+    }
+  }
+
+  return (
+    <Modal open={!!company} onClose={onClose} title="Delete Organization" size="sm">
+      <div className="space-y-4">
+        <p className="text-sm text-slate-600">
+          Permanently delete <strong>{company?.name}</strong>? This only works if the organization has no orders or certificates on record — otherwise it's blocked to protect that history.
+        </p>
+        <div className="flex justify-end gap-3">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <button
+            onClick={handleConfirm}
+            disabled={isLoading}
+            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 export default function AdminCompanies() {
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(20)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('')
   const [showNew, setShowNew] = useState(false)
+  const [resetPasswordFor, setResetPasswordFor] = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null)
   const { data, isLoading } = useGetAdminCompaniesQuery({
     page,
     limit,
@@ -153,9 +220,25 @@ export default function AdminCompanies() {
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-500">{formatDate(c.created_at)}</td>
                     <td className="px-4 py-3">
-                      <Link to={`/admin/companies/${c.id}`} className="flex items-center gap-1 text-xs text-primary-600 hover:underline">
-                        View <ChevronRight className="h-3.5 w-3.5" />
-                      </Link>
+                      <div className="flex items-center gap-3">
+                        <Link to={`/admin/companies/${c.id}`} className="flex items-center gap-1 text-xs text-primary-600 hover:underline">
+                          View <ChevronRight className="h-3.5 w-3.5" />
+                        </Link>
+                        <button
+                          onClick={() => setResetPasswordFor(c)}
+                          title="Reset login password"
+                          className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                        >
+                          <KeyRound className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setDeleteTarget(c)}
+                          title="Delete organization"
+                          className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -174,6 +257,8 @@ export default function AdminCompanies() {
       )}
 
       <NewCompanyModal open={showNew} onClose={() => setShowNew(false)} />
+      <ResetPasswordModal company={resetPasswordFor} onClose={() => setResetPasswordFor(null)} />
+      <DeleteCompanyModal company={deleteTarget} onClose={() => setDeleteTarget(null)} />
     </div>
   )
 }

@@ -28,6 +28,15 @@ export const adminApi = baseApi.injectEndpoints({
       query: ({ id, ...body }) => ({ url: `/admin/companies/${id}/status`, method: 'PUT', body }),
       invalidatesTags: (result, error, { id }) => ['Company', { type: 'Company', id }],
     }),
+    deleteAdminCompany: b.mutation({
+      query: (id) => ({ url: `/admin/companies/${id}`, method: 'DELETE' }),
+      transformResponse: (r) => r.data,
+      invalidatesTags: ['Company'],
+    }),
+    resendCompanyPassword: b.mutation({
+      query: (id) => ({ url: `/admin/companies/${id}/resend-password`, method: 'POST' }),
+      transformResponse: (r) => r.data,
+    }),
     getAdminBatches: b.query({
       query: (params) => ({ url: '/admin/batches', params }),
       transformResponse: (r) => r.data,
@@ -111,6 +120,16 @@ export const adminApi = baseApi.injectEndpoints({
       transformResponse: (r) => r.data,
       invalidatesTags: (result, error, { companyId }) => ['Batch', { type: 'Company', id: companyId }],
     }),
+    updateAdminCompanyBatch: b.mutation({
+      query: ({ companyId, id, ...body }) => ({ url: `/admin/companies/${companyId}/batches/${id}`, method: 'PUT', body }),
+      transformResponse: (r) => r.data,
+      invalidatesTags: (result, error, { companyId }) => ['Batch', { type: 'Company', id: companyId }],
+    }),
+    deleteAdminCompanyBatch: b.mutation({
+      query: ({ companyId, id }) => ({ url: `/admin/companies/${companyId}/batches/${id}`, method: 'DELETE' }),
+      transformResponse: (r) => r.data,
+      invalidatesTags: (result, error, { companyId }) => ['Batch', { type: 'Company', id: companyId }],
+    }),
     createAdminCompany: b.mutation({
       query: (body) => ({ url: '/admin/companies', method: 'POST', body }),
       transformResponse: (r) => r.data,
@@ -169,6 +188,7 @@ export const adminApi = baseApi.injectEndpoints({
 export const {
   useGetAdminDashboardQuery, useGetAdminWhoamiQuery, useGetAdminAnalyticsQuery, useGetAdminCompaniesQuery,
   useGetAdminCompanyQuery, useUpdateCompanyStatusMutation,
+  useDeleteAdminCompanyMutation, useResendCompanyPasswordMutation,
   useGetAdminBatchesQuery, useGetAdminBatchQuery,
   useGetAdminBatchStatsQuery, useGetAdminBatchOrdersQuery,
   useGetAdminPaymentsQuery,
@@ -179,7 +199,7 @@ export const {
   useDeleteAdminUsersMutation,
   useImportPayuButtonCustomersMutation,
   useGetAdminCompanyProgramsQuery, useCreateAdminCompanyProgramMutation,
-  useCreateAdminCompanyBatchMutation,
+  useCreateAdminCompanyBatchMutation, useUpdateAdminCompanyBatchMutation, useDeleteAdminCompanyBatchMutation,
   useCreateAdminCompanyMutation, useEnrollUsersInBatchMutation,
   useGetAssignableTransactionsQuery, useAssignTransactionsToBatchMutation,
   useGetAdminOrderLogQuery, useGetAdminOrderDetailQuery, useResolveAdminQueryMutation,

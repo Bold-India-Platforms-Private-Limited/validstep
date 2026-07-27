@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   useGetAdminOrderLogQuery, useGetAdminOrderDetailQuery, useResolveAdminQueryMutation, useGetAdminCompaniesQuery,
-  useResendUserPasswordMutation, useResendCertificateEmailMutation,
+  useResendUserPasswordMutation, useResendCertificateEmailMutation, useGetAdminWhoamiQuery,
 } from '../../store/api/adminApi'
 import { PageSpinner } from '../../components/ui/Spinner'
 import { Badge, StatusBadge } from '../../components/ui/Badge'
@@ -11,7 +11,7 @@ import { formatDate, formatCurrency } from '../../utils/formatDate'
 import { downloadInvoicePDF, getInvoicePreviewUrl } from '../../utils/downloadInvoice'
 import {
   ClipboardList, Search, Eye, FileText, ShieldCheck, MessageSquareText, KeyRound, Send, Award,
-  Calendar, Building2, Wallet, ShieldQuestion, MessageCircle, Sparkles, FolderOpen,
+  Calendar, Building2, Wallet, ShieldQuestion, MessageCircle, Sparkles, FolderOpen, Lock,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -69,8 +69,8 @@ const TABS = [
   { key: 'overview', label: 'Overview' },
   { key: 'certificate', label: 'Certificate' },
   { key: 'send-certificate', label: 'Send Certificate' },
-  { key: 'background-verification', label: 'Background Verification Requests', comingSoon: true, icon: ShieldQuestion },
-  { key: 'organizer-update', label: 'Update From Organizer', comingSoon: true, icon: MessageCircle },
+  { key: 'background-verification', label: 'Background Verification Requests', comingSoon: true, icon: ShieldQuestion, restricted: true },
+  { key: 'organizer-update', label: 'Update From Organizer', comingSoon: true, icon: MessageCircle, restricted: true },
 ]
 
 function ComingSoonPanel({ icon: Icon, label }) {
@@ -80,13 +80,27 @@ function ComingSoonPanel({ icon: Icon, label }) {
         {Icon ? <Icon className="h-6 w-6 text-violet-500" /> : <Sparkles className="h-6 w-6 text-violet-500" />}
       </div>
       <p className="font-medium text-slate-700">{label}</p>
-      <p className="mt-1 text-sm text-slate-400">This feature is coming soon.</p>
+      <p className="mt-1 text-sm text-slate-400">No Update.</p>
+    </div>
+  )
+}
+
+function RestrictedPanel({ label }) {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-amber-200 bg-amber-50/50 py-16 text-center">
+      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100">
+        <Lock className="h-6 w-6 text-amber-600" />
+      </div>
+      <p className="font-medium text-amber-800">{label}</p>
+      <p className="mt-1 max-w-xs text-sm text-amber-700">This data is sensitive and not available for the Dummy Admin Account.</p>
     </div>
   )
 }
 
 function OrderDetailModal({ orderId, onClose }) {
   const { data, isLoading } = useGetAdminOrderDetailQuery(orderId, { skip: !orderId })
+  const { data: whoami } = useGetAdminWhoamiQuery()
+  const isReview = whoami?.access_level === 'review'
   const [resolveQuery, { isLoading: resolving }] = useResolveAdminQueryMutation()
   const [resendPassword, { isLoading: sendingPassword }] = useResendUserPasswordMutation()
   const [resendCertEmail, { isLoading: sendingCertEmail }] = useResendCertificateEmailMutation()
@@ -197,15 +211,21 @@ function OrderDetailModal({ orderId, onClose }) {
         <div className="space-y-4">
           {/* Tabs */}
           <div className="flex gap-1 border-b border-slate-200">
-            {TABS.map((t) => (
-              <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${tab === t.key ? 'border-b-2 border-primary-600 text-primary-600' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                {t.label}
-              </button>
-            ))}
+            {TABS.map((t) => {
+              const blocked = t.restricted && isReview
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => !blocked && setTab(t.key)}
+                  disabled={blocked}
+                  title={blocked ? 'This data is sensitive and not available for the Dummy Admin Account' : undefined}
+                  className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors ${blocked ? 'cursor-not-allowed text-slate-300' : tab === t.key ? 'border-b-2 border-primary-600 text-primary-600' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  {blocked && <Lock className="h-3 w-3" />}
+                  {t.label}
+                </button>
+              )
+            })}
           </div>
 
           {tab === 'overview' && (
@@ -408,9 +428,14 @@ function OrderDetailModal({ orderId, onClose }) {
                   ? `Email the issued certificate to ${order.user?.email}. Useful if the original notification bounced or the customer asks for it again.`
                   : 'This certificate has not been issued yet — issue it from the batch\'s Certificates screen first.'}
               </p>
+              {isReview && (
+                <p className="mb-3 flex items-center gap-1.5 text-xs font-medium text-amber-700">
+                  <Lock className="h-3.5 w-3.5" /> View only — the Dummy Admin Account cannot send certificate emails.
+                </p>
+              )}
               <button
                 onClick={handleSendCertificateEmail}
-                disabled={sendingCertEmail || !order.certificate?.is_issued}
+                disabled={sendingCertEmail || !order.certificate?.is_issued || isReview}
                 className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
               >
                 <Send className="h-4 w-4" />
@@ -420,7 +445,9 @@ function OrderDetailModal({ orderId, onClose }) {
           )}
 
           {TABS.find((t) => t.key === tab)?.comingSoon && (
-            <ComingSoonPanel icon={TABS.find((t) => t.key === tab)?.icon} label={TABS.find((t) => t.key === tab)?.label} />
+            TABS.find((t) => t.key === tab)?.restricted && isReview
+              ? <RestrictedPanel label={TABS.find((t) => t.key === tab)?.label} />
+              : <ComingSoonPanel icon={TABS.find((t) => t.key === tab)?.icon} label={TABS.find((t) => t.key === tab)?.label} />
           )}
         </div>
       )}
@@ -449,6 +476,15 @@ export default function AdminOrderLog() {
 
   const orderLog = data?.orderLog || []
   const pagination = data?.pagination || {}
+
+  const handleViewInvoice = async (order) => {
+    try {
+      const url = await getInvoicePreviewUrl('admin', order.id)
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } catch (err) {
+      toast.error(err.message || 'Failed to load invoice')
+    }
+  }
 
   if (isLoading) return <PageSpinner />
 
@@ -526,7 +562,7 @@ export default function AdminOrderLog() {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {orderLog.map((o) => (
-                  <tr key={o.id} className="hover:bg-slate-50 transition-colors">
+                  <tr key={o.id} onClick={() => setDetailOrderId(o.id)} className="cursor-pointer hover:bg-slate-50 transition-colors">
                     <td className="px-3 py-3">
                       <p className="text-sm font-medium text-slate-900">{o.user?.name}</p>
                       <p className="text-xs text-slate-500">{o.user?.email}</p>
@@ -548,13 +584,22 @@ export default function AdminOrderLog() {
                       {o.is_manual_enrollment && <span className="ml-1 text-slate-400">(manual)</span>}
                     </td>
                     <td className="px-3 py-3">
-                      <button
-                        onClick={() => setDetailOrderId(o.id)}
-                        className="flex items-center gap-1 text-xs font-medium text-primary-600 hover:underline"
-                      >
-                        <Eye className="h-3.5 w-3.5" />
-                        View
-                      </button>
+                      <div className="flex flex-col items-start gap-1.5">
+                        <button
+                          onClick={() => setDetailOrderId(o.id)}
+                          className="flex items-center gap-1 text-xs font-medium text-primary-600 hover:underline"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          View
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleViewInvoice(o) }}
+                          className="flex items-center gap-1 text-xs font-medium text-slate-600 hover:underline"
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          View Invoice
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

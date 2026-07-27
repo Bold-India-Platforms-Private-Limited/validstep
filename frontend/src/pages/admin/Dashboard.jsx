@@ -1,7 +1,8 @@
 import { useGetAdminDashboardQuery } from '../../store/api/adminApi'
 import { PageSpinner } from '../../components/ui/Spinner'
 import { formatCurrency } from '../../utils/formatDate'
-import { Building2, Layers, ShoppingBag, CreditCard, TrendingUp, AlertCircle } from 'lucide-react'
+import { DonutChart, STATUS_COLOR } from '../../components/charts/AdminCharts'
+import { Building2, Layers, ShoppingBag, CreditCard, TrendingUp, AlertCircle, PieChart } from 'lucide-react'
 
 function StatCard({ icon: Icon, label, value, sub, color = 'primary' }) {
   const colors = {
@@ -27,9 +28,15 @@ export default function AdminDashboard() {
 
   if (isLoading) return <PageSpinner />
 
-  const stats = data?.stats || {}
-  const recentOrders = data?.recentOrders || []
-  const pendingCompanies = data?.pendingCompanies || []
+  const recentOrders = data?.recent_orders || []
+  const pendingCompanies = (data?.recent_companies || []).filter((c) => !c.is_verified)
+  const totalOrders = data?.orders?.total || 0
+  const paidOrders = data?.orders?.paid || 0
+  const otherOrders = Math.max(0, totalOrders - paidOrders)
+  const orderSplit = [
+    { label: 'Paid', value: paidOrders, color: STATUS_COLOR.PAID },
+    { label: 'Other', value: otherOrders, color: '#c3c2b7' },
+  ]
 
   return (
     <div className="space-y-6">
@@ -39,10 +46,10 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard icon={Building2} label="Organizations" value={stats.companies || 0} color="primary" />
-        <StatCard icon={Layers} label="Batches" value={stats.batches || 0} color="violet" />
-        <StatCard icon={ShoppingBag} label="Orders" value={stats.orders || 0} color="emerald" />
-        <StatCard icon={CreditCard} label="Revenue" value={formatCurrency(stats.revenue || 0)} color="amber" />
+        <StatCard icon={Building2} label="Organizations" value={data?.companies?.total || 0} color="primary" />
+        <StatCard icon={Layers} label="Batches" value={data?.batches?.total || 0} color="violet" />
+        <StatCard icon={ShoppingBag} label="Orders" value={data?.orders?.total || 0} color="emerald" />
+        <StatCard icon={CreditCard} label="Revenue" value={formatCurrency(data?.revenue?.total || 0)} color="amber" />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -91,6 +98,19 @@ export default function AdminDashboard() {
                 </div>
               ))}
             </div>
+          )}
+        </div>
+
+        {/* Order split */}
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center gap-2">
+            <PieChart className="h-4 w-4 text-slate-400" />
+            <h2 className="font-semibold text-slate-800">Orders — Paid vs Other</h2>
+          </div>
+          {totalOrders === 0 ? (
+            <p className="py-10 text-center text-sm text-slate-400">No orders yet</p>
+          ) : (
+            <DonutChart data={orderSplit} centerLabel="Total Orders" centerValue={totalOrders} />
           )}
         </div>
       </div>

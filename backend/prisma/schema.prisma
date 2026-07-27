@@ -67,6 +67,9 @@ model SuperAdmin {
   email         String   @unique
   password_hash String
   name          String
+  // "full" = normal super admin. "review" = restricted demo/reviewer account:
+  // read-only across the admin panel and fully blocked from Master Accounting.
+  access_level  String   @default("full")
   created_at    DateTime @default(now())
 
   @@map("super_admins")

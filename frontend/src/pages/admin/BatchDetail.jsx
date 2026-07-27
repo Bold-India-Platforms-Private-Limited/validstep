@@ -5,7 +5,7 @@ import {
   useGetAdminBatchQuery, useGetAdminBatchStatsQuery,
   useGetAdminBatchOrdersQuery, useIssueCertificatesAdminMutation,
   useGetAdminUsersQuery, useEnrollUsersInBatchMutation,
-  useGetAssignableTransactionsQuery, useAssignTransactionsToBatchMutation,
+  useGetAssignableTransactionsQuery, useAssignTransactionsToBatchMutation, useGetAdminWhoamiQuery,
 } from '../../store/api/adminApi'
 import { PageSpinner } from '../../components/ui/Spinner'
 import { StatusBadge } from '../../components/ui/Badge'
@@ -267,6 +267,8 @@ export default function AdminBatchDetail() {
   const { data: statsData, refetch: refetchStats } = useGetAdminBatchStatsQuery(id)
   const { data: ordersData, refetch: refetchOrders } = useGetAdminBatchOrdersQuery({ id, page, limit })
   const [issueCerts, { isLoading: issuing }] = useIssueCertificatesAdminMutation()
+  const { data: whoami } = useGetAdminWhoamiQuery()
+  const isReview = whoami?.access_level === 'review'
 
   if (isLoading) return <PageSpinner />
   if (!batchData) return <p className="p-6 text-slate-500">Batch not found</p>
@@ -326,24 +328,26 @@ export default function AdminBatchDetail() {
       <div>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="font-semibold text-slate-900">Orders</h2>
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setShowAssignTxns(true)} leftIcon={<Receipt className="h-3.5 w-3.5" />}>
-              Assign Transactions
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => setShowEnroll(true)} leftIcon={<UserPlus className="h-3.5 w-3.5" />}>
-              Enroll Users
-            </Button>
-            {selected.length > 0 && (
-              <button
-                onClick={handleIssue}
-                disabled={issuing}
-                className="flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50 transition-colors"
-              >
-                <CheckSquare className="h-4 w-4" />
-                Issue {selected.length} Certificate{selected.length > 1 ? 's' : ''}
-              </button>
-            )}
-          </div>
+          {!isReview && (
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setShowAssignTxns(true)} leftIcon={<Receipt className="h-3.5 w-3.5" />}>
+                Assign Transactions
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => setShowEnroll(true)} leftIcon={<UserPlus className="h-3.5 w-3.5" />}>
+                Enroll Users
+              </Button>
+              {selected.length > 0 && (
+                <button
+                  onClick={handleIssue}
+                  disabled={issuing}
+                  className="flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50 transition-colors"
+                >
+                  <CheckSquare className="h-4 w-4" />
+                  Issue {selected.length} Certificate{selected.length > 1 ? 's' : ''}
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
@@ -351,9 +355,11 @@ export default function AdminBatchDetail() {
             <table className="min-w-full divide-y divide-slate-100">
               <thead className="bg-slate-50">
                 <tr>
-                  <th className="px-4 py-3">
-                    <input type="checkbox" checked={selected.length === orders.length && orders.length > 0} onChange={toggleAll} className="rounded border-slate-300" />
-                  </th>
+                  {!isReview && (
+                    <th className="px-4 py-3">
+                      <input type="checkbox" checked={selected.length === orders.length && orders.length > 0} onChange={toggleAll} className="rounded border-slate-300" />
+                    </th>
+                  )}
                   {['User', 'Amount', 'Status', 'Certificate', 'Date', 'Paid At'].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                   ))}
@@ -362,9 +368,11 @@ export default function AdminBatchDetail() {
               <tbody className="divide-y divide-slate-50">
                 {orders.map((o) => (
                   <tr key={o.id} className={`hover:bg-slate-50 transition-colors ${selected.includes(o.id) ? 'bg-primary-50' : ''}`}>
-                    <td className="px-4 py-3">
-                      <input type="checkbox" checked={selected.includes(o.id)} onChange={() => toggle(o.id)} className="rounded border-slate-300" />
-                    </td>
+                    {!isReview && (
+                      <td className="px-4 py-3">
+                        <input type="checkbox" checked={selected.includes(o.id)} onChange={() => toggle(o.id)} className="rounded border-slate-300" />
+                      </td>
+                    )}
                     <td className="px-4 py-3">
                       <p className="text-sm font-medium text-slate-900">{o.user?.name}</p>
                       <p className="text-xs text-slate-500">{o.user?.email}</p>

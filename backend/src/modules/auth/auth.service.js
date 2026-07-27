@@ -111,7 +111,7 @@ async function loginSuperAdmin(email, password) {
     throw Object.assign(new Error('Invalid credentials'), { statusCode: 401 });
   }
 
-  const tokenPayload = { id: admin.id, email: admin.email, role: 'superadmin' };
+  const tokenPayload = { id: admin.id, email: admin.email, role: 'superadmin', access_level: admin.access_level };
   const tokens = generateTokenPair(tokenPayload);
 
   const { password_hash, ...adminData } = admin;
@@ -156,14 +156,19 @@ async function refreshAccessToken(refreshToken) {
   } else if (decoded.role === 'superadmin') {
     entity = await db.superAdmin.findUnique({
       where: { id: decoded.id },
-      select: { id: true, name: true },
+      select: { id: true, name: true, access_level: true },
     });
     if (!entity) {
       throw Object.assign(new Error('Account not found or inactive'), { statusCode: 401 });
     }
   }
 
-  const tokenPayload = { id: decoded.id, email: decoded.email, role: decoded.role };
+  const tokenPayload = {
+    id: decoded.id,
+    email: decoded.email,
+    role: decoded.role,
+    ...(decoded.role === 'superadmin' && { access_level: entity.access_level }),
+  };
   const accessToken = generateAccessToken(tokenPayload);
 
   const user = {
@@ -171,6 +176,7 @@ async function refreshAccessToken(refreshToken) {
     email: decoded.email,
     role: decoded.role,
     name: entity?.name,
+    ...(decoded.role === 'superadmin' && { access_level: entity.access_level }),
   };
 
   return { accessToken, user };

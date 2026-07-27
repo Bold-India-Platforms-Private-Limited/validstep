@@ -35,7 +35,7 @@ async function updateCompanyStatus(req, res) {
 
 async function getAllBatches(req, res) {
   try {
-    const result = await adminService.getAllBatches(req.query);
+    const result = await adminService.getAllBatches(req.query, req.user?.access_level);
     return sendSuccess(res, result, 'Batches retrieved successfully');
   } catch (err) {
     return sendError(res, err.message, err.statusCode || 500);
@@ -62,12 +62,29 @@ async function updatePricing(req, res) {
 }
 
 async function getWhoami(req, res) {
-  return sendSuccess(res, { ip: req.ip, email: req.user?.email || null, name: req.user?.name || null }, 'Current session info retrieved');
+  const access_level = req.user?.access_level || 'full';
+  const base = {
+    ip: req.ip,
+    email: req.user?.email || null,
+    name: req.user?.name || null,
+    access_level,
+  };
+
+  if (access_level !== 'review') {
+    return sendSuccess(res, base, 'Current session info retrieved');
+  }
+
+  const { getIpGeoInfo } = require('../../utils/ipGeo');
+  const [scope, geo] = await Promise.all([
+    adminService.getReviewScopeCounts(),
+    getIpGeoInfo(req.ip),
+  ]);
+  return sendSuccess(res, { ...base, scope, geo }, 'Current session info retrieved');
 }
 
 async function getDashboard(req, res) {
   try {
-    const stats = await adminService.getDashboardStats();
+    const stats = await adminService.getDashboardStats(req.user?.access_level);
     return sendSuccess(res, stats, 'Admin dashboard stats retrieved');
   } catch (err) {
     return sendError(res, err.message, err.statusCode || 500);
@@ -76,7 +93,7 @@ async function getDashboard(req, res) {
 
 async function getMonthlyAnalytics(req, res) {
   try {
-    const result = await adminService.getMonthlyAnalytics(req.query);
+    const result = await adminService.getMonthlyAnalytics(req.query, req.user?.access_level);
     return sendSuccess(res, result, 'Analytics retrieved');
   } catch (err) {
     return sendError(res, err.message, err.statusCode || 500);
@@ -85,7 +102,7 @@ async function getMonthlyAnalytics(req, res) {
 
 async function getAllPayments(req, res) {
   try {
-    const result = await adminService.getAllPayments(req.query);
+    const result = await adminService.getAllPayments(req.query, req.user?.access_level);
     return sendSuccess(res, result, 'Payments retrieved');
   } catch (err) {
     return sendError(res, err.message, err.statusCode || 500);
@@ -137,7 +154,7 @@ async function downloadInvoice(req, res) {
 
 async function getAdminBatchStats(req, res) {
   try {
-    const stats = await adminService.getAdminBatchStats(req.params.id);
+    const stats = await adminService.getAdminBatchStats(req.params.id, req.user?.access_level);
     return sendSuccess(res, stats, 'Batch stats retrieved');
   } catch (err) {
     return sendError(res, err.message, err.statusCode || 500);
@@ -155,7 +172,7 @@ async function getAdminBatch(req, res) {
 
 async function getAdminBatchOrders(req, res) {
   try {
-    const result = await adminService.getAdminBatchOrders(req.params.id, req.query);
+    const result = await adminService.getAdminBatchOrders(req.params.id, req.query, req.user?.access_level);
     return sendSuccess(res, result, 'Batch orders retrieved');
   } catch (err) {
     return sendError(res, err.message, err.statusCode || 500);
@@ -164,7 +181,7 @@ async function getAdminBatchOrders(req, res) {
 
 async function exportAdminBatchOrders(req, res) {
   try {
-    const rows = await adminService.exportAdminBatchOrders(req.params.id, req.query);
+    const rows = await adminService.exportAdminBatchOrders(req.params.id, req.query, req.user?.access_level);
     return sendSuccess(res, rows, 'Export data retrieved');
   } catch (err) {
     return sendError(res, err.message, err.statusCode || 500);
@@ -173,7 +190,7 @@ async function exportAdminBatchOrders(req, res) {
 
 async function getAdminBatchCertificates(req, res) {
   try {
-    const result = await adminService.getAdminBatchCertificates(req.params.id, req.query);
+    const result = await adminService.getAdminBatchCertificates(req.params.id, req.query, req.user?.access_level);
     return sendSuccess(res, result, 'Certificates retrieved');
   } catch (err) {
     return sendError(res, err.message, err.statusCode || 500);
@@ -195,7 +212,7 @@ async function issueCertificatesAdmin(req, res) {
 
 async function getAdminInvoices(req, res) {
   try {
-    const result = await adminService.getAllInvoices(req.query);
+    const result = await adminService.getAllInvoices(req.query, req.user?.access_level);
     return sendSuccess(res, result, 'Invoices retrieved');
   } catch (err) {
     return sendError(res, err.message, err.statusCode || 500);
@@ -204,7 +221,7 @@ async function getAdminInvoices(req, res) {
 
 async function listUsers(req, res) {
   try {
-    const result = await adminService.listUsers(req.query);
+    const result = await adminService.listUsers(req.query, req.user?.access_level);
     return sendSuccess(res, result, 'Users retrieved successfully');
   } catch (err) {
     return sendError(res, err.message, err.statusCode || 500);
@@ -223,6 +240,33 @@ async function deleteUsers(req, res) {
 async function resendUserPassword(req, res) {
   try {
     const result = await adminService.resendUserPassword(req.params.userId);
+    return sendSuccess(res, result, 'System-generated password sent');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function deleteCompany(req, res) {
+  try {
+    const result = await adminService.deleteCompany(req.params.id);
+    return sendSuccess(res, result, 'Organization deleted');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function deleteCompanyBatch(req, res) {
+  try {
+    const result = await adminService.deleteBatch(req.params.companyId, req.params.id);
+    return sendSuccess(res, result, 'Batch deleted');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function resendCompanyPassword(req, res) {
+  try {
+    const result = await adminService.resendCompanyPassword(req.params.id);
     return sendSuccess(res, result, 'System-generated password sent');
   } catch (err) {
     return sendError(res, err.message, err.statusCode || 500);
@@ -318,7 +362,7 @@ async function assignTransactionsToBatch(req, res) {
 
 async function getOrderLog(req, res) {
   try {
-    const result = await adminService.getOrderLog(req.query);
+    const result = await adminService.getOrderLog(req.query, req.user?.access_level);
     return sendSuccess(res, result, 'Order log retrieved');
   } catch (err) {
     return sendError(res, err.message, err.statusCode || 500);
@@ -327,7 +371,7 @@ async function getOrderLog(req, res) {
 
 async function getOrderDetail(req, res) {
   try {
-    const result = await adminService.getOrderDetail(req.params.orderId);
+    const result = await adminService.getOrderDetail(req.params.orderId, req.user?.access_level);
     return sendSuccess(res, result, 'Order detail retrieved');
   } catch (err) {
     return sendError(res, err.message, err.statusCode || 500);
@@ -420,6 +464,9 @@ module.exports = {
   issueCertificatesAdmin,
   listUsers,
   deleteUsers,
+  deleteCompany,
+  deleteCompanyBatch,
+  resendCompanyPassword,
   resendUserPassword,
   resendCertificateEmail,
   createUser,

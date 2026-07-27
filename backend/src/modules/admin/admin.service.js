@@ -13,6 +13,11 @@ const { parseTransactionReport, looksLikePayuTransactionReport } = require('../.
 const { logDeliveryEvent } = require('../../utils/deliveryLog');
 const env = require('../../config/env');
 
+// The PayU-review demo admin account is scoped to only these 2 customers' data —
+// requested so reviewers validating the transaction flow never see real business scale.
+const REVIEW_ALLOWED_EMAILS = ['sasianupalli@gmail.com', 'shriti2304@gmail.com'];
+const isReviewLevel = (accessLevel) => accessLevel === 'review';
+
 /**
  * certificate_serial is globally unique across every order, but Batch.id_prefix defaults to
  * the same "CERT" value for every batch and each batch's id_counter increments independently
@@ -167,15 +172,19 @@ async function getAdminBatchById(batchId) {
 /**
  * Get order stats for a batch (counts by status + revenue)
  */
-async function getAdminBatchStats(batchId) {
+async function getAdminBatchStats(batchId, accessLevel) {
+  const where = {
+    batch_id: batchId,
+    ...(isReviewLevel(accessLevel) && { user: { email: { in: REVIEW_ALLOWED_EMAILS } } }),
+  };
   const [grouped, revenue] = await Promise.all([
     db.order.groupBy({
       by: ['status'],
-      where: { batch_id: batchId },
+      where,
       _count: { id: true },
     }),
     db.order.aggregate({
-      where: { batch_id: batchId, status: 'PAID' },
+      where: { ...where, status: 'PAID' },
       _sum: { amount: true },
       _count: { id: true },
     }),
@@ -196,13 +205,14 @@ async function getAdminBatchStats(batchId) {
 /**
  * Get orders for a batch (admin — no company restriction)
  */
-async function getAdminBatchOrders(batchId, query = {}) {
+async function getAdminBatchOrders(batchId, query = {}, accessLevel) {
   const { page = 1, limit = 100, status } = query;
   const skip = (page - 1) * Number(limit);
 
   const where = {
     batch_id: batchId,
     ...(status && { status }),
+    ...(isReviewLevel(accessLevel) && { user: { email: { in: REVIEW_ALLOWED_EMAILS } } }),
   };
 
   const include = {
@@ -243,10 +253,14 @@ async function getAdminBatchOrders(batchId, query = {}) {
 /**
  * Export all orders for a batch (admin — no pagination)
  */
-async function exportAdminBatchOrders(batchId, query = {}) {
+async function exportAdminBatchOrders(batchId, query = {}, accessLevel) {
   const { status } = query;
 
-  const where = { batch_id: batchId, ...(status && { status }) };
+  const where = {
+    batch_id: batchId,
+    ...(status && { status }),
+    ...(isReviewLevel(accessLevel) && { user: { email: { in: REVIEW_ALLOWED_EMAILS } } }),
+  };
 
   const orders = await db.order.findMany({
     where,
@@ -285,19 +299,23 @@ async function exportAdminBatchOrders(batchId, query = {}) {
 /**
  * Get issued certificates for a batch (admin)
  */
-async function getAdminBatchCertificates(batchId, query = {}) {
+async function getAdminBatchCertificates(batchId, query = {}, accessLevel) {
   const { page = 1, limit = 50 } = query;
   const skip = (page - 1) * Number(limit);
+  const where = {
+    batch_id: batchId,
+    ...(isReviewLevel(accessLevel) && { user: { email: { in: REVIEW_ALLOWED_EMAILS } } }),
+  };
 
   const [certificates, total] = await Promise.all([
     db.certificate.findMany({
-      where: { batch_id: batchId },
+      where,
       skip,
       take: Number(limit),
       orderBy: { issued_at: 'desc' },
       include: { user: { select: { id: true, name: true, email: true } } },
     }),
-    db.certificate.count({ where: { batch_id: batchId } }),
+    db.certificate.count({ where }),
   ]);
 
   return {
@@ -391,9 +409,11 @@ async function updateCompanyStatus(id, data) {
 /**
  * Get all batches (admin view)
  */
-async function getAllBatches(query = {}) {
+async function getAllBatches(query = {}, accessLevel) {
   const { page = 1, limit = 20, status, company_id, search } = query;
   const skip = (page - 1) * limit;
+  const restricted = isReviewLevel(accessLevel);
+  const reviewUserFilter = { user: { email: { in: REVIEW_ALLOWED_EMAILS } } };
 
   const where = {
     ...(status && { status }),
@@ -416,7 +436,12 @@ async function getAllBatches(query = {}) {
       include: {
         company: { select: { id: true, name: true, email: true } },
         program: { select: { type: true, name: true } },
-        _count: { select: { orders: true, certificates: true } },
+        _count: {
+          select: {
+            orders: restricted ? { where: reviewUserFilter } : true,
+            certificates: restricted ? { where: reviewUserFilter } : true,
+          },
+        },
       },
     }),
     db.batch.count({ where }),
@@ -464,30 +489,50 @@ async function updatePricingConfig(program_type, default_price) {
  * calendar month, zero-filled so months with no activity still show a bar at 0 rather
  * than being skipped.
  */
-async function getMonthlyAnalytics(query = {}) {
+async function getMonthlyAnalytics(query = {}, accessLevel) {
   const months = Math.min(Number(query.months) || 12, 24);
   const since = new Date();
   since.setUTCDate(1);
   since.setUTCHours(0, 0, 0, 0);
   since.setUTCMonth(since.getUTCMonth() - (months - 1));
+  const restricted = isReviewLevel(accessLevel);
 
   const [revenueRows, customerRows] = await Promise.all([
-    db.$queryRaw`
-      SELECT to_char(date_trunc('month', created_at), 'YYYY-MM') AS month,
-             COALESCE(SUM(amount), 0) AS revenue
-      FROM orders
-      WHERE status = 'PAID' AND created_at >= ${since}
-      GROUP BY 1
-      ORDER BY 1
-    `,
-    db.$queryRaw`
-      SELECT to_char(date_trunc('month', created_at), 'YYYY-MM') AS month,
-             COUNT(*) AS customers
-      FROM users
-      WHERE created_at >= ${since}
-      GROUP BY 1
-      ORDER BY 1
-    `,
+    restricted
+      ? db.$queryRaw`
+          SELECT to_char(date_trunc('month', o.created_at), 'YYYY-MM') AS month,
+                 COALESCE(SUM(o.amount), 0) AS revenue
+          FROM orders o
+          JOIN users u ON u.id = o.user_id
+          WHERE o.status = 'PAID' AND o.created_at >= ${since} AND u.email = ANY(${REVIEW_ALLOWED_EMAILS})
+          GROUP BY 1
+          ORDER BY 1
+        `
+      : db.$queryRaw`
+          SELECT to_char(date_trunc('month', created_at), 'YYYY-MM') AS month,
+                 COALESCE(SUM(amount), 0) AS revenue
+          FROM orders
+          WHERE status = 'PAID' AND created_at >= ${since}
+          GROUP BY 1
+          ORDER BY 1
+        `,
+    restricted
+      ? db.$queryRaw`
+          SELECT to_char(date_trunc('month', created_at), 'YYYY-MM') AS month,
+                 COUNT(*) AS customers
+          FROM users
+          WHERE created_at >= ${since} AND email = ANY(${REVIEW_ALLOWED_EMAILS})
+          GROUP BY 1
+          ORDER BY 1
+        `
+      : db.$queryRaw`
+          SELECT to_char(date_trunc('month', created_at), 'YYYY-MM') AS month,
+                 COUNT(*) AS customers
+          FROM users
+          WHERE created_at >= ${since}
+          GROUP BY 1
+          ORDER BY 1
+        `,
   ]);
 
   const revenueByMonth = new Map(revenueRows.map((r) => [r.month, Number(r.revenue)]));
@@ -506,8 +551,16 @@ async function getMonthlyAnalytics(query = {}) {
     cursor.setUTCMonth(cursor.getUTCMonth() + 1);
   }
 
+  const orderWhere = restricted ? { user: { email: { in: REVIEW_ALLOWED_EMAILS } } } : {};
+  const statusGroups = await db.order.groupBy({ by: ['status'], where: orderWhere, _count: { id: true } });
+  const statusBreakdown = ['PENDING', 'PAID', 'FAILED', 'REFUNDED'].map((status) => ({
+    status,
+    count: statusGroups.find((g) => g.status === status)?._count.id || 0,
+  }));
+
   return {
     series,
+    statusBreakdown,
     totals: {
       revenue: series.reduce((sum, m) => sum + m.revenue, 0),
       customers: series.reduce((sum, m) => sum + m.customers, 0),
@@ -518,10 +571,22 @@ async function getMonthlyAnalytics(query = {}) {
 /**
  * Get global dashboard stats
  */
-async function getDashboardStats() {
+async function getDashboardStats(accessLevel) {
+  const restricted = isReviewLevel(accessLevel);
+  // Review accounts never hit the shared cache (it holds the real, unrestricted totals) —
+  // recomputed scoped every time instead.
   const cacheKey = 'admin:dashboard';
-  const cached = await redisGet(cacheKey);
-  if (cached) return JSON.parse(cached);
+  if (!restricted) {
+    const cached = await redisGet(cacheKey);
+    if (cached) return JSON.parse(cached);
+  }
+
+  const userWhere = restricted ? { email: { in: REVIEW_ALLOWED_EMAILS } } : {};
+  const orderWhere = restricted ? { user: { email: { in: REVIEW_ALLOWED_EMAILS } } } : {};
+  // A company/batch counts as "in scope" for the review account if at least one of its
+  // orders belongs to one of the two allowed customers.
+  const companyWhere = restricted ? { orders: { some: orderWhere } } : {};
+  const batchWhere = restricted ? { orders: { some: orderWhere } } : {};
 
   const [
     totalCompanies,
@@ -538,23 +603,26 @@ async function getDashboardStats() {
     recentCompanies,
     recentOrders,
   ] = await Promise.all([
-    db.company.count(),
-    db.company.count({ where: { is_active: true } }),
-    db.company.count({ where: { is_verified: true } }),
-    db.batch.count(),
-    db.batch.count({ where: { status: 'ACTIVE' } }),
-    db.user.count(),
-    db.order.count(),
-    db.order.count({ where: { status: 'PAID' } }),
-    db.certificate.count(),
-    db.certificate.count({ where: { is_issued: true } }),
-    db.order.aggregate({ where: { status: 'PAID' }, _sum: { amount: true } }),
-    db.company.findMany({
-      take: 5,
-      orderBy: { created_at: 'desc' },
-      select: { id: true, name: true, email: true, is_verified: true, created_at: true },
-    }),
+    db.company.count({ where: companyWhere }),
+    db.company.count({ where: { ...companyWhere, is_active: true } }),
+    db.company.count({ where: { ...companyWhere, is_verified: true } }),
+    db.batch.count({ where: batchWhere }),
+    db.batch.count({ where: { ...batchWhere, status: 'ACTIVE' } }),
+    db.user.count({ where: userWhere }),
+    db.order.count({ where: orderWhere }),
+    db.order.count({ where: { ...orderWhere, status: 'PAID' } }),
+    db.certificate.count({ where: restricted ? { user: userWhere } : {} }),
+    db.certificate.count({ where: { ...(restricted ? { user: userWhere } : {}), is_issued: true } }),
+    db.order.aggregate({ where: { ...orderWhere, status: 'PAID' }, _sum: { amount: true } }),
+    restricted
+      ? Promise.resolve([])
+      : db.company.findMany({
+          take: 5,
+          orderBy: { created_at: 'desc' },
+          select: { id: true, name: true, email: true, is_verified: true, created_at: true },
+        }),
     db.order.findMany({
+      where: orderWhere,
       take: 5,
       orderBy: { created_at: 'desc' },
       include: {
@@ -576,20 +644,39 @@ async function getDashboardStats() {
     recent_orders: recentOrders,
   };
 
-  await redisSet(cacheKey, JSON.stringify(stats), 120); // 2 min cache
+  if (!restricted) await redisSet(cacheKey, JSON.stringify(stats), 120); // 2 min cache
   return stats;
+}
+
+/**
+ * Sidebar nav badge counts for the review/demo account — how many orders, users, batches,
+ * and organizations are in its scope (the two allowed customers only).
+ */
+async function getReviewScopeCounts() {
+  const orderWhere = { user: { email: { in: REVIEW_ALLOWED_EMAILS } } };
+  const [orders, users, batches, companies] = await Promise.all([
+    db.order.count({ where: orderWhere }),
+    db.user.count({ where: { email: { in: REVIEW_ALLOWED_EMAILS } } }),
+    db.batch.count({ where: { orders: { some: orderWhere } } }),
+    db.company.count({ where: { orders: { some: orderWhere } } }),
+  ]);
+  return { orders, users, batches, companies };
 }
 
 /**
  * Get all payments (admin view)
  */
-async function getAllPayments(query = {}) {
+async function getAllPayments(query = {}, accessLevel) {
   const { page = 1, limit = 20, status, company_id } = query;
   const skip = (page - 1) * limit;
 
+  const orderFilter = {
+    ...(company_id && { company_id }),
+    ...(isReviewLevel(accessLevel) && { user: { email: { in: REVIEW_ALLOWED_EMAILS } } }),
+  };
   const where = {
     ...(status && { status }),
-    ...(company_id && { order: { company_id } }),
+    ...(Object.keys(orderFilter).length && { order: orderFilter }),
   };
 
   const [payments, total] = await Promise.all([
@@ -640,13 +727,18 @@ async function getOrderForInvoice(orderId) {
  * scale (thousands of rows per quarter), revisit with a DB-level UNION if volume grows much
  * further.
  */
-async function getAllInvoices(query = {}) {
+async function getAllInvoices(query = {}, accessLevel) {
   const { page = 1, limit = 20, search, company_id } = query;
   const pageNum = Number(page);
   const limitNum = Number(limit);
+  const restricted = isReviewLevel(accessLevel);
 
+  const orderFilter = {
+    ...(company_id && { company_id }),
+    ...(restricted && { user: { email: { in: REVIEW_ALLOWED_EMAILS } } }),
+  };
   const where = {
-    ...(company_id && { order: { company_id } }),
+    ...(Object.keys(orderFilter).length && { order: orderFilter }),
     ...(search && {
       OR: [
         { invoice_number: { contains: search, mode: 'insensitive' } },
@@ -680,7 +772,7 @@ async function getAllInvoices(query = {}) {
   });
 
   let payuInvoices = [];
-  if (!company_id) {
+  if (!company_id && !restricted) {
     const payuWhere = {
       status: 'captured',
       source_channel: 'PAYU_BUTTON',
@@ -794,11 +886,12 @@ async function createCompany({ name, email, phone, website, description }) {
 /**
  * Get all users (admin view) — paginated, with each row's recent batch enrollments.
  */
-async function listUsers(query = {}) {
+async function listUsers(query = {}, accessLevel) {
   const { page = 1, limit = 20, search, company_id, batch_id } = query;
   const skip = (page - 1) * limit;
 
   const where = {
+    ...(isReviewLevel(accessLevel) && { email: { in: REVIEW_ALLOWED_EMAILS } }),
     ...(search && {
       OR: [
         { name: { contains: search, mode: 'insensitive' } },
@@ -840,8 +933,27 @@ async function listUsers(query = {}) {
     db.user.count({ where }),
   ]);
 
+  // "Joined" should read as the real transaction (PayU payment) date, not `user.created_at` —
+  // for Excel/bulk-imported customers, created_at is just whenever the import ran, which can
+  // trail the actual payment by days or weeks and misleads admins reading the table.
+  const earliestOrders = await db.order.findMany({
+    where: { user_id: { in: users.map((u) => u.id) } },
+    select: {
+      user_id: true,
+      created_at: true,
+      payments: { select: { created_at: true }, orderBy: { created_at: 'asc' }, take: 1 },
+    },
+  });
+  const joinedAtByUser = new Map();
+  for (const o of earliestOrders) {
+    const txnDate = o.payments[0]?.created_at || o.created_at;
+    const existing = joinedAtByUser.get(o.user_id);
+    if (!existing || txnDate < existing) joinedAtByUser.set(o.user_id, txnDate);
+  }
+  const usersWithJoinedAt = users.map((u) => ({ ...u, joined_at: joinedAtByUser.get(u.id) || u.created_at }));
+
   return {
-    users,
+    users: usersWithJoinedAt,
     pagination: { total, page: Number(page), limit: Number(limit), pages: Math.ceil(total / limit) },
   };
 }
@@ -883,6 +995,70 @@ async function deleteUsers(userIds = []) {
   }
 
   return { deleted: deletableIds.length, errors };
+}
+
+/**
+ * Admin-triggered delete for an organization — only allowed if it has never had a real
+ * order or certificate under it, so a click can't ever destroy paid customer history.
+ * Empty/test organizations (and their still-empty programs/batches) cascade-delete fine
+ * since there's nothing under them to lose.
+ */
+async function deleteCompany(companyId) {
+  const company = await db.company.findUnique({
+    where: { id: companyId },
+    select: { id: true, _count: { select: { orders: true, certificates: true } } },
+  });
+  if (!company) throw Object.assign(new Error('Organization not found'), { statusCode: 404 });
+  if (company._count.orders > 0 || company._count.certificates > 0) {
+    throw Object.assign(
+      new Error('Cannot delete — this organization has orders or certificates on record'),
+      { statusCode: 409 }
+    );
+  }
+  await db.company.delete({ where: { id: companyId } });
+  return { success: true };
+}
+
+/**
+ * Admin-triggered delete for a batch — same real-activity guard as deleteCompany.
+ */
+async function deleteBatch(companyId, batchId) {
+  const batch = await db.batch.findFirst({
+    where: { id: batchId, company_id: companyId },
+    select: { id: true, _count: { select: { orders: true, certificates: true } } },
+  });
+  if (!batch) throw Object.assign(new Error('Batch not found'), { statusCode: 404 });
+  if (batch._count.orders > 0 || batch._count.certificates > 0) {
+    throw Object.assign(
+      new Error('Cannot delete — this batch has orders or certificates on record'),
+      { statusCode: 409 }
+    );
+  }
+  await db.batch.delete({ where: { id: batchId } });
+  return { success: true };
+}
+
+/**
+ * Admin-triggered "resend credentials" action for an organization login — same pattern as
+ * resendUserPassword, for when a company admin never got (or lost) their original
+ * set-password email.
+ */
+async function resendCompanyPassword(companyId) {
+  const company = await db.company.findUnique({ where: { id: companyId } });
+  if (!company) throw Object.assign(new Error('Organization not found'), { statusCode: 404 });
+
+  const newPassword = generateRandomToken(8);
+  const password_hash = await hashPassword(newPassword);
+  await db.company.update({ where: { id: companyId }, data: { password_hash } });
+
+  await sendSystemGeneratedPasswordEmail({
+    name: company.name,
+    email: company.email,
+    password: newPassword,
+    loginUrl: `${env.FRONTEND_URL}/auth/company/login`,
+  });
+
+  return { success: true };
 }
 
 /**
@@ -1488,7 +1664,7 @@ async function assignTransactionsToBatch({ company_id, batch_id, payu_ids }) {
  * report, and here's the participant enrollment record it produced." Includes transactions
  * that haven't been assigned to a batch yet (shown as unlinked) so nothing imported is hidden.
  */
-async function getOrderLog(query = {}) {
+async function getOrderLog(query = {}, accessLevel) {
   const { page = 1, limit = 20, from, to, status, company_id, search } = query;
   const skip = (page - 1) * limit;
 
@@ -1501,6 +1677,7 @@ async function getOrderLog(query = {}) {
   }
 
   const where = {
+    ...(isReviewLevel(accessLevel) && { user: { email: { in: REVIEW_ALLOWED_EMAILS } } }),
     ...(Object.keys(createdRange).length && { created_at: createdRange }),
     ...(status && { status }),
     ...(company_id && { company_id }),
@@ -1564,7 +1741,7 @@ async function getOrderLog(query = {}) {
  * generated/downloaded, invoice downloaded), how many times its certificate has been
  * verified, and any queries the customer has raised about it.
  */
-async function getOrderDetail(orderId) {
+async function getOrderDetail(orderId, accessLevel) {
   const order = await db.order.findUnique({
     where: { id: orderId },
     include: {
@@ -1577,6 +1754,9 @@ async function getOrderDetail(orderId) {
     },
   });
   if (!order) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
+  if (isReviewLevel(accessLevel) && !REVIEW_ALLOWED_EMAILS.includes(order.user?.email)) {
+    throw Object.assign(new Error('Order not found'), { statusCode: 404 });
+  }
 
   const [events, verificationCount, queries] = await Promise.all([
     db.deliveryEvent.findMany({
@@ -1612,6 +1792,7 @@ module.exports = {
   getPricingConfigs,
   updatePricingConfig,
   getDashboardStats,
+  getReviewScopeCounts,
   getMonthlyAnalytics,
   getAdminBatchById,
   getAdminBatchStats,
@@ -1621,6 +1802,9 @@ module.exports = {
   issueCertificatesAdmin,
   listUsers,
   deleteUsers,
+  deleteCompany,
+  deleteBatch,
+  resendCompanyPassword,
   resendUserPassword,
   resendCertificateEmail,
   registerUserForBatch,

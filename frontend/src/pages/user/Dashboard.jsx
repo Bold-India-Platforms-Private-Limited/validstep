@@ -23,7 +23,6 @@ const DELIVERY_EVENT_LABELS = {
   CERTIFICATE_GENERATED: 'Certificate generated',
   CERTIFICATE_ISSUED_EMAIL_SENT: 'Certificate issued email sent',
   CERTIFICATE_DOWNLOADED: 'Certificate downloaded',
-  INVOICE_DOWNLOADED: 'Invoice downloaded',
 }
 
 function RaiseQueryModal({ open, onClose, orders }) {
@@ -293,7 +292,7 @@ export default function UserDashboard() {
           </h2>
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="space-y-3">
-              {deliveryLog.events.filter((e) => e.event !== 'USER_CREATED').map((e) => (
+              {deliveryLog.events.filter((e) => e.event !== 'USER_CREATED' && e.event !== 'INVOICE_DOWNLOADED').map((e) => (
                 <div key={e.id} className="flex items-start gap-3">
                   <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary-500" />
                   <div className="min-w-0 flex-1">
