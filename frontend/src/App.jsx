@@ -108,13 +108,26 @@ export default function App() {
     }
 
     let cancelled = false
+    const callRefresh = () => axios.post(
+      `${import.meta.env.VITE_API_URL}/auth/refresh`,
+      {},
+      { withCredentials: true },
+    )
     const restoreSession = async () => {
       try {
-        const response = await axios.post(
-          `${import.meta.env.VITE_API_URL}/auth/refresh`,
-          {},
-          { withCredentials: true },
-        )
+        let response
+        try {
+          response = await callRefresh()
+        } catch (err) {
+          // A 401 means the refresh token itself is invalid/expired — genuinely logged out,
+          // no point retrying. Anything else (a 500, a network blip, a mid-deploy restart)
+          // is transient — one retry after a short delay keeps a brief server hiccup from
+          // silently logging out every admin on their next page refresh.
+          if (err.response?.status === 401 || cancelled) throw err
+          await new Promise((r) => setTimeout(r, 1200))
+          if (cancelled) return
+          response = await callRefresh()
+        }
         if (cancelled) return
         const data = response.data?.data ?? response.data
         const { accessToken, user } = data
