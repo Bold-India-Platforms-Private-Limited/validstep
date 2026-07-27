@@ -31,6 +31,7 @@ jobs:
             cp --remove-destination /home/ec2-user/.secrets/.env.validstep backend/.env
             cd backend
             npm install --omit=dev
+            npx prisma generate
             npx prisma migrate deploy
 
             pm2 reload validstep --update-env

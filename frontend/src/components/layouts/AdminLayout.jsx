@@ -117,8 +117,8 @@ export function AdminLayout({ children }) {
         {isReview ? (
           <button
             type="button"
-            onClick={() => toast.error('For Dummy Account, not allowed to enter in Accounting')}
-            title="For Dummy Account, not allowed to enter in Accounting"
+            onClick={() => toast.error('For Admin AC, not allowed to enter in Accounting')}
+            title="For Admin AC, not allowed to enter in Accounting"
             className={`flex w-full items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-400 cursor-not-allowed ${collapsed ? 'justify-center' : ''}`}
           >
             <Lock className="h-4 w-4 shrink-0" /> {!collapsed && 'Accounting Panel'}
@@ -214,7 +214,7 @@ export function AdminLayout({ children }) {
           <div className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-800 md:px-6">
             <Eye className="h-3.5 w-3.5 shrink-0" />
             <span className="flex-1">
-              For company and customer privacy and security, this Dummy Account has been granted access to only 2 customers' transaction data. All other records, along with full admin actions, features and Master Accounting, are prohibited for this account.
+              For company and customer privacy and security, this Admin AC has been granted access to only 2 customers' transaction data. All other records, along with full admin actions, features and Master Accounting, are prohibited for this account.
             </span>
             <button
               onClick={() => setNoticeDismissed(true)}
@@ -230,7 +230,7 @@ export function AdminLayout({ children }) {
             <>
               <div className="pointer-events-none fixed inset-0 z-30 flex items-center justify-center overflow-hidden">
                 <span className="rotate-[-30deg] select-none whitespace-nowrap text-6xl font-bold text-slate-900/[0.06] md:text-8xl">
-                  DUMMY ACCOUNT — VIEW ONLY
+                  Admin AC — VIEW ONLY
                 </span>
               </div>
               <div className="pointer-events-none fixed bottom-3 right-3 z-30 max-w-[260px] rounded-lg bg-slate-900/5 px-3 py-2 text-right text-[10px] leading-tight text-slate-400">
