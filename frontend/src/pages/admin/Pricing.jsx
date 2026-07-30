@@ -70,16 +70,22 @@ export default function AdminPricing() {
             leftIcon={<DollarSign className="h-4 w-4" />}
             {...register('min_certificate_price')}
           />
-          <Input
-            label="GST (%)"
-            type="number"
-            min="0"
-            max="100"
-            step="0.01"
-            placeholder="e.g. 18"
-            leftIcon={<DollarSign className="h-4 w-4" />}
-            {...register('gst_percent')}
-          />
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-medium text-slate-700">GST (%)</label>
+              <span className="text-xs font-medium text-amber-600">GST Not in Use</span>
+            </div>
+            <Input
+              type="number"
+              min="0"
+              max="100"
+              step="0.01"
+              placeholder="e.g. 18"
+              leftIcon={<DollarSign className="h-4 w-4" />}
+              disabled
+              {...register('gst_percent')}
+            />
+          </div>
 
           {data && (
             <div className="rounded-lg bg-slate-50 p-4 text-sm">
