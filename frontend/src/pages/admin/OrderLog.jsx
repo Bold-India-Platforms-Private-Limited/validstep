@@ -430,7 +430,8 @@ function OrderDetailModal({ orderId, onClose }) {
               </p>
               {isReview && (
                 <p className="mb-3 flex items-center gap-1.5 text-xs font-medium text-amber-700">
-                  <Lock className="h-3.5 w-3.5" /> View only — the Dummy Admin Account cannot send certificate emails.
+                  <Lock className="h-3.5 w-3.5" /> View only — This Admin Account cannot send certificate emails.
+
                 </p>
               )}
               <button

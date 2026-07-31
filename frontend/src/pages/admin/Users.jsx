@@ -14,7 +14,6 @@ import { Pagination } from '../../components/ui/Pagination'
 import { Modal } from '../../components/ui/Modal'
 import { Input, Select } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
-import { formatDate } from '../../utils/formatDate'
 
 const addUserSchema = z.object({
   name: z.string().min(2, 'Name required'),
@@ -293,7 +292,7 @@ export default function AdminUsers() {
                   <th className="px-4 py-3">
                     <input type="checkbox" checked={selected.length === users.length && users.length > 0} onChange={toggleAll} className="rounded border-slate-300" />
                   </th>
-                  {['Name', 'Email', 'Phone', 'Organization / Batch', 'Joined'].map((h) => (
+                  {['Name', 'Email', 'Phone', 'Organization / Batch'].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
@@ -321,7 +320,6 @@ export default function AdminUsers() {
                         ))}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-slate-500">{formatDate(u.created_at)}</td>
                   </tr>
                 ))}
               </tbody>
