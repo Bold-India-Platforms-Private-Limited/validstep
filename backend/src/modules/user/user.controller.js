@@ -60,7 +60,7 @@ async function downloadInvoice(req, res) {
     const pdfBuffer = await generateInvoicePDF({
       orderId: order.id,
       invoiceNumber: invoiceRecord.invoice_number,
-      invoiceDate: invoiceRecord.generated_at,
+      invoiceDate: invoiceRecord.paid_at || payment?.created_at || invoiceRecord.generated_at,
       userName: order.user.name,
       userEmail: order.user.email,
       userPhone: order.user.phone || '',

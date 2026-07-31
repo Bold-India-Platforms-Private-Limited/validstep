@@ -13,7 +13,10 @@ async function getOrCreateInvoiceRecord(orderId) {
   if (!invoice) {
     const order = await db.order.findUnique({
       where: { id: orderId },
-      select: { certificate_serial: true, amount: true, currency: true, payu_txn_id: true, status: true },
+      select: {
+        certificate_serial: true, amount: true, currency: true, payu_txn_id: true, status: true,
+        payments: { where: { status: 'SUCCESS' }, orderBy: { created_at: 'desc' }, take: 1, select: { created_at: true } },
+      },
     });
     if (!order) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
 
@@ -26,7 +29,7 @@ async function getOrCreateInvoiceRecord(orderId) {
         amount: order.amount,
         currency: order.currency,
         payu_txn_id: order.payu_txn_id || null,
-        paid_at: order.status === 'PAID' ? new Date() : null,
+        paid_at: order.status === 'PAID' ? (order.payments[0]?.created_at || new Date()) : null,
       },
       update: {},
     });
