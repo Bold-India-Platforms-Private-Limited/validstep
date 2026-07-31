@@ -17,7 +17,7 @@ async function getCompanies(req, res) {
 
 async function getCompanyById(req, res) {
   try {
-    const company = await adminService.getCompanyById(req.params.id);
+    const company = await adminService.getCompanyById(req.params.id, req.user?.access_level);
     return sendSuccess(res, company, 'Company retrieved successfully');
   } catch (err) {
     return sendError(res, err.message, err.statusCode || 500);

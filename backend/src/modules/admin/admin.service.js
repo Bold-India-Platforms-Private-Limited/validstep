@@ -115,7 +115,10 @@ async function getCompanies(query = {}) {
 /**
  * Get a single company by ID (includes programs → batches)
  */
-async function getCompanyById(id) {
+async function getCompanyById(id, accessLevel) {
+  const restricted = isReviewLevel(accessLevel);
+  const countFilter = restricted ? { where: { user: { email: { in: REVIEW_ALLOWED_EMAILS } } } } : true;
+
   const company = await db.company.findUnique({
     where: { id },
     include: {
@@ -125,13 +128,13 @@ async function getCompanyById(id) {
           batches: {
             orderBy: { created_at: 'desc' },
             include: {
-              _count: { select: { orders: true, certificates: true } },
+              _count: { select: { orders: countFilter, certificates: countFilter } },
             },
           },
         },
       },
       _count: {
-        select: { batches: true, orders: true, certificates: true },
+        select: { batches: true, orders: countFilter, certificates: countFilter },
       },
     },
   });
