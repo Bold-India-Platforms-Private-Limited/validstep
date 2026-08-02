@@ -46,6 +46,14 @@ const env = {
 
   STORAGE_BASE_URL: process.env.STORAGE_BASE_URL || 'http://localhost:5000/uploads',
 
+  // Cloudflare R2 (S3-compatible) — used for admin-uploaded custom certificates.
+  // Not in requiredVars: the server must still boot without these set.
+  CLOUDFLARE_R2_ACCOUNT_ID: process.env.CLOUDFLARE_R2_ACCOUNT_ID || '',
+  CLOUDFLARE_R2_ACCESS_KEY_ID: process.env.CLOUDFLARE_R2_ACCESS_KEY_ID || '',
+  CLOUDFLARE_R2_SECRET_ACCESS_KEY: process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY || '',
+  CLOUDFLARE_R2_BUCKET_NAME: process.env.CLOUDFLARE_R2_BUCKET_NAME || '',
+  CLOUDFLARE_R2_PUBLIC_URL: process.env.CLOUDFLARE_R2_PUBLIC_URL || '',
+
   // No GSTIN yet. Once registered, set both — invoices only show a GST breakdown for
   // orders paid on/after GST_EFFECTIVE_FROM, so past invoices never retroactively gain
   // GST just because they're re-downloaded after registration (see invoiceGenerator.js).

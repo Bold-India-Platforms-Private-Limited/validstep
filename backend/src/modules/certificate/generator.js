@@ -4,6 +4,7 @@ const { PDFDocument, rgb, StandardFonts, degrees } = require('pdf-lib');
 const QRCode = require('qrcode');
 const https = require('https');
 const http = require('http');
+const sharp = require('sharp');
 const env = require('../../config/env');
 
 /**
@@ -757,6 +758,172 @@ async function generateCustomTemplate(data, template) {
   return Buffer.from(pdfBytes);
 }
 
+const BADGE_TEXT = 'Securely Issued & Verified via Validstep';
+
+function escapeXml(text) {
+  return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// The org's own green-verify badge glyph (14x14 viewBox: scalloped seal + checkmark),
+// taken directly from greenverify.svg — used as-is for the checkmark stamped on certificates.
+const GREEN_VERIFY_BADGE_PATH = 'M13.5094 6.37968C13.7969 6.74324 13.7969 7.25676 13.5094 7.62032L12.8223 8.48909C12.6763 8.67375 12.6001 8.90401 12.6071 9.13934L12.64 10.2387C12.6537 10.6963 12.355 11.1047 11.9148 11.2303L10.7996 11.5484C10.5783 11.6115 10.3855 11.7491 10.2539 11.9377L9.59794 12.8776C9.34115 13.2455 8.8707 13.3974 8.44724 13.249L7.33066 12.8578C7.1166 12.7828 6.8834 12.7828 6.66934 12.8578L5.55277 13.249C5.1293 13.3974 4.65886 13.2455 4.40206 12.8776L3.74615 11.9377C3.61446 11.7491 3.42173 11.6116 3.20045 11.5484L2.08521 11.2303C1.64502 11.1047 1.3463 10.6963 1.36 10.2387L1.3929 9.13934C1.39995 8.90402 1.32374 8.67376 1.1777 8.4891L0.490601 7.62032C0.203063 7.25676 0.203063 6.74324 0.490602 6.37968L1.1777 5.51091C1.32374 5.32625 1.39995 5.09599 1.3929 4.86066L1.36 3.76129C1.3463 3.30375 1.64502 2.89532 2.08521 2.76974L3.20045 2.45158C3.42172 2.38845 3.61446 2.25095 3.74615 2.06225L4.40206 1.12242C4.65885 0.754469 5.12929 0.60261 5.55276 0.750978L6.66934 1.14219C6.8834 1.21719 7.1166 1.21719 7.33066 1.14219L8.44723 0.750977C8.87069 0.602608 9.34114 0.754465 9.59794 1.12242L10.2538 2.06225C10.3855 2.25095 10.5783 2.38845 10.7995 2.45158L11.9148 2.76974C12.355 2.89532 12.6537 3.30375 12.64 3.76129L12.6071 4.86066C12.6001 5.09598 12.6763 5.32624 12.8223 5.5109L13.5094 6.37968Z';
+const GREEN_VERIFY_CHECK_PATH = 'M9.88665 5.18556L5.93153 9.44103L4.11328 7.62278';
+
+function greenVerifyBadgeSvg(x, y, size) {
+  const scale = size / 14;
+  return `<g transform="translate(${x} ${y}) scale(${scale})">
+    <path d="${GREEN_VERIFY_BADGE_PATH}" fill="#47B749"/>
+    <path d="${GREEN_VERIFY_CHECK_PATH}" stroke="white" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </g>`;
+}
+
+/**
+ * Overlays the Validstep verification badge (checkmark + brand text + short
+ * verify URL + open-link glyph) onto a raster certificate image, preserving the
+ * original format (JPG stays JPG, PNG stays PNG) — an admin-uploaded certificate
+ * should read as "the same file, just stamped", not a converted document.
+ */
+// Every uploaded certificate is normalized to this width before the badge is drawn — designs
+// arrive at wildly different resolutions (phone photos, Canva exports, scans), and without a
+// fixed baseline the badge either engulfs a small image or reads as illegibly tiny on a large
+// one. Pinning the width also means every issued certificate ends up at the same scale.
+const TARGET_WIDTH = 2000;
+
+// Baseline sizing at scale=100 — tuned to read like a footer wordmark/logo (e.g. "#startupindia"),
+// not a watermark and not a headline.
+const BASE_FONT_SIZE = 21;
+const BASE_SMALL_FONT_SIZE = 14;
+const BASE_CIRCLE_R = 15;
+
+function clampBadgeParams({ x = 3, y = 96, scale = 100 }) {
+  return {
+    x: Math.min(97, Math.max(0, Number.isFinite(x) ? x : 3)),
+    y: Math.min(100, Math.max(3, Number.isFinite(y) ? y : 96)),
+    scale: Math.min(200, Math.max(40, Number.isFinite(scale) ? scale : 100)) / 100,
+  };
+}
+
+// Real font-metric measurement (Helvetica is metric-compatible with the Arial/Helvetica
+// stack the SVG badge text renders in) instead of a per-character-count guess — the guess
+// consistently overshot, leaving visible empty space in the badge's white pill after the
+// text. Fonts are embedded once and reused across every badge render.
+let measureFontsPromise = null;
+async function getMeasureFonts() {
+  if (!measureFontsPromise) {
+    measureFontsPromise = (async () => {
+      const doc = await PDFDocument.create();
+      const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+      const regular = await doc.embedFont(StandardFonts.Helvetica);
+      return { bold, regular };
+    })();
+  }
+  return measureFontsPromise;
+}
+
+async function embedBadgeOnImage(buffer, mimeType, { verificationCode, frontendUrl, x, y, scale }) {
+  let image = sharp(buffer);
+  const meta = await image.metadata();
+  if (meta.width !== TARGET_WIDTH) {
+    image = image.resize({ width: TARGET_WIDTH });
+  }
+  const width = TARGET_WIDTH;
+  const height = Math.round((meta.height / meta.width) * TARGET_WIDTH);
+
+  const { x: clampedX, y: clampedY, scale: clampedScale } = clampBadgeParams({ x, y, scale });
+
+  const verifyUrl = `URL : ${frontendUrl}/verify/${verificationCode}`;
+  const fontSize = BASE_FONT_SIZE * clampedScale;
+  const smallFontSize = BASE_SMALL_FONT_SIZE * clampedScale;
+  const circleR = BASE_CIRCLE_R * clampedScale;
+  const padX = 14 * clampedScale;
+  const padY = 13 * clampedScale;
+  const bandHeight = circleR * 2 + padY * 2;
+  const { bold: measureBold } = await getMeasureFonts();
+  const textBlockWidth = Math.round(Math.max(
+    measureBold.widthOfTextAtSize(BADGE_TEXT, fontSize),
+    measureBold.widthOfTextAtSize(verifyUrl, smallFontSize)
+  ));
+  // Band hugs its actual content — margin, circle, gap, text block, margin — with no
+  // trailing slack (there's no open-link icon to reserve space for anymore).
+  const bandWidth = Math.min(width - 16, circleR * 2 + padX * 3 + textBlockWidth + 2);
+
+  // x% = badge's left edge from the left; y% = badge's vertical center from the top —
+  // same convention as the ElementRow/CertPreview layout editor elsewhere in this app.
+  const rawBandX = Math.round((clampedX / 100) * width);
+  const rawBandCenterY = Math.round((clampedY / 100) * height);
+  const rawBandY = rawBandCenterY - bandHeight / 2;
+  const bandX = Math.min(Math.max(rawBandX, 8), width - bandWidth - 8);
+  const bandY = Math.min(Math.max(rawBandY, 8), height - bandHeight - 8);
+
+  const circleCx = bandX + padX + circleR;
+  const circleCy = bandY + bandHeight / 2;
+  const textX = circleCx + circleR + padX;
+
+  const svg = `
+<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+  <rect x="${bandX}" y="${bandY}" width="${bandWidth}" height="${bandHeight}" rx="${bandHeight / 2}"
+        fill="rgba(255,255,255,0.95)" stroke="rgba(15,23,42,0.10)" stroke-width="2"/>
+  ${greenVerifyBadgeSvg(circleCx - circleR, circleCy - circleR, circleR * 2)}
+  <text x="${textX}" y="${circleCy - fontSize * 0.15}" font-family="Arial, Helvetica, sans-serif" font-size="${fontSize}" font-weight="700" fill="#1e293b">${escapeXml(BADGE_TEXT)}</text>
+  <text x="${textX}" y="${circleCy + smallFontSize * 1.15}" font-family="Arial, Helvetica, sans-serif" font-size="${smallFontSize}" font-weight="600" fill="#475569">${escapeXml(verifyUrl)}</text>
+</svg>`;
+
+  const outputFormat = mimeType === 'image/png' ? 'png' : 'jpeg';
+  return image
+    .composite([{ input: Buffer.from(svg), top: 0, left: 0 }])
+    .toFormat(outputFormat, outputFormat === 'jpeg' ? { quality: 92 } : {})
+    .toBuffer();
+}
+
+// Baseline PDF badge sizing (points), same role as the image baseline constants above.
+const BASE_CIRCLE_R_PDF = 16;
+const BASE_FONT_SIZE_PDF = 15;
+const BASE_SMALL_FONT_SIZE_PDF = 11;
+
+/**
+ * Overlays the same Validstep badge directly onto the last page of an existing
+ * uploaded PDF (no new page added, no format change) — fallback path for
+ * admins who upload a PDF instead of an image.
+ */
+async function embedBadgeOnPdf(buffer, { verificationCode, frontendUrl, x, y, scale }) {
+  const pdfDoc = await PDFDocument.load(buffer);
+  const pages = pdfDoc.getPages();
+  const page = pages[pages.length - 1];
+  const { width: pageW, height: pageH } = page.getSize();
+
+  const { x: clampedX, y: clampedY, scale: clampedScale } = clampBadgeParams({ x, y, scale });
+
+  const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  const verifyUrl = `URL : ${frontendUrl}/verify/${verificationCode}`;
+  const circleR = BASE_CIRCLE_R_PDF * clampedScale;
+  const fontSize = BASE_FONT_SIZE_PDF * clampedScale;
+  const smallFontSize = BASE_SMALL_FONT_SIZE_PDF * clampedScale;
+
+  // PDF's y-axis is bottom-up, so y% from the top must be inverted.
+  const rawCircleY = pageH - (clampedY / 100) * pageH;
+  const rawCircleX = (clampedX / 100) * pageW + circleR;
+  const circleX = Math.min(Math.max(rawCircleX, circleR + 8), pageW - circleR - 8);
+  const circleY = Math.min(Math.max(rawCircleY, circleR + 8), pageH - circleR - 8);
+
+  // Same greenverify.svg glyph as the image path — drawn as two SVG paths (fill, then
+  // stroke) since drawSvgPath composites one path per call. (x,y) is the anchor such that
+  // the glyph's own center (7,7 in its 14x14 viewBox) lands exactly on (circleX, circleY).
+  const badgeScale = (circleR * 2) / 14;
+  const badgeAnchorX = circleX - 7 * badgeScale;
+  const badgeAnchorY = circleY + 7 * badgeScale;
+  page.drawSvgPath(GREEN_VERIFY_BADGE_PATH, { x: badgeAnchorX, y: badgeAnchorY, scale: badgeScale, color: rgb(0.278, 0.718, 0.290) });
+  page.drawSvgPath(GREEN_VERIFY_CHECK_PATH, { x: badgeAnchorX, y: badgeAnchorY, scale: badgeScale, borderColor: rgb(1, 1, 1), borderWidth: 1.3 });
+
+  const textX = circleX + circleR + 14 * clampedScale;
+  page.drawText(BADGE_TEXT, { x: textX, y: circleY + circleR * 0.35, size: fontSize, font: helveticaBold, color: rgb(0.12, 0.16, 0.22) });
+  page.drawText(verifyUrl, { x: textX, y: circleY - circleR * 0.55, size: smallFontSize, font: helvetica, color: rgb(0.28, 0.34, 0.42) });
+
+  const pdfBytes = await pdfDoc.save();
+  return Buffer.from(pdfBytes);
+}
+
 /**
  * Main certificate generator - dispatch to correct template
  */
@@ -776,4 +943,4 @@ async function generateCertificate(data, template) {
   }
 }
 
-module.exports = { generateCertificate };
+module.exports = { generateCertificate, embedBadgeOnImage, embedBadgeOnPdf };

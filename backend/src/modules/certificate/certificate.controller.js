@@ -20,7 +20,7 @@ async function verifyCertificate(req, res) {
 async function getUserCertificates(req, res) {
   try {
     const certificates = await certificateService.getUserCertificates(req.user.id);
-    return sendSuccess(res, certificates, 'Certificates retrieved successfully');
+    return sendSuccess(res, { certificates }, 'Certificates retrieved successfully');
   } catch (err) {
     return sendError(res, err.message, err.statusCode || 500);
   }
@@ -54,7 +54,24 @@ async function downloadCertificate(req, res) {
       return fileStream.pipe(res);
     }
 
-    // PDF not generated yet — return JSON with URL as fallback
+    // Not a locally-generated PDF — admin-uploaded certificates live on R2. Proxy the file
+    // through the backend (server-to-R2 fetches aren't subject to browser CORS) so the
+    // response can carry a Content-Disposition header and trigger a real download.
+    if (result.certificate_url) {
+      const remoteRes = await fetch(result.certificate_url);
+      if (!remoteRes.ok) {
+        return sendError(res, 'Failed to fetch certificate file', 502);
+      }
+      logDeliveryEvent(req.user.id, 'CERTIFICATE_DOWNLOADED', result.order_id);
+      const ext = path.extname(new URL(result.certificate_url).pathname).slice(1) || 'jpg';
+      const contentType = remoteRes.headers.get('content-type') || `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `attachment; filename="certificate-${result.certificate_serial}.${ext}"`);
+      const buffer = Buffer.from(await remoteRes.arrayBuffer());
+      return res.send(buffer);
+    }
+
+    // No file available yet — return JSON with URL as fallback
     return sendSuccess(res, result, 'Certificate download info retrieved');
   } catch (err) {
     return sendError(res, err.message, err.statusCode || 500);

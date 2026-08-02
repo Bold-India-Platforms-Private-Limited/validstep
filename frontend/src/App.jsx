@@ -42,6 +42,9 @@ import CompanyPayments from './pages/company/Payments'
 import UserDashboard from './pages/user/Dashboard'
 import CertificateView from './pages/user/CertificateView'
 import UserInvoices from './pages/user/Invoices'
+import UserOrders from './pages/user/Orders'
+import UserSupport from './pages/user/Support'
+import UserProfile from './pages/user/Profile'
 
 // Admin pages
 import AdminDashboard from './pages/admin/Dashboard'
@@ -206,6 +209,9 @@ export default function App() {
                 <Route path="" element={<UserDashboard />} />
                 <Route path="certificates/:id" element={<CertificateView />} />
                 <Route path="invoices" element={<UserInvoices />} />
+                <Route path="orders" element={<UserOrders />} />
+                <Route path="support" element={<UserSupport />} />
+                <Route path="profile" element={<UserProfile />} />
                 <Route path="*" element={<Navigate to="" replace />} />
               </Routes>
             </UserLayout>

@@ -275,8 +275,72 @@ async function resendCompanyPassword(req, res) {
 
 async function resendCertificateEmail(req, res) {
   try {
-    const result = await adminService.resendCertificateEmail(req.params.orderId);
+    const result = await adminService.resendCertificateEmail(req.params.orderId, req.body?.to);
     return sendSuccess(res, result, 'Certificate email sent');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function previewCertificateEmail(req, res) {
+  try {
+    const result = await adminService.previewCertificateEmail(req.params.orderId);
+    return sendSuccess(res, result, 'Email preview generated');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+function parseBadgeParams(body) {
+  const { x, y, scale } = body || {};
+  return {
+    x: x !== undefined ? Number(x) : undefined,
+    y: y !== undefined ? Number(y) : undefined,
+    scale: scale !== undefined ? Number(scale) : undefined,
+  };
+}
+
+async function uploadCustomCertificate(req, res) {
+  try {
+    if (!req.file) {
+      return sendError(res, 'No file uploaded', 400);
+    }
+    const result = await adminService.uploadCustomCertificate(req.params.orderId, req.file, parseBadgeParams(req.body));
+    return sendSuccess(res, result, 'Custom certificate uploaded and branded');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function getCertificateBadgeConfig(req, res) {
+  try {
+    const config = await adminService.getCertificateBadgeConfig();
+    return sendSuccess(res, config, 'Badge config retrieved');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function updateCertificateBadgeConfig(req, res) {
+  try {
+    const { x, y, scale } = parseBadgeParams(req.body);
+    if (x === undefined || y === undefined || scale === undefined) {
+      return sendError(res, 'x, y, and scale are required', 400);
+    }
+    const config = await adminService.updateCertificateBadgeConfig({ x, y, scale });
+    return sendSuccess(res, config, 'Badge config saved as default');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function previewCertificateBadge(req, res) {
+  try {
+    if (!req.file) {
+      return sendError(res, 'No file uploaded', 400);
+    }
+    const dataUrl = await adminService.previewCertificateBadge(req.file, parseBadgeParams(req.body));
+    return sendSuccess(res, { preview: dataUrl }, 'Preview generated');
   } catch (err) {
     return sendError(res, err.message, err.statusCode || 500);
   }
@@ -469,6 +533,11 @@ module.exports = {
   resendCompanyPassword,
   resendUserPassword,
   resendCertificateEmail,
+  previewCertificateEmail,
+  uploadCustomCertificate,
+  getCertificateBadgeConfig,
+  updateCertificateBadgeConfig,
+  previewCertificateBadge,
   createUser,
   bulkUploadUsers,
   importPayuButtonCustomers,

@@ -8,7 +8,7 @@ const masterAccountingRoutes = require('../master-accounting/masterAccounting.ro
 const { validate } = require('../../middleware/validate');
 const { requireSuperAdmin } = require('../../middleware/auth');
 const { generalLimiter } = require('../../middleware/rateLimiter');
-const { uploadUserImportFile } = require('../../middleware/upload');
+const { uploadUserImportFile, uploadCustomCertificate, previewCertificateBadgeUpload } = require('../../middleware/upload');
 const { enforceReviewReadOnly, blockReviewFromMasterAccounting, maskSensitiveDataForReview } = require('../../middleware/reviewAccountGuard');
 
 const router = Router();
@@ -207,6 +207,11 @@ router.post('/users', validate({ body: createUserSchema }), controller.createUse
 router.delete('/users', validate({ body: deleteUsersSchema }), controller.deleteUsers);
 router.post('/users/:userId/resend-password', controller.resendUserPassword);
 router.post('/order-log/:orderId/send-certificate-email', controller.resendCertificateEmail);
+router.get('/order-log/:orderId/certificate-email-preview', controller.previewCertificateEmail);
+router.post('/order-log/:orderId/upload-certificate', uploadCustomCertificate, controller.uploadCustomCertificate);
+router.get('/certificate-badge-config', controller.getCertificateBadgeConfig);
+router.put('/certificate-badge-config', controller.updateCertificateBadgeConfig);
+router.post('/certificate-badge-config/preview', previewCertificateBadgeUpload, controller.previewCertificateBadge);
 router.post('/users/bulk-upload', uploadUserImportFile, validate({ body: bulkUploadUsersSchema }), controller.bulkUploadUsers);
 router.post('/users/import-payu-customers', controller.importPayuButtonCustomers);
 router.post('/companies', validate({ body: createCompanySchema }), controller.createCompany);

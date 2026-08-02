@@ -178,9 +178,30 @@ export const adminApi = baseApi.injectEndpoints({
       invalidatesTags: ['OrderLog'],
     }),
     resendCertificateEmail: b.mutation({
-      query: (orderId) => ({ url: `/admin/order-log/${orderId}/send-certificate-email`, method: 'POST' }),
+      query: ({ orderId, to } = {}) => ({ url: `/admin/order-log/${orderId}/send-certificate-email`, method: 'POST', body: to ? { to } : {} }),
       transformResponse: (r) => r.data,
       invalidatesTags: ['OrderLog'],
+    }),
+    previewCertificateEmail: b.mutation({
+      query: (orderId) => ({ url: `/admin/order-log/${orderId}/certificate-email-preview`, method: 'GET' }),
+      transformResponse: (r) => r.data,
+    }),
+    uploadAdminCertificate: b.mutation({
+      query: ({ orderId, formData }) => ({ url: `/admin/order-log/${orderId}/upload-certificate`, method: 'POST', body: formData }),
+      transformResponse: (r) => r.data,
+      invalidatesTags: ['OrderLog'],
+    }),
+    getCertificateBadgeConfig: b.query({
+      query: () => '/admin/certificate-badge-config',
+      transformResponse: (r) => r.data,
+    }),
+    updateCertificateBadgeConfig: b.mutation({
+      query: (body) => ({ url: '/admin/certificate-badge-config', method: 'PUT', body }),
+      transformResponse: (r) => r.data,
+    }),
+    previewCertificateBadge: b.mutation({
+      query: (formData) => ({ url: '/admin/certificate-badge-config/preview', method: 'POST', body: formData }),
+      transformResponse: (r) => r.data,
     }),
   }),
 })
@@ -203,5 +224,6 @@ export const {
   useCreateAdminCompanyMutation, useEnrollUsersInBatchMutation,
   useGetAssignableTransactionsQuery, useAssignTransactionsToBatchMutation,
   useGetAdminOrderLogQuery, useGetAdminOrderDetailQuery, useResolveAdminQueryMutation,
-  useResendUserPasswordMutation, useResendCertificateEmailMutation,
+  useResendUserPasswordMutation, useResendCertificateEmailMutation, usePreviewCertificateEmailMutation, useUploadAdminCertificateMutation,
+  useGetCertificateBadgeConfigQuery, useUpdateCertificateBadgeConfigMutation, usePreviewCertificateBadgeMutation,
 } = adminApi

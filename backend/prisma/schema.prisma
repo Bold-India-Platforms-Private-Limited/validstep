@@ -30,6 +30,11 @@ enum TemplateType {
   CUSTOM
 }
 
+enum CertificateSource {
+  SYSTEM_GENERATED
+  ADMIN_UPLOADED
+}
+
 enum OrderStatus {
   PENDING
   PAID
@@ -312,6 +317,8 @@ model Certificate {
   issued_at          DateTime?
   download_count     Int       @default(0)
   verification_hash  String    @unique
+  verification_code  String?   @unique
+  certificate_source CertificateSource @default(SYSTEM_GENERATED)
   created_at         DateTime  @default(now())
 
   order    Order               @relation(fields: [order_id], references: [id], onDelete: Cascade)
@@ -369,6 +376,16 @@ model PricingConfig {
   updated_at   DateTime    @updatedAt
 
   @@map("pricing_configs")
+}
+
+model CertificateBadgeConfig {
+  id         String   @id @default("default")
+  x          Float    @default(3)
+  y          Float    @default(96)
+  scale      Float    @default(100)
+  updated_at DateTime @updatedAt
+
+  @@map("certificate_badge_configs")
 }
 
 /// One row per uploaded PayU/bank report file (transaction report, settlement report, bank statement).

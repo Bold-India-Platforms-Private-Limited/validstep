@@ -1,10 +1,7 @@
 import { store } from '../store'
 
-async function fetchInvoiceBlob(role, orderId) {
+async function fetchAuthedBlob(url, errorMessage) {
   const token = store.getState().auth.accessToken
-  const baseUrl = import.meta.env.VITE_API_URL || '/api'
-  const url = `${baseUrl}/${role}/orders/${orderId}/invoice`
-
   const res = await fetch(url, {
     method: 'GET',
     headers: { Authorization: token ? `Bearer ${token}` : '' },
@@ -12,7 +9,7 @@ async function fetchInvoiceBlob(role, orderId) {
   })
 
   if (!res.ok) {
-    let message = 'Failed to load invoice'
+    let message = errorMessage
     try {
       const json = await res.json()
       message = json?.message || message
@@ -21,6 +18,36 @@ async function fetchInvoiceBlob(role, orderId) {
   }
 
   return res.blob()
+}
+
+async function fetchInvoiceBlob(role, orderId) {
+  const baseUrl = import.meta.env.VITE_API_URL || '/api'
+  return fetchAuthedBlob(`${baseUrl}/${role}/orders/${orderId}/invoice`, 'Failed to load invoice')
+}
+
+function saveBlob(blob, filename) {
+  const objectUrl = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = objectUrl
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(objectUrl)
+}
+
+/**
+ * Download an issued certificate file by hitting the authenticated backend endpoint, which
+ * proxies R2-hosted admin-uploaded files (or serves locally-generated PDFs directly) with a
+ * Content-Disposition header — a plain <a href> to the R2 URL would just open it in-browser.
+ *
+ * @param {string} certificateId - Certificate UUID
+ * @param {string} filename - Download filename (e.g. "certificate-CERT-0001.jpg")
+ */
+export async function downloadCertificateFile(certificateId, filename = 'certificate') {
+  const baseUrl = import.meta.env.VITE_API_URL || '/api'
+  const blob = await fetchAuthedBlob(`${baseUrl}/user/certificates/${certificateId}/download`, 'Failed to load certificate')
+  saveBlob(blob, filename)
 }
 
 /**
@@ -33,14 +60,7 @@ async function fetchInvoiceBlob(role, orderId) {
  */
 export async function downloadInvoicePDF(role, orderId, filename = 'invoice.pdf') {
   const blob = await fetchInvoiceBlob(role, orderId)
-  const objectUrl = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = objectUrl
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(objectUrl)
+  saveBlob(blob, filename)
 }
 
 /**

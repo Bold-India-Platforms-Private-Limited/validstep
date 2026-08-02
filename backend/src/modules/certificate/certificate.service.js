@@ -95,6 +95,11 @@ async function processCertificateJob(jobData) {
     throw new Error(`Certificate record for order ${orderId} not found`);
   }
 
+  if (order.certificate.certificate_source === 'ADMIN_UPLOADED') {
+    console.log(`Skipping certificate generation for order ${orderId} — certificate was manually uploaded by an admin.`);
+    return { certificateUrl: order.certificate.certificate_url, orderId, skipped: true };
+  }
+
   // Get template
   let template = null;
   if (templateId) {
@@ -170,10 +175,10 @@ async function processCertificateJob(jobData) {
       role: order.batch.role,
       startDate: order.batch.start_date,
       endDate: order.batch.end_date,
-      certificateSerial: order.certificate_serial,
-      verificationHash,
+      credentialId: order.certificate_serial,
       verificationUrl: `${env.FRONTEND_URL}/verify/${verificationHash}`,
-      downloadUrl: certificateUrl,
+      dashboardUrl: `${env.FRONTEND_URL}/dashboard`,
+      attachments: [{ filename: `certificate-${order.certificate_serial}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }],
     });
     logDeliveryEvent(order.user_id, 'CERTIFICATE_ISSUED_EMAIL_SENT', orderId);
   } catch (emailErr) {
@@ -230,9 +235,9 @@ function startCertificateWorker() {
 /**
  * Verify a certificate by hash
  */
-async function verifyCertificate(verificationHash, ipAddress, userAgent) {
-  const certificate = await db.certificate.findUnique({
-    where: { verification_hash: verificationHash },
+async function verifyCertificate(hashOrCode, ipAddress, userAgent) {
+  const certificate = await db.certificate.findFirst({
+    where: { OR: [{ verification_hash: hashOrCode }, { verification_code: hashOrCode }] },
     include: {
       user: { select: { name: true, email: true } },
       batch: {
@@ -262,6 +267,10 @@ async function verifyCertificate(verificationHash, ipAddress, userAgent) {
     valid: true,
     certificate: {
       serial: certificate.certificate_serial,
+      // For admin-uploaded certs this is the doc ID taken from the uploaded file name (matches
+      // whatever ID the company already prints on the certificate design itself); falls back to
+      // the internal serial for system-generated certs that never got a verification_code.
+      certificate_id: certificate.verification_code || certificate.certificate_serial,
       holder_name: certificate.user.name,
       program_type: certificate.batch.program.type,
       program_name: certificate.batch.program.name,
@@ -272,16 +281,20 @@ async function verifyCertificate(verificationHash, ipAddress, userAgent) {
       company: certificate.batch.company.name,
       issued_at: certificate.issued_at,
       is_issued: certificate.is_issued,
+      certificate_url: certificate.certificate_url,
     },
   };
 }
 
 /**
- * Get a single certificate by ID (user-scoped)
+ * Get a single certificate by the numeric suffix of its certificate_serial (e.g. "1490" for
+ * "CERT-1490"), user-scoped. The internal UUID and the letter prefix are never exposed in the
+ * URL — matching is scoped to the requesting user, so a numeric suffix collision across two
+ * different batch prefixes for the same user isn't a practical concern.
  */
-async function getCertificateById(userId, certId) {
+async function getCertificateById(userId, certificateNumber) {
   const cert = await db.certificate.findFirst({
-    where: { id: certId, user_id: userId },
+    where: { certificate_serial: { endsWith: `-${certificateNumber}` }, user_id: userId },
     include: {
       user: { select: { name: true, email: true } },
       batch: {

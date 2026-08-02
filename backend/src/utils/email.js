@@ -35,7 +35,7 @@ function getTransporter() {
 const FROM_NAME  = process.env.SMTP_FROM_NAME || 'Validstep.com';
 const FROM_EMAIL = process.env.SENDER_EMAIL || process.env.SMTP_USER || 'noreply@validstep.com';
 
-async function sendEmail({ to, subject, html }) {
+async function sendEmail({ to, subject, html, text, attachments }) {
   try {
     const t = getTransporter();
     const info = await t.sendMail({
@@ -43,6 +43,11 @@ async function sendEmail({ to, subject, html }) {
       to,
       subject,
       html,
+      // A plain-text alternative alongside the HTML body is one of the more effective,
+      // low-effort signals against landing in spam — HTML-only mail reads as more
+      // suspicious to most inbox providers' filters.
+      text,
+      attachments,
     });
     return info;
   } catch (err) {
@@ -62,9 +67,9 @@ function baseLayout(content) {
 <style>
   body { margin:0; padding:0; background:#f5f5f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
   .wrapper { max-width:600px; margin:32px auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.08); }
-  .header { background:linear-gradient(135deg,#4F46E5,#7C3AED); padding:32px 40px; text-align:center; }
-  .header h1 { margin:0; color:#fff; font-size:22px; font-weight:700; }
-  .header p { margin:6px 0 0; color:rgba(255,255,255,0.8); font-size:13px; }
+  .header { background:#ffffff; border-bottom:3px solid #4F46E5; padding:24px 40px; text-align:center; }
+  .header img { height:32px; width:auto; }
+  .header p { margin:8px 0 0; color:#64748b; font-size:12px; }
   .body { padding:32px 40px; }
   .btn { display:inline-block; background:#4F46E5; color:#fff; text-decoration:none; padding:13px 28px; border-radius:8px; font-weight:600; font-size:15px; margin:8px 4px; }
   .btn-outline { background:#fff; color:#4F46E5; border:2px solid #4F46E5; }
@@ -81,7 +86,7 @@ function baseLayout(content) {
 <body>
 <div class="wrapper">
   <div class="header">
-    <h1>🎓 Validstep.com</h1>
+    <img src="https://validstep.com/logo.webp" alt="Validstep.com">
     <p>Digital Certificate Platform</p>
   </div>
   <div class="body">${content}</div>
@@ -108,42 +113,64 @@ function formatDateTime(d) {
 }
 
 /**
- * Send certificate issued email to user
+ * Builds the certificate-issued email's subject/html/text without sending anything —
+ * shared by the actual send (sendCertificateIssuedEmail) and the admin preview endpoint,
+ * so what the admin previews is exactly what gets sent.
  */
-async function sendCertificateIssuedEmail({ userName, userEmail, batchName, companyName, programType, role, startDate, endDate, certificateSerial, verificationHash, verificationUrl, downloadUrl }) {
+function buildCertificateIssuedEmailContent({ userName, batchName, companyName, programType, role, startDate, endDate, credentialId, verificationUrl, dashboardUrl }) {
   const certType = programType === 'INTERNSHIP' ? 'Internship / Fellowship Certificate' : programType === 'COURSE' ? 'Certificate of Completion' : programType === 'HACKATHON' ? 'Certificate of Achievement' : 'Certificate of Participation';
 
+  const subject = `Your certificate from ${companyName} has been issued`;
+
   const html = baseLayout(`
-    <h2 style="margin:0 0 8px;color:#1e293b;">🎉 Your Certificate is Ready!</h2>
-    <p style="color:#64748b;margin:0 0 24px;">Hi <strong>${userName}</strong>, your <strong>${certType}</strong> from <strong>${companyName}</strong> has been issued and is ready for download.</p>
+    <h2 style="margin:0 0 8px;color:#1e293b;">Your certificate has been issued</h2>
+    <p style="color:#64748b;margin:0 0 24px;">Hi ${userName}, your ${certType} from ${companyName} is ready. It's attached to this email as a PDF/image, and also available anytime from your Validstep dashboard.</p>
 
     <div class="info-box">
-      <div class="info-row"><span class="label">Certificate Type</span><span class="value">${certType}</span></div>
+      <div class="info-row"><span class="label">Organization</span><span class="value">${companyName}</span></div>
       <div class="info-row"><span class="label">Program / Batch</span><span class="value">${batchName}</span></div>
       ${role ? `<div class="info-row"><span class="label">Role</span><span class="value">${role}</span></div>` : ''}
-      <div class="info-row"><span class="label">Issued By</span><span class="value">${companyName}</span></div>
       <div class="info-row"><span class="label">Duration</span><span class="value">${formatDate(startDate)} – ${formatDate(endDate)}</span></div>
-      <div class="info-row"><span class="label">Certificate Serial</span><span class="value" style="font-family:monospace;">${certificateSerial}</span></div>
+      <div class="info-row"><span class="label">Credential ID</span><span class="value" style="font-family:monospace;">${credentialId}</span></div>
     </div>
 
     <div style="text-align:center;margin:28px 0;">
-      <a href="${verificationUrl}" class="btn">🔍 View & Verify Certificate</a>
-      ${downloadUrl ? `<a href="${downloadUrl}" class="btn btn-outline">⬇ Download PDF</a>` : ''}
+      <a href="${dashboardUrl}" class="btn">Log in to view my certificate</a>
     </div>
 
-    <div style="background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:14px 18px;margin:20px 0;font-size:13px;color:#854d0e;">
-      <strong>🔗 Your shareable verification link:</strong><br>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 18px;margin:20px 0;font-size:13px;color:#475569;">
+      <strong>Credential URL (share or verify anytime):</strong><br>
       <a href="${verificationUrl}" style="color:#4F46E5;word-break:break-all;">${verificationUrl}</a>
     </div>
 
-    <p style="font-size:13px;color:#64748b;">Anyone can verify the authenticity of your certificate by visiting the link above. It is permanently stored on our platform.</p>
+    <p style="font-size:13px;color:#64748b;">Anyone can confirm this certificate is genuine by opening the credential URL above — no login required.</p>
   `);
 
-  return sendEmail({
-    to: userEmail,
-    subject: `🎓 Your ${certType} from ${companyName} is ready!`,
-    html,
+  const text = `Your certificate has been issued\n\n` +
+    `Hi ${userName}, your ${certType} from ${companyName} is ready. It's attached to this email, and also available anytime from your Validstep dashboard.\n\n` +
+    `Organization: ${companyName}\n` +
+    `Program / Batch: ${batchName}\n` +
+    (role ? `Role: ${role}\n` : '') +
+    `Duration: ${formatDate(startDate)} - ${formatDate(endDate)}\n` +
+    `Credential ID: ${credentialId}\n\n` +
+    `Log in to view your certificate: ${dashboardUrl}\n\n` +
+    `Credential URL (share or verify anytime): ${verificationUrl}\n\n` +
+    `Anyone can confirm this certificate is genuine by opening the credential URL above — no login required.`;
+
+  return { subject, html, text };
+}
+
+/**
+ * Send certificate issued email to user. `attachments` follows nodemailer's format
+ * (e.g. [{ filename, content: Buffer, contentType }]) — used to attach the actual
+ * certificate file so the recipient has it even without logging in.
+ */
+async function sendCertificateIssuedEmail({ userName, userEmail, batchName, companyName, programType, role, startDate, endDate, credentialId, verificationUrl, dashboardUrl, attachments }) {
+  const { subject, html, text } = buildCertificateIssuedEmailContent({
+    userName, batchName, companyName, programType, role, startDate, endDate, credentialId, verificationUrl, dashboardUrl,
   });
+
+  return sendEmail({ to: userEmail, subject, html, text, attachments });
 }
 
 /**
@@ -333,6 +360,7 @@ async function sendSystemGeneratedPasswordEmail({ name, email, password, loginUr
 module.exports = {
   sendEmail,
   sendCertificateIssuedEmail,
+  buildCertificateIssuedEmailContent,
   sendPaymentConfirmationEmail,
   sendPasswordResetEmail,
   sendUserWelcomeEmail,

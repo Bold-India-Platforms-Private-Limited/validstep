@@ -1,12 +1,14 @@
 'use strict';
 
 const fs = require('fs');
+const path = require('path');
 const { Prisma } = require('@prisma/client');
 const { db } = require('../../config/database');
 const { redisGet, redisSet } = require('../../config/redis');
 const { getTransactionFeesForPayuIds } = require('../accounting/accounting.service');
 const { hashPassword, generateVerificationHash, generateRandomToken, sha256 } = require('../../utils/hash');
-const { sendCompanyWelcomeEmail, sendSystemGeneratedPasswordEmail, sendCertificateIssuedEmail } = require('../../utils/email');
+const { sendCompanyWelcomeEmail, sendSystemGeneratedPasswordEmail, sendCertificateIssuedEmail, buildCertificateIssuedEmailContent } = require('../../utils/email');
+const { fetchFileBuffer } = require('../../utils/fetchFile');
 const { generateCertificateSerial } = require('../batch/batch.service');
 const { parseUserImportFile } = require('../../utils/userImportParser');
 const { parseTransactionReport, looksLikePayuTransactionReport } = require('../../utils/reportParsers');
@@ -352,7 +354,7 @@ async function issueCertificatesAdmin(batchId, orderIds) {
 
   const results = [];
   for (const order of orders) {
-    if (order.certificate && order.certificate.is_issued) {
+    if (order.certificate && (order.certificate.is_issued || order.certificate.certificate_source === 'ADMIN_UPLOADED')) {
       results.push({ orderId: order.id, status: 'already_issued' });
       continue;
     }
@@ -1095,7 +1097,11 @@ async function resendUserPassword(userId) {
  * queues the certificate); this just (re-)sends the notification email, for cases like the
  * original email bouncing or the customer asking for it again.
  */
-async function resendCertificateEmail(orderId) {
+/**
+ * Loads everything needed to render/send the "certificate issued" email, shared by the
+ * admin preview endpoint and the actual send so the admin previews exactly what goes out.
+ */
+async function getCertificateEmailData(orderId) {
   const order = await db.order.findUnique({
     where: { id: orderId },
     include: {
@@ -1109,24 +1115,189 @@ async function resendCertificateEmail(orderId) {
     throw Object.assign(new Error('Certificate has not been issued yet'), { statusCode: 400 });
   }
 
-  const verificationHash = order.certificate.verification_hash;
-  await sendCertificateIssuedEmail({
-    userName: order.user.name,
-    userEmail: order.user.email,
-    batchName: order.batch.name,
-    companyName: order.batch.company.name,
-    programType: order.batch.program.type,
-    role: order.batch.role,
-    startDate: order.batch.start_date,
-    endDate: order.batch.end_date,
-    certificateSerial: order.certificate_serial,
-    verificationHash,
-    verificationUrl: `${env.FRONTEND_URL}/verify/${verificationHash}`,
-    downloadUrl: order.certificate.certificate_url,
-  });
-  logDeliveryEvent(order.user_id, 'CERTIFICATE_ISSUED_EMAIL_SENT', orderId);
+  // Short code (from an admin upload) always wins over the long internal hash once one
+  // exists for this certificate — every verify link shown or sent should read the same
+  // short way, not just the ones generated after the upload happened.
+  const credentialId = order.certificate.verification_code || order.certificate.certificate_serial;
+  const verificationCode = order.certificate.verification_code || order.certificate.verification_hash;
 
-  return { success: true };
+  return {
+    order,
+    emailFields: {
+      userName: order.user.name,
+      batchName: order.batch.name,
+      companyName: order.batch.company.name,
+      programType: order.batch.program.type,
+      role: order.batch.role,
+      startDate: order.batch.start_date,
+      endDate: order.batch.end_date,
+      credentialId,
+      verificationUrl: `${env.FRONTEND_URL}/verify/${verificationCode}`,
+      dashboardUrl: `${env.FRONTEND_URL}/dashboard`,
+    },
+  };
+}
+
+/**
+ * Renders the certificate email without sending anything — powers the admin "preview
+ * before sending" modal.
+ */
+async function previewCertificateEmail(orderId) {
+  const { order, emailFields } = await getCertificateEmailData(orderId);
+  const { subject, html } = buildCertificateIssuedEmailContent(emailFields);
+  return { subject, html, defaultTo: order.user.email };
+}
+
+/**
+ * `overrideEmail` lets the admin send this one copy to a different inbox (a college email,
+ * a personal alt address, testing, etc.) without touching the student's actual account email
+ * anywhere — it's a one-time delivery address, not a profile change.
+ */
+async function resendCertificateEmail(orderId, overrideEmail) {
+  const { order, emailFields } = await getCertificateEmailData(orderId);
+
+  let attachments;
+  if (order.certificate.certificate_url) {
+    try {
+      const buffer = await fetchFileBuffer(order.certificate.certificate_url);
+      const ext = (order.certificate.certificate_url.match(/\.(\w+)(?:\?|$)/)?.[1] || 'pdf').toLowerCase();
+      const contentType = ext === 'pdf' ? 'application/pdf' : ext === 'png' ? 'image/png' : 'image/jpeg';
+      attachments = [{ filename: `certificate.${ext}`, content: buffer, contentType }];
+    } catch (err) {
+      console.error('Failed to attach certificate file to email (sending without attachment):', err.message);
+    }
+  }
+
+  const to = (overrideEmail && overrideEmail.trim()) || order.user.email;
+  await sendCertificateIssuedEmail({ ...emailFields, userEmail: to, attachments });
+  logDeliveryEvent(order.user_id, 'CERTIFICATE_ISSUED_EMAIL_SENT', orderId, overrideEmail ? { sent_to_override: to } : undefined);
+
+  return { success: true, sentTo: to };
+}
+
+/**
+ * Companies already print their own document ID on the certificate design itself (e.g. "Scan
+ * to Verify Doc: BFDA82407"), and name the exported file after that same ID (BFDA82407.jpg) —
+ * so we reuse it as the verification_code instead of minting an unrelated random one. That
+ * keeps the ID Validstep prints in the badge consistent with whatever the company's own design
+ * already shows elsewhere on the certificate.
+ */
+function extractDocIdFromFilename(originalname) {
+  const base = path.basename(originalname || '', path.extname(originalname || ''));
+  const sanitized = base.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+  return sanitized || null;
+}
+
+/**
+ * Admin uploads a custom-designed certificate (image or PDF) for a specific order — used when
+ * a company supplies their own certificate design instead of relying on a system-generated
+ * template. The file is stamped with a Validstep verification badge (same format in and out —
+ * a JPG stays a JPG) and stored in R2, and the certificate is marked issued exactly like the
+ * bulk "Issue Certificates" flow, so it becomes visible to the student immediately with no
+ * separate visibility flag.
+ */
+const DEFAULT_BADGE_CONFIG = { x: 9, y: 93, scale: 140 };
+
+/**
+ * Global default position/size for the Validstep verification badge stamped onto
+ * admin-uploaded certificates — a single row (id: 'default'), editable by the admin's
+ * live-adjust preview modal. Falls back to sane defaults if never saved.
+ */
+async function getCertificateBadgeConfig() {
+  const config = await db.certificateBadgeConfig.findUnique({ where: { id: 'default' } });
+  return config || { id: 'default', ...DEFAULT_BADGE_CONFIG };
+}
+
+async function updateCertificateBadgeConfig({ x, y, scale }) {
+  return db.certificateBadgeConfig.upsert({
+    where: { id: 'default' },
+    update: { x, y, scale },
+    create: { id: 'default', x, y, scale },
+  });
+}
+
+/**
+ * Renders the badge onto an uploaded image at the given x/y/scale without persisting
+ * anything — used by the admin's live-adjust preview modal. No PDF equivalent: there's no
+ * cheap client-side PDF rasterization to preview against, so PDF uploads skip this step
+ * and go straight through uploadCustomCertificate with the saved default.
+ */
+async function previewCertificateBadge(file, { x, y, scale }) {
+  if (file.mimetype === 'application/pdf') {
+    throw Object.assign(new Error('Preview is only available for image uploads'), { statusCode: 400 });
+  }
+  const { embedBadgeOnImage } = require('../certificate/generator');
+  const docId = extractDocIdFromFilename(file.originalname) || 'PREVIEW';
+  const branded = await embedBadgeOnImage(file.buffer, file.mimetype, {
+    verificationCode: docId,
+    frontendUrl: env.FRONTEND_URL,
+    x, y, scale,
+  });
+  const mime = file.mimetype === 'image/png' ? 'image/png' : 'image/jpeg';
+  return `data:${mime};base64,${branded.toString('base64')}`;
+}
+
+async function uploadCustomCertificate(orderId, file, badgeParams = {}) {
+  const order = await db.order.findUnique({
+    where: { id: orderId },
+    include: { certificate: true, user: { select: { id: true, name: true, email: true } } },
+  });
+  if (!order) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
+  if (!order.certificate) throw Object.assign(new Error('No certificate record exists for this order'), { statusCode: 400 });
+
+  const docId = extractDocIdFromFilename(file.originalname);
+  if (!docId) {
+    throw Object.assign(new Error('Could not read a certificate ID from the file name — rename the file to its document ID (e.g. BFDA82407.jpg) and try again'), { statusCode: 400 });
+  }
+
+  const codeOwner = await db.certificate.findUnique({ where: { verification_code: docId } });
+  if (codeOwner && codeOwner.id !== order.certificate.id) {
+    throw Object.assign(new Error(`Certificate ID "${docId}" is already used by another certificate — rename the file to a unique document ID`), { statusCode: 409 });
+  }
+
+  const savedConfig = await getCertificateBadgeConfig();
+  const x = badgeParams.x ?? savedConfig.x;
+  const y = badgeParams.y ?? savedConfig.y;
+  const scale = badgeParams.scale ?? savedConfig.scale;
+
+  const { embedBadgeOnImage, embedBadgeOnPdf } = require('../certificate/generator');
+  const { uploadBufferToR2 } = require('../../utils/r2Storage');
+
+  const isPdf = file.mimetype === 'application/pdf';
+  const branded = isPdf
+    ? await embedBadgeOnPdf(file.buffer, { verificationCode: docId, frontendUrl: env.FRONTEND_URL, x, y, scale })
+    : await embedBadgeOnImage(file.buffer, file.mimetype, { verificationCode: docId, frontendUrl: env.FRONTEND_URL, x, y, scale });
+
+  const ext = isPdf ? 'pdf' : (file.mimetype === 'image/png' ? 'png' : 'jpg');
+  const key = `certificates/admin-uploads/${docId}.${ext}`;
+  const certificateUrl = await uploadBufferToR2(branded, key, file.mimetype);
+
+  await db.certificate.update({
+    where: { id: order.certificate.id },
+    data: {
+      certificate_url: certificateUrl,
+      verification_code: docId,
+      certificate_source: 'ADMIN_UPLOADED',
+      is_issued: true,
+      issued_at: order.certificate.issued_at ?? new Date(),
+    },
+  });
+
+  // A re-upload should read as "the certificate was updated," not as a growing pile of
+  // identical timeline entries — clear any prior upload event for this order before logging
+  // the new one, so only the latest upload ever shows in the Order Timeline.
+  await db.deliveryEvent.deleteMany({ where: { order_id: orderId, event: 'CERTIFICATE_UPLOADED_BY_ADMIN' } });
+  logDeliveryEvent(order.user_id, 'CERTIFICATE_UPLOADED_BY_ADMIN', orderId);
+
+  // Persist whatever was actually used (adjusted or left at default) as the new default —
+  // confirming an upload always updates the global config, no separate "save default" step.
+  await updateCertificateBadgeConfig({ x, y, scale });
+
+  return {
+    certificate_url: certificateUrl,
+    verification_code: docId,
+    verify_url: `${env.FRONTEND_URL}/verify/${docId}`,
+  };
 }
 
 /**
@@ -1810,6 +1981,11 @@ module.exports = {
   resendCompanyPassword,
   resendUserPassword,
   resendCertificateEmail,
+  previewCertificateEmail,
+  uploadCustomCertificate,
+  getCertificateBadgeConfig,
+  updateCertificateBadgeConfig,
+  previewCertificateBadge,
   registerUserForBatch,
   bulkUploadUsers,
   importPayuButtonCustomers,

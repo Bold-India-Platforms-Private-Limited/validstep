@@ -7,6 +7,11 @@ export const userApi = baseApi.injectEndpoints({
       transformResponse: (r) => r.data,
       providesTags: ['User'],
     }),
+    updateUserProfile: b.mutation({
+      query: (body) => ({ url: '/user/profile', method: 'PUT', body }),
+      transformResponse: (r) => r.data,
+      invalidatesTags: ['User'],
+    }),
     getUserOrders: b.query({
       query: () => '/user/orders',
       transformResponse: (r) => r.data,
@@ -48,7 +53,7 @@ export const userApi = baseApi.injectEndpoints({
 })
 
 export const {
-  useGetUserProfileQuery, useGetUserOrdersQuery,
+  useGetUserProfileQuery, useUpdateUserProfileMutation, useGetUserOrdersQuery,
   useGetUserCertificatesQuery, useGetCertificateQuery,
   useDownloadCertificateMutation, useGetUserInvoicesQuery,
   useGetUserDeliveryLogQuery,

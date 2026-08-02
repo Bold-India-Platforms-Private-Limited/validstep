@@ -1,17 +1,19 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   useGetAdminOrderLogQuery, useGetAdminOrderDetailQuery, useResolveAdminQueryMutation, useGetAdminCompaniesQuery,
-  useResendUserPasswordMutation, useResendCertificateEmailMutation, useGetAdminWhoamiQuery,
+  useResendUserPasswordMutation, useResendCertificateEmailMutation, usePreviewCertificateEmailMutation, useUploadAdminCertificateMutation, useGetAdminWhoamiQuery,
+  useGetCertificateBadgeConfigQuery, useUpdateCertificateBadgeConfigMutation, usePreviewCertificateBadgeMutation,
 } from '../../store/api/adminApi'
 import { PageSpinner } from '../../components/ui/Spinner'
 import { Badge, StatusBadge } from '../../components/ui/Badge'
 import { Pagination } from '../../components/ui/Pagination'
 import { Modal } from '../../components/ui/Modal'
+import { GreenVerifyIcon, OpenLinkIcon } from '../../components/ui/BrandIcons'
 import { formatDate, formatCurrency } from '../../utils/formatDate'
 import { downloadInvoicePDF, getInvoicePreviewUrl } from '../../utils/downloadInvoice'
 import {
   ClipboardList, Search, Eye, FileText, ShieldCheck, MessageSquareText, KeyRound, Send, Award,
-  Calendar, Building2, Wallet, ShieldQuestion, MessageCircle, Sparkles, FolderOpen, Lock,
+  Calendar, Building2, Wallet, ShieldQuestion, MessageCircle, Sparkles, FolderOpen, Lock, UploadCloud,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -58,6 +60,7 @@ const EVENT_LABELS = {
   CERTIFICATE_ISSUED_EMAIL_SENT: 'Certificate email sent to customer',
   CERTIFICATE_DOWNLOADED: 'Certificate downloaded by customer',
   INVOICE_DOWNLOADED: 'Invoice downloaded by customer',
+  CERTIFICATE_UPLOADED_BY_ADMIN: 'Certificate uploaded by admin',
 }
 
 // Payment, order creation, account creation, and batch enrollment are folded into one fixed
@@ -104,9 +107,16 @@ function OrderDetailModal({ orderId, onClose }) {
   const [resolveQuery, { isLoading: resolving }] = useResolveAdminQueryMutation()
   const [resendPassword, { isLoading: sendingPassword }] = useResendUserPasswordMutation()
   const [resendCertEmail, { isLoading: sendingCertEmail }] = useResendCertificateEmailMutation()
+  const [previewCertEmail, { isLoading: loadingEmailPreview }] = usePreviewCertificateEmailMutation()
+  const [uploadCertificate, { isLoading: uploadingCertificate }] = useUploadAdminCertificateMutation()
   const [downloading, setDownloading] = useState(false)
   const [tab, setTab] = useState('overview')
   const [loadingPreview, setLoadingPreview] = useState(false)
+  const [uploadResult, setUploadResult] = useState(null)
+  const [adjustFile, setAdjustFile] = useState(null)
+  const [emailTo, setEmailTo] = useState('')
+  const [emailPreview, setEmailPreview] = useState(null)
+  const fileInputRef = useRef(null)
 
   const order = data?.order
   const events = data?.events || []
@@ -115,7 +125,13 @@ function OrderDetailModal({ orderId, onClose }) {
 
   useEffect(() => {
     setTab('overview')
+    setUploadResult(null)
+    setEmailPreview(null)
   }, [orderId])
+
+  useEffect(() => {
+    if (order?.user?.email) setEmailTo(order.user.email)
+  }, [order?.user?.email])
 
   const handleDownloadInvoice = async () => {
     if (!order) return
@@ -168,11 +184,42 @@ function OrderDetailModal({ orderId, onClose }) {
   const handleSendCertificateEmail = async () => {
     if (!order?.id) return
     try {
-      await resendCertEmail(order.id).unwrap()
-      toast.success(`Certificate email sent to ${order.user.email}`)
+      const result = await resendCertEmail({ orderId: order.id, to: emailTo }).unwrap()
+      toast.success(`Certificate email sent to ${result?.sentTo || emailTo}`)
     } catch (err) {
       toast.error(err?.data?.message || 'Failed to send certificate email')
     }
+  }
+
+  const handlePreviewCertificateEmail = async () => {
+    if (!order?.id) return
+    try {
+      const result = await previewCertEmail(order.id).unwrap()
+      setEmailPreview(result)
+    } catch (err) {
+      toast.error(err?.data?.message || 'Failed to load email preview')
+    }
+  }
+
+  const handleCertificateFileSelected = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // allow re-selecting the same file next time
+    if (!file || !order?.id) return
+    if (file.type === 'application/pdf') {
+      // PDF: no live raster preview available — upload immediately with the current saved default badge position/size.
+      const formData = new FormData()
+      formData.append('certificate', file)
+      try {
+        const result = await uploadCertificate({ orderId: order.id, formData }).unwrap()
+        setUploadResult(result)
+        toast.success('Certificate uploaded and branded')
+      } catch (err) {
+        toast.error(err?.data?.message || 'Failed to upload certificate')
+      }
+      return
+    }
+    // Image: open the adjustable live-preview modal instead of uploading immediately.
+    setAdjustFile(file)
   }
 
   const orderCreatedDate = order?.payments?.[0]?.created_at || order?.created_at
@@ -203,7 +250,10 @@ function OrderDetailModal({ orderId, onClose }) {
     </div>
   )
 
+  const uploadedIsImage = /\.(jpe?g|png)$/i.test(uploadResult?.certificate_url || '')
+
   return (
+    <>
     <Modal open={!!orderId} onClose={onClose} title="Order Detail" headerContent={headerContent} size="wide">
       {isLoading || !order ? (
         <div className="py-16"><PageSpinner /></div>
@@ -381,7 +431,10 @@ function OrderDetailModal({ orderId, onClose }) {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Status</p>
-                  <p className="mt-1"><Badge variant={order.certificate?.is_issued ? 'success' : 'warning'}>{order.certificate?.is_issued ? 'Issued' : 'Not Issued'}</Badge></p>
+                  <p className="mt-1 flex items-center gap-1.5">
+                    <Badge variant={order.certificate?.is_issued ? 'success' : 'warning'}>{order.certificate?.is_issued ? 'Issued' : 'Not Issued'}</Badge>
+                    {order.certificate?.certificate_source === 'ADMIN_UPLOADED' && <Badge variant="info">Admin Uploaded</Badge>}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Serial</p>
@@ -393,15 +446,18 @@ function OrderDetailModal({ orderId, onClose }) {
                 </div>
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Verification Link</p>
-                  {order.certificate?.verification_hash ? (
-                    <a
-                      href={`${window.location.origin}/verify/${order.certificate.verification_hash}`}
-                      target="_blank" rel="noreferrer"
-                      className="mt-1 block truncate text-sm text-primary-600 hover:underline"
-                    >
-                      /verify/{order.certificate.verification_hash}
-                    </a>
-                  ) : <p className="mt-1 text-sm text-slate-400">—</p>}
+                  {(() => {
+                    const verifyId = order.certificate?.verification_code || order.certificate?.verification_hash
+                    return verifyId ? (
+                      <a
+                        href={`${window.location.origin}/verify/${verifyId}`}
+                        target="_blank" rel="noreferrer"
+                        className="mt-1 block truncate text-sm text-primary-600 hover:underline"
+                      >
+                        /verify/{verifyId}
+                      </a>
+                    ) : <p className="mt-1 text-sm text-slate-400">—</p>
+                  })()}
                 </div>
               </div>
               {order.certificate?.certificate_url && (
@@ -411,9 +467,42 @@ function OrderDetailModal({ orderId, onClose }) {
                   className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
                 >
                   <FileText className="h-3.5 w-3.5" />
-                  View Certificate PDF
+                  View Certificate
                 </a>
               )}
+
+              <div className="mt-5 border-t border-slate-100 pt-4">
+                <h4 className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-slate-900">
+                  <UploadCloud className="h-4 w-4 text-slate-400" />
+                  Upload Custom Certificate
+                </h4>
+                <p className="mb-3 text-sm text-slate-500">
+                 Upload only the organization-approved certificate design prepared by the Validstep Design Team (Adobe Photoshop). Supported formats: JPG, PNG, or PDF. Validstep will securely apply its digital verification badge, QR code, and unique Certificate ID, store the certificate securely, and publish it with a public verification page for instant authenticity verification.
+                </p>
+                {isReview ? (
+                  <p className="flex items-center gap-1.5 text-xs font-medium text-amber-700">
+                    <Lock className="h-3.5 w-3.5" /> View only — This Admin Account cannot upload certificates.
+                  </p>
+                ) : (
+                  <>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,application/pdf"
+                      className="hidden"
+                      onChange={handleCertificateFileSelected}
+                    />
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingCertificate}
+                      className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
+                    >
+                      <UploadCloud className="h-4 w-4" />
+                      {uploadingCertificate ? 'Uploading…' : 'Upload Custom Certificate'}
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           )}
 
@@ -425,23 +514,49 @@ function OrderDetailModal({ orderId, onClose }) {
               </h3>
               <p className="mb-4 text-sm text-slate-500">
                 {order.certificate?.is_issued
-                  ? `Email the issued certificate to ${order.user?.email}. Useful if the original notification bounced or the customer asks for it again.`
+                  ? 'Email the issued certificate — the certificate file is attached, and the account email is prefilled below (useful if the original notification bounced or the customer asks for it again).'
                   : 'This certificate has not been issued yet — issue it from the batch\'s Certificates screen first.'}
               </p>
               {isReview && (
                 <p className="mb-3 flex items-center gap-1.5 text-xs font-medium text-amber-700">
                   <Lock className="h-3.5 w-3.5" /> View only — This Admin Account cannot send certificate emails.
-
                 </p>
               )}
-              <button
-                onClick={handleSendCertificateEmail}
-                disabled={sendingCertEmail || !order.certificate?.is_issued || isReview}
-                className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
-              >
-                <Send className="h-4 w-4" />
-                {sendingCertEmail ? 'Sending…' : 'Send Certificate Email'}
-              </button>
+              {order.certificate?.is_issued && !isReview && (
+                <div className="mb-4 space-y-1">
+                  <label className="text-xs font-medium text-slate-500">Send to</label>
+                  <input
+                    type="email"
+                    value={emailTo}
+                    onChange={(e) => setEmailTo(e.target.value)}
+                    placeholder={order.user?.email}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-primary-400 focus:outline-none"
+                  />
+                  {emailTo && emailTo !== order.user?.email && (
+                    <p className="text-xs text-amber-600">
+                      This only changes where this one email goes — the customer's account email stays {order.user?.email}.
+                    </p>
+                  )}
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={handlePreviewCertificateEmail}
+                  disabled={loadingEmailPreview || !order.certificate?.is_issued}
+                  className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  <Eye className="h-4 w-4" />
+                  {loadingEmailPreview ? 'Loading…' : 'Preview Email'}
+                </button>
+                <button
+                  onClick={handleSendCertificateEmail}
+                  disabled={sendingCertEmail || !order.certificate?.is_issued || isReview || !emailTo}
+                  className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
+                >
+                  <Send className="h-4 w-4" />
+                  {sendingCertEmail ? 'Sending…' : 'Send Certificate Email'}
+                </button>
+              </div>
             </div>
           )}
 
@@ -452,6 +567,197 @@ function OrderDetailModal({ orderId, onClose }) {
           )}
         </div>
       )}
+    </Modal>
+
+    <Modal open={!!uploadResult} onClose={() => setUploadResult(null)} title="Certificate Uploaded">
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
+          <GreenVerifyIcon className="h-4 w-4" />
+          Branded and published — the student can already see this in their dashboard.
+        </div>
+        {uploadedIsImage ? (
+          <img src={uploadResult?.certificate_url} alt="Branded certificate preview" className="w-full rounded-xl border border-slate-200" />
+        ) : (
+          <a
+            href={uploadResult?.certificate_url}
+            target="_blank" rel="noreferrer"
+            className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-8 text-sm font-medium text-primary-600 hover:bg-slate-100"
+          >
+            <FileText className="h-4 w-4" /> Open Certificate PDF
+          </a>
+        )}
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Verification Link</p>
+          <a
+            href={uploadResult?.verify_url}
+            target="_blank" rel="noreferrer"
+            className="mt-1 inline-flex items-center gap-1 text-sm text-primary-600 hover:underline"
+          >
+            /verify/{uploadResult?.verification_code} <OpenLinkIcon className="h-3 w-3" />
+          </a>
+        </div>
+      </div>
+    </Modal>
+
+    {adjustFile && (
+      <CertificateBadgeAdjustModal
+        file={adjustFile}
+        orderId={order?.id}
+        onClose={() => setAdjustFile(null)}
+        onConfirmed={(result) => {
+          setAdjustFile(null)
+          setUploadResult(result)
+          toast.success('Certificate uploaded and branded')
+        }}
+      />
+    )}
+
+    <Modal open={!!emailPreview} onClose={() => setEmailPreview(null)} title="Certificate Email Preview" size="wide">
+      {emailPreview && (
+        <div className="space-y-3">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm">
+            <p><span className="text-slate-400">To:</span> <span className="font-medium text-slate-700">{emailTo || emailPreview.defaultTo}</span></p>
+            <p><span className="text-slate-400">Subject:</span> <span className="font-medium text-slate-700">{emailPreview.subject}</span></p>
+          </div>
+          <iframe
+            title="Certificate email preview"
+            srcDoc={emailPreview.html}
+            className="h-[600px] w-full rounded-lg border border-slate-200 bg-white"
+          />
+        </div>
+      )}
+    </Modal>
+    </>
+  )
+}
+
+function CertificateBadgeAdjustModal({ file, orderId, onClose, onConfirmed }) {
+  const { data: savedConfig } = useGetCertificateBadgeConfigQuery()
+  const [previewBadge, { isLoading: previewing }] = usePreviewCertificateBadgeMutation()
+  const [uploadCertificate, { isLoading: uploading }] = useUploadAdminCertificateMutation()
+  const [saveBadgeDefault, { isLoading: savingDefault }] = useUpdateCertificateBadgeConfigMutation()
+  const [x, setX] = useState(3)
+  const [y, setY] = useState(96)
+  const [scale, setScale] = useState(100)
+  const [previewUrl, setPreviewUrl] = useState(null)
+
+  useEffect(() => {
+    if (savedConfig) {
+      setX(savedConfig.x)
+      setY(savedConfig.y)
+      setScale(savedConfig.scale)
+    }
+  }, [savedConfig])
+
+  // Debounced live preview — re-sends the file bytes each time (accepted simplicity trade-off
+  // for this admin-only tool, no temp-file/session caching).
+  useEffect(() => {
+    if (!file) return
+    const timer = setTimeout(async () => {
+      const formData = new FormData()
+      formData.append('certificate', file)
+      formData.append('x', x)
+      formData.append('y', y)
+      formData.append('scale', scale)
+      try {
+        const result = await previewBadge(formData).unwrap()
+        setPreviewUrl(result.preview)
+      } catch (err) {
+        toast.error(err?.data?.message || 'Failed to render preview')
+      }
+    }, 350)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [file, x, y, scale])
+
+  const handleConfirm = async () => {
+    if (!orderId) return
+    const formData = new FormData()
+    formData.append('certificate', file)
+    formData.append('x', x)
+    formData.append('y', y)
+    formData.append('scale', scale)
+    try {
+      const result = await uploadCertificate({ orderId, formData }).unwrap()
+      onConfirmed(result)
+    } catch (err) {
+      toast.error(err?.data?.message || 'Failed to upload certificate')
+    }
+  }
+
+  const handleReset = () => {
+    if (!savedConfig) return
+    setX(savedConfig.x)
+    setY(savedConfig.y)
+    setScale(savedConfig.scale)
+  }
+
+  const handleSaveDefault = async () => {
+    try {
+      await saveBadgeDefault({ x, y, scale }).unwrap()
+      toast.success('Saved as the default badge position/size')
+    } catch (err) {
+      toast.error(err?.data?.message || 'Failed to save default')
+    }
+  }
+
+  return (
+    <Modal open={!!file} onClose={onClose} title="Adjust Certificate Badge" size="wide">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_280px]">
+        <div className="relative flex min-h-[300px] items-center justify-center rounded-xl border border-slate-200 bg-slate-50 p-2">
+          {previewUrl ? (
+            <img src={previewUrl} alt="Badge preview" className="max-h-[70vh] w-auto rounded-lg" />
+          ) : (
+            <div className="flex h-64 items-center justify-center text-sm text-slate-400">Rendering preview…</div>
+          )}
+          {previewing && (
+            <div className="absolute right-3 top-3 rounded-full bg-white/90 px-2 py-1 text-xs text-slate-500 shadow-sm">Updating…</div>
+          )}
+        </div>
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-xs text-slate-500">Horizontal Position (%)</label>
+            <input type="range" min="0" max="97" value={x}
+              onChange={(e) => setX(+e.target.value)}
+              className="w-full h-1.5 accent-primary-600" />
+            <span className="text-xs text-slate-400">{x}%</span>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-slate-500">Vertical Position (%)</label>
+            <input type="range" min="3" max="100" value={y}
+              onChange={(e) => setY(+e.target.value)}
+              className="w-full h-1.5 accent-primary-600" />
+            <span className="text-xs text-slate-400">{y}%</span>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-slate-500">Badge Size</label>
+            <input type="range" min="40" max="200" value={scale}
+              onChange={(e) => setScale(+e.target.value)}
+              className="w-full h-1.5 accent-primary-600" />
+            <span className="text-xs text-slate-400">{scale}%</span>
+          </div>
+          <button type="button" onClick={handleReset} className="text-xs text-primary-600 hover:underline">
+            Reset to default
+          </button>
+          <button
+            type="button"
+            onClick={handleSaveDefault}
+            disabled={savingDefault}
+            className="w-full rounded-lg border border-primary-200 bg-primary-50 px-4 py-2 text-sm font-medium text-primary-700 hover:bg-primary-100 disabled:opacity-50"
+          >
+            {savingDefault ? 'Saving…' : 'Save as Default'}
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={uploading || !previewUrl}
+            className="w-full rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
+          >
+            {uploading ? 'Uploading…' : 'Confirm & Upload'}
+          </button>
+          <p className="text-xs text-slate-400">Confirming an upload always saves these settings as the default too — use "Save as Default" to update the default without uploading.</p>
+        </div>
+      </div>
     </Modal>
   )
 }

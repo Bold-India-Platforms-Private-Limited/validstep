@@ -75,4 +75,26 @@ const uploadUserImportFile = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
 }).single('file');
 
-module.exports = { uploadTemplateBackground, uploadAccountingFile, uploadUserImportFile };
+function customCertificateFileFilter(req, file, cb) {
+  const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+  if (allowed.includes(file.mimetype)) return cb(null, true);
+  cb(Object.assign(new Error('Only JPG, PNG, or PDF files allowed'), { statusCode: 400 }));
+}
+
+// Memory storage — the uploaded file is composited (badge overlay) in-process
+// and pushed straight to R2, it's never meant to land on local disk.
+const uploadCustomCertificate = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: customCertificateFileFilter,
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB
+}).single('certificate');
+
+// Same shape as uploadCustomCertificate, used by the badge-position live-preview
+// endpoint — nothing is persisted, so it's a separate export purely for clarity at the route.
+const previewCertificateBadgeUpload = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: customCertificateFileFilter,
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB
+}).single('certificate');
+
+module.exports = { uploadTemplateBackground, uploadAccountingFile, uploadUserImportFile, uploadCustomCertificate, previewCertificateBadgeUpload };
