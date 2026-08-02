@@ -20,7 +20,7 @@ export function Modal({ open, onClose, title, headerContent, children, size = 'm
   // stop short of covering the top header bar). A portal escapes that entirely.
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className={`relative flex max-h-[94vh] w-full ${maxW} flex-col rounded-2xl bg-white shadow-2xl`}>
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-6 py-3">
           {headerContent || <h3 className="text-lg font-semibold text-slate-900">{title}</h3>}

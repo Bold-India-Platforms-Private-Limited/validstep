@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  useGetAdminOrderLogQuery, useGetAdminOrderDetailQuery, useResolveAdminQueryMutation, useGetAdminCompaniesQuery,
+  useGetAdminOrderLogQuery, useGetAdminOrderDetailQuery, useResolveAdminQueryMutation, useGetAdminCompaniesQuery, useGetAdminBatchesQuery,
   useResendUserPasswordMutation, useResendCertificateEmailMutation, usePreviewCertificateEmailMutation, useUploadAdminCertificateMutation, useGetAdminWhoamiQuery,
   useGetCertificateBadgeConfigQuery, useUpdateCertificateBadgeConfigMutation, usePreviewCertificateBadgeMutation,
 } from '../../store/api/adminApi'
@@ -12,12 +12,26 @@ import { GreenVerifyIcon, OpenLinkIcon } from '../../components/ui/BrandIcons'
 import { formatDate, formatCurrency } from '../../utils/formatDate'
 import { downloadInvoicePDF, getInvoicePreviewUrl } from '../../utils/downloadInvoice'
 import {
-  ClipboardList, Search, Eye, FileText, ShieldCheck, MessageSquareText, KeyRound, Send, Award,
+  ClipboardList, Search, Eye, EyeOff, FileText, ShieldCheck, MessageSquareText, KeyRound, Send, Award,
   Calendar, Building2, Wallet, ShieldQuestion, MessageCircle, Sparkles, FolderOpen, Lock, UploadCloud,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const DAY_MS = 24 * 60 * 60 * 1000
+
+function maskEmail(email) {
+  if (!email) return ''
+  const [local, domain] = email.split('@')
+  if (!domain) return email
+  const visible = local.slice(0, 2)
+  return `${visible}${'*'.repeat(Math.max(local.length - visible.length, 3))}@${domain}`
+}
+
+function maskPhone(phone) {
+  if (!phone) return ''
+  const visible = phone.slice(-2)
+  return `${'*'.repeat(Math.max(phone.length - visible.length, 3))}${visible}`
+}
 
 function DurationProgress({ startDate, endDate, certificateDeliveryDate }) {
   const start = new Date(startDate).getTime()
@@ -116,6 +130,8 @@ function OrderDetailModal({ orderId, onClose }) {
   const [adjustFile, setAdjustFile] = useState(null)
   const [emailTo, setEmailTo] = useState('')
   const [emailPreview, setEmailPreview] = useState(null)
+  const [showContact, setShowContact] = useState(false)
+  const [useCustomEmail, setUseCustomEmail] = useState(false)
   const fileInputRef = useRef(null)
 
   const order = data?.order
@@ -127,11 +143,13 @@ function OrderDetailModal({ orderId, onClose }) {
     setTab('overview')
     setUploadResult(null)
     setEmailPreview(null)
+    setShowContact(false)
+    setUseCustomEmail(false)
   }, [orderId])
 
   useEffect(() => {
-    if (order?.user?.email) setEmailTo(order.user.email)
-  }, [order?.user?.email])
+    if (order?.user?.email && !useCustomEmail) setEmailTo(order.user.email)
+  }, [order?.user?.email, useCustomEmail])
 
   const handleDownloadInvoice = async () => {
     if (!order) return
@@ -227,8 +245,22 @@ function OrderDetailModal({ orderId, onClose }) {
   const headerContent = order && (
     <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5">
       <p className="truncate text-base font-semibold text-slate-900">{order.user?.name}</p>
-      <p className="truncate text-xs text-slate-500">{order.user?.email}</p>
-      {order.user?.phone && <p className="text-xs text-slate-500">{order.user.phone}</p>}
+      <p className="truncate text-xs text-slate-500">
+        {showContact ? order.user?.email : maskEmail(order.user?.email)}
+      </p>
+      {order.user?.phone && (
+        <p className="text-xs text-slate-500">
+          {showContact ? order.user.phone : maskPhone(order.user.phone)}
+        </p>
+      )}
+      <button
+        type="button"
+        onClick={() => setShowContact((v) => !v)}
+        title={showContact ? 'Hide contact details' : 'Show contact details'}
+        className="flex h-5 w-5 items-center justify-center rounded text-slate-400 hover:text-slate-600"
+      >
+        {showContact ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+      </button>
       <p className="font-mono text-xs text-slate-400">{order.certificate_serial}</p>
       <StatusBadge status={order.status} />
       <button
@@ -514,7 +546,7 @@ function OrderDetailModal({ orderId, onClose }) {
               </h3>
               <p className="mb-4 text-sm text-slate-500">
                 {order.certificate?.is_issued
-                  ? 'Email the issued certificate — the certificate file is attached, and the account email is prefilled below (useful if the original notification bounced or the customer asks for it again).'
+                  ? 'Email the issued certificate — the certificate file is attached. By default it goes to the customer\'s account email (useful if the original notification bounced or the customer asks for it again).'
                   : 'This certificate has not been issued yet — issue it from the batch\'s Certificates screen first.'}
               </p>
               {isReview && (
@@ -523,19 +555,42 @@ function OrderDetailModal({ orderId, onClose }) {
                 </p>
               )}
               {order.certificate?.is_issued && !isReview && (
-                <div className="mb-4 space-y-1">
+                <div className="mb-4 space-y-2">
                   <label className="text-xs font-medium text-slate-500">Send to</label>
-                  <input
-                    type="email"
-                    value={emailTo}
-                    onChange={(e) => setEmailTo(e.target.value)}
-                    placeholder={order.user?.email}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-primary-400 focus:outline-none"
-                  />
-                  {emailTo && emailTo !== order.user?.email && (
-                    <p className="text-xs text-amber-600">
-                      This only changes where this one email goes — the customer's account email stays {order.user?.email}.
-                    </p>
+                  <div className="space-y-1.5">
+                    <label className="flex items-center gap-2 text-sm text-slate-700">
+                      <input
+                        type="radio"
+                        name="sendToMode"
+                        checked={!useCustomEmail}
+                        onChange={() => { setUseCustomEmail(false); setEmailTo(order.user?.email || '') }}
+                      />
+                      Customer Account Associated Email
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-slate-700">
+                      <input
+                        type="radio"
+                        name="sendToMode"
+                        checked={useCustomEmail}
+                        onChange={() => { setUseCustomEmail(true); setEmailTo('') }}
+                      />
+                      A different email, just for this delivery
+                    </label>
+                  </div>
+                  {useCustomEmail && (
+                    <>
+                      <input
+                        type="email"
+                        value={emailTo}
+                        onChange={(e) => setEmailTo(e.target.value)}
+                        placeholder="Enter email address"
+                        autoFocus
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-primary-400 focus:outline-none"
+                      />
+                      <p className="text-xs text-amber-600">
+                        This only changes where this one email goes — the customer's account email is not changed.
+                      </p>
+                    </>
                   )}
                 </div>
               )}
@@ -768,6 +823,7 @@ export default function AdminOrderLog() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
   const [companyFilter, setCompanyFilter] = useState('')
+  const [batchFilter, setBatchFilter] = useState('')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [detailOrderId, setDetailOrderId] = useState(null)
@@ -776,10 +832,15 @@ export default function AdminOrderLog() {
     ...(search && { search }),
     ...(status && { status }),
     ...(companyFilter && { company_id: companyFilter }),
+    ...(batchFilter && { batch_id: batchFilter }),
     ...(from && { from }),
     ...(to && { to }),
   })
   const { data: companiesData } = useGetAdminCompaniesQuery({ limit: 100 })
+  const { data: batchesData } = useGetAdminBatchesQuery(
+    { limit: 100, company_id: companyFilter },
+    { skip: !companyFilter },
+  )
 
   const orderLog = data?.orderLog || []
   const pagination = data?.pagination || {}
@@ -815,11 +876,21 @@ export default function AdminOrderLog() {
         </div>
         <select
           value={companyFilter}
-          onChange={(e) => { setCompanyFilter(e.target.value); setPage(1) }}
+          onChange={(e) => { setCompanyFilter(e.target.value); setBatchFilter(''); setPage(1) }}
           className="rounded-lg border border-slate-200 py-2 pl-3 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
         >
           <option value="">All organizations</option>
           {(companiesData?.companies || []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+        <select
+          value={batchFilter}
+          onChange={(e) => { setBatchFilter(e.target.value); setPage(1) }}
+          disabled={!companyFilter}
+          title={!companyFilter ? 'Choose an organization first' : undefined}
+          className="rounded-lg border border-slate-200 py-2 pl-3 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+        >
+          <option value="">All batches</option>
+          {(batchesData?.batches || []).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
         </select>
         <select
           value={status}

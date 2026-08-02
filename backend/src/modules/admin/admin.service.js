@@ -1839,7 +1839,7 @@ async function assignTransactionsToBatch({ company_id, batch_id, payu_ids }) {
  * that haven't been assigned to a batch yet (shown as unlinked) so nothing imported is hidden.
  */
 async function getOrderLog(query = {}, accessLevel) {
-  const { page = 1, limit = 20, from, to, status, company_id, search } = query;
+  const { page = 1, limit = 20, from, to, status, company_id, batch_id, search } = query;
   const skip = (page - 1) * limit;
 
   const createdRange = {};
@@ -1855,6 +1855,7 @@ async function getOrderLog(query = {}, accessLevel) {
     ...(Object.keys(createdRange).length && { created_at: createdRange }),
     ...(status && { status }),
     ...(company_id && { company_id }),
+    ...(batch_id && { batch_id }),
     ...(search && {
       OR: [
         { user: { name: { contains: search, mode: 'insensitive' } } },

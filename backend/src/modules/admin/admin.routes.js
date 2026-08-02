@@ -160,6 +160,7 @@ const orderLogQuerySchema = z.object({
   to: z.string().optional(),
   status: z.string().optional(),
   company_id: z.string().uuid().optional(),
+  batch_id: z.string().uuid().optional(),
   search: z.string().optional(),
 });
 

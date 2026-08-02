@@ -64,35 +64,45 @@ function baseLayout(content) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light only">
+<meta name="supported-color-schemes" content="light only">
 <style>
+  :root { color-scheme: light only; supported-color-schemes: light only; }
   body { margin:0; padding:0; background:#f5f5f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
   .wrapper { max-width:600px; margin:32px auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.08); }
   .header { background:#ffffff; border-bottom:3px solid #4F46E5; padding:24px 40px; text-align:center; }
-  .header img { height:32px; width:auto; }
-  .header p { margin:8px 0 0; color:#64748b; font-size:12px; }
-  .body { padding:32px 40px; }
-  .btn { display:inline-block; background:#4F46E5; color:#fff; text-decoration:none; padding:13px 28px; border-radius:8px; font-weight:600; font-size:15px; margin:8px 4px; }
-  .btn-outline { background:#fff; color:#4F46E5; border:2px solid #4F46E5; }
-  .info-box { background:#f8f9ff; border:1px solid #e0e3ff; border-radius:10px; padding:20px; margin:20px 0; }
+  .header p { margin:8px 0 0; color:#64748b !important; font-size:12px; }
+  .body { padding:32px 40px; background:#ffffff !important; }
+  .body p, .body h2, .body li { color:#1e293b; }
+  .btn { display:inline-block; background:#4F46E5 !important; color:#ffffff !important; text-decoration:none; padding:13px 28px; border-radius:8px; font-weight:600; font-size:15px; margin:8px 4px; }
+  .btn-outline { background:#ffffff !important; color:#4F46E5 !important; border:2px solid #4F46E5; }
+  .info-box { background:#f8f9ff !important; border:1px solid #e0e3ff; border-radius:10px; padding:20px; margin:20px 0; }
   .info-row { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #eee; font-size:14px; }
   .info-row:last-child { border-bottom:none; }
-  .info-row .label { color:#64748b; }
-  .info-row .value { color:#1e293b; font-weight:600; }
-  .footer { background:#f8fafc; border-top:1px solid #e2e8f0; padding:20px 40px; text-align:center; font-size:12px; color:#94a3b8; }
-  .badge-success { display:inline-block; background:#dcfce7; color:#166534; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:600; }
-  .badge-warning { display:inline-block; background:#fef9c3; color:#854d0e; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:600; }
+  .info-row .label { color:#64748b !important; }
+  .info-row .value { color:#1e293b !important; font-weight:600; }
+  .footer { background:#f8fafc !important; border-top:1px solid #e2e8f0; padding:20px 40px; text-align:center; font-size:12px; color:#94a3b8 !important; }
+  .footer p { color:#94a3b8 !important; }
+  .badge-success { display:inline-block; background:#dcfce7 !important; color:#166534 !important; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:600; }
+  .badge-warning { display:inline-block; background:#fef9c3 !important; color:#854d0e !important; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:600; }
 </style>
 </head>
-<body>
+<body style="margin:0;padding:0;background:#f5f5f5;">
 <div class="wrapper">
   <div class="header">
-    <img src="https://validstep.com/logo.webp" alt="Validstep.com">
-    <p>Digital Certificate Platform</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto;">
+      <tr>
+        <td bgcolor="#ffffff" style="background-color:#ffffff;padding:10px 16px;">
+          <img src="https://validstep.com/logo.webp" alt="Validstep.com" width="140" style="display:block;height:auto;width:140px;max-width:100%;">
+        </td>
+      </tr>
+    </table>
+    <p style="margin:10px 0 0;color:#64748b;font-size:12px;">Digital Certificate Platform</p>
   </div>
-  <div class="body">${content}</div>
-  <div class="footer">
-    <p>© ${new Date().getFullYear()} Validstep.com. All rights reserved.</p>
-    <p>This email was sent automatically. Please do not reply.</p>
+  <div class="body" style="background:#ffffff;">${content}</div>
+  <div class="footer" style="background:#f8fafc;">
+    <p style="color:#94a3b8;margin:0 0 4px;">© ${new Date().getFullYear()} Validstep.com. All rights reserved.</p>
+    <p style="color:#94a3b8;margin:0;">This email was sent automatically. Please do not reply.</p>
   </div>
 </div>
 </body>
