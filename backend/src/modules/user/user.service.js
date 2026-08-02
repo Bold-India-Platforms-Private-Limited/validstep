@@ -264,7 +264,16 @@ async function getDeliveryLog(userId) {
   const events = await db.deliveryEvent.findMany({
     where: { user_id: userId },
     orderBy: { created_at: 'desc' },
-    include: { order: { select: { certificate_serial: true, batch: { select: { name: true } } } } },
+    include: {
+      order: {
+        select: {
+          certificate_serial: true,
+          created_at: true,
+          batch: { select: { name: true } },
+          payments: { select: { created_at: true }, orderBy: { created_at: 'desc' }, take: 1 },
+        },
+      },
+    },
   });
   return { events };
 }

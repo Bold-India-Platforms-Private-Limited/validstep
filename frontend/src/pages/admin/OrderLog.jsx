@@ -261,7 +261,7 @@ function OrderDetailModal({ orderId, onClose }) {
       >
         {showContact ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
       </button>
-      <p className="font-mono text-xs text-slate-400">{order.certificate_serial}</p>
+      <p className="font-mono text-xs text-slate-400">Customer ID: {order.certificate_serial}</p>
       <StatusBadge status={order.status} />
       <button
         onClick={handleViewInvoice}
@@ -469,7 +469,7 @@ function OrderDetailModal({ orderId, onClose }) {
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Serial</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Customer ID</p>
                   <p className="mt-1 font-mono text-sm text-slate-800">{order.certificate_serial}</p>
                 </div>
                 <div>

@@ -160,7 +160,9 @@ export default function UserDashboard() {
                     <div className="min-w-0 flex-1 pb-4 last:pb-0">
                       <p className="text-sm font-medium text-slate-800">{DELIVERY_EVENT_LABELS[e.event] || e.event}</p>
                       <p className="text-xs text-slate-400">
-                        {formatDate(e.created_at)}
+                        {formatDate(e.event === 'BATCH_ASSIGNED'
+                          ? (e.order?.payments?.[0]?.created_at || e.order?.created_at || e.created_at)
+                          : e.created_at)}
                         {e.order?.batch?.name && ` · ${e.order.batch.name}`}
                       </p>
                     </div>
