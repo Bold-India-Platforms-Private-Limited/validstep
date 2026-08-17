@@ -13,6 +13,7 @@ const { generateCertificateSerial } = require('../batch/batch.service');
 const { parseUserImportFile } = require('../../utils/userImportParser');
 const { parseTransactionReport, looksLikePayuTransactionReport } = require('../../utils/reportParsers');
 const { logDeliveryEvent } = require('../../utils/deliveryLog');
+const { extractDocIdFromFilename, sanitizeDocId } = require('../../utils/docId');
 const env = require('../../config/env');
 
 // The PayU-review demo admin account is scoped to only these 2 customers' data —
@@ -178,11 +179,13 @@ async function getAdminBatchById(batchId) {
  * Get order stats for a batch (counts by status + revenue)
  */
 async function getAdminBatchStats(batchId, accessLevel) {
+  const restricted = isReviewLevel(accessLevel);
+  const reviewUserFilter = { user: { email: { in: REVIEW_ALLOWED_EMAILS } } };
   const where = {
     batch_id: batchId,
-    ...(isReviewLevel(accessLevel) && { user: { email: { in: REVIEW_ALLOWED_EMAILS } } }),
+    ...(restricted && reviewUserFilter),
   };
-  const [grouped, revenue] = await Promise.all([
+  const [grouped, revenue, certificatesIssued] = await Promise.all([
     db.order.groupBy({
       by: ['status'],
       where,
@@ -193,6 +196,7 @@ async function getAdminBatchStats(batchId, accessLevel) {
       _sum: { amount: true },
       _count: { id: true },
     }),
+    db.certificate.count({ where: { batch_id: batchId, is_issued: true, ...(restricted && reviewUserFilter) } }),
   ]);
 
   const counts = { TOTAL: 0, PAID: 0, PENDING: 0, FAILED: 0, REFUNDED: 0 };
@@ -204,6 +208,7 @@ async function getAdminBatchStats(batchId, accessLevel) {
   return {
     orders: counts,
     paid_revenue: Number(revenue._sum.amount || 0),
+    certificates_issued: certificatesIssued,
   };
 }
 
@@ -211,19 +216,21 @@ async function getAdminBatchStats(batchId, accessLevel) {
  * Get orders for a batch (admin — no company restriction)
  */
 async function getAdminBatchOrders(batchId, query = {}, accessLevel) {
-  const { page = 1, limit = 100, status } = query;
+  const { page = 1, limit = 100, status, certificate_status } = query;
   const skip = (page - 1) * Number(limit);
 
   const where = {
     batch_id: batchId,
     ...(status && { status }),
+    ...(certificate_status === 'ISSUED' && { certificate: { is_issued: true } }),
+    ...(certificate_status === 'PENDING' && { certificate: { is_issued: false } }),
     ...(isReviewLevel(accessLevel) && { user: { email: { in: REVIEW_ALLOWED_EMAILS } } }),
   };
 
   const include = {
     user: { select: { id: true, name: true, email: true, phone: true } },
     certificate: {
-      select: { id: true, is_issued: true, issued_at: true, certificate_serial: true, verification_hash: true },
+      select: { id: true, is_issued: true, issued_at: true, certificate_serial: true, verification_hash: true, verification_code: true },
     },
     payments: {
       where: { status: 'SUCCESS' },
@@ -432,7 +439,9 @@ async function getAllBatches(query = {}, accessLevel) {
     }),
   };
 
-  const [batches, total] = await Promise.all([
+  const issuedFilter = { is_issued: true, ...(restricted && reviewUserFilter) };
+
+  const [batches, total, issuedCertificates] = await Promise.all([
     db.batch.findMany({
       where,
       skip,
@@ -444,12 +453,15 @@ async function getAllBatches(query = {}, accessLevel) {
         _count: {
           select: {
             orders: restricted ? { where: reviewUserFilter } : true,
-            certificates: restricted ? { where: reviewUserFilter } : true,
+            certificates: { where: issuedFilter },
           },
         },
       },
     }),
     db.batch.count({ where }),
+    // Aggregate issued-certificate count across every batch matching the current filters
+    // (not just the current page) — the per-row _count above is paginated, this isn't.
+    db.certificate.count({ where: { batch: where, ...issuedFilter } }),
   ]);
 
   return {
@@ -460,6 +472,7 @@ async function getAllBatches(query = {}, accessLevel) {
       limit: Number(limit),
       pages: Math.ceil(total / limit),
     },
+    totals: { issued_certificates: issuedCertificates },
   };
 }
 
@@ -1176,19 +1189,6 @@ async function resendCertificateEmail(orderId, overrideEmail) {
 }
 
 /**
- * Companies already print their own document ID on the certificate design itself (e.g. "Scan
- * to Verify Doc: BFDA82407"), and name the exported file after that same ID (BFDA82407.jpg) —
- * so we reuse it as the verification_code instead of minting an unrelated random one. That
- * keeps the ID Validstep prints in the badge consistent with whatever the company's own design
- * already shows elsewhere on the certificate.
- */
-function extractDocIdFromFilename(originalname) {
-  const base = path.basename(originalname || '', path.extname(originalname || ''));
-  const sanitized = base.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
-  return sanitized || null;
-}
-
-/**
  * Admin uploads a custom-designed certificate (image or PDF) for a specific order — used when
  * a company supplies their own certificate design instead of relying on a system-generated
  * template. The file is stamped with a Validstep verification badge (same format in and out —
@@ -1298,6 +1298,228 @@ async function uploadCustomCertificate(orderId, file, badgeParams = {}) {
     verification_code: docId,
     verify_url: `${env.FRONTEND_URL}/verify/${docId}`,
   };
+}
+
+const ALLOWED_BULK_CERT_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.pdf'];
+const BULK_MATCH_TTL_SECONDS = 30 * 60;
+
+// In-memory fallback for the bulk-certificate match cache when Redis is unavailable — this is
+// an admin-only, one-operator-at-a-time tool, so a per-process Map degrades acceptably. Entries
+// expire on their own via setTimeout so nothing lingers past the same TTL Redis would use.
+const bulkMatchMemoryCache = new Map();
+
+async function cacheBulkMatchRows(token, rows) {
+  const stored = await redisSet(`bulk-cert-match:${token}`, JSON.stringify(rows), BULK_MATCH_TTL_SECONDS);
+  if (!stored) {
+    bulkMatchMemoryCache.set(token, rows);
+    const timer = setTimeout(() => bulkMatchMemoryCache.delete(token), BULK_MATCH_TTL_SECONDS * 1000);
+    timer.unref?.();
+  }
+}
+
+async function getCachedBulkMatchRows(token) {
+  const cached = await redisGet(`bulk-cert-match:${token}`);
+  if (cached) return JSON.parse(cached);
+  return bulkMatchMemoryCache.get(token) || null;
+}
+
+/**
+ * Dry-run match for bulk certificate upload: an Excel sheet (Name/Email/ID/Duration/Date) ties
+ * each row to a batch order by email, and a folder of finished certificate files (named after
+ * that same ID, e.g. BFDA52703.jpg) supplies the actual file. Read-only — no DB writes, no
+ * uploads — so the admin can re-run this as many times as needed before committing. The
+ * "ready" rows are cached under a short-lived token so the commit step doesn't need the Excel
+ * (or the full row list) resent.
+ */
+async function matchBulkCertificates({ batchId, fileBuffer, folderPath }) {
+  const batch = await db.batch.findUnique({ where: { id: batchId }, select: { id: true } });
+  if (!batch) throw Object.assign(new Error('Batch not found'), { statusCode: 404 });
+
+  const trimmedPath = String(folderPath || '').trim();
+  if (!trimmedPath) throw Object.assign(new Error('Folder path is required'), { statusCode: 400 });
+  if (!fs.existsSync(trimmedPath) || !fs.statSync(trimmedPath).isDirectory()) {
+    throw Object.assign(new Error(`Folder not found or not accessible from the server: "${trimmedPath}" — this path must exist on the machine running the backend`), { statusCode: 400 });
+  }
+
+  const fileMap = new Map();
+  for (const entry of fs.readdirSync(trimmedPath)) {
+    const ext = path.extname(entry).toLowerCase();
+    if (!ALLOWED_BULK_CERT_EXTENSIONS.includes(ext)) continue;
+    const docId = sanitizeDocId(path.basename(entry, ext));
+    if (docId && !fileMap.has(docId)) fileMap.set(docId, path.join(trimmedPath, entry));
+  }
+
+  const { parseCertificateMatchFile } = require('../../utils/certificateMatchParser');
+  const { rows: parsedRows, errors: parseErrors } = parseCertificateMatchFile(fileBuffer);
+
+  const resultRows = [];
+  const readyRows = [];
+  // Keyed by matched order.id, not by email string — a master sheet spanning many batches
+  // can legitimately repeat the same person's email across unrelated rows (different batch,
+  // different cert ID); only flag a row as a duplicate once it resolves to an order that an
+  // earlier row in *this* batch already claimed.
+  const claimedOrderIds = new Set();
+
+  for (const row of parsedRows) {
+    const rowEmails = [row.email, row.email2].filter(Boolean);
+
+    // Either email column can tie this row to an order — some companies keep a second/
+    // personal email on file that differs from the one the student actually registered with.
+    const order = await db.order.findFirst({
+      where: { batch_id: batchId, user: { email: { in: rowEmails } } },
+      include: { certificate: true, user: { select: { name: true, email: true } } },
+      orderBy: { created_at: 'desc' },
+    });
+
+    if (!order) {
+      resultRows.push({ ...row, status: 'no_order', reason: 'No order for either email in this batch' });
+      continue;
+    }
+    if (claimedOrderIds.has(order.id)) {
+      resultRows.push({ ...row, status: 'duplicate_row', reason: 'Another row in this sheet already matched to the same order', orderId: order.id });
+      continue;
+    }
+    if (!order.certificate) {
+      resultRows.push({ ...row, status: 'no_certificate', reason: 'Order has no certificate record', orderId: order.id });
+      continue;
+    }
+
+    const filePath = fileMap.get(row.id);
+    if (!filePath) {
+      resultRows.push({ ...row, status: 'no_file', reason: `No file named ${row.id}.(jpg|png|pdf) found in the folder`, orderId: order.id });
+      continue;
+    }
+
+    if (order.certificate.certificate_source === 'ADMIN_UPLOADED' && order.certificate.verification_code === row.id) {
+      claimedOrderIds.add(order.id);
+      resultRows.push({ ...row, status: 'already_uploaded', reason: 'Already uploaded with this ID', orderId: order.id });
+      continue;
+    }
+
+    claimedOrderIds.add(order.id);
+    readyRows.push({ orderId: order.id, filePath, docId: row.id, email: row.email || row.email2, name: row.name || order.user.name });
+    resultRows.push({ ...row, status: 'ready', orderId: order.id });
+  }
+
+  for (const err of parseErrors) {
+    resultRows.push({ rowNum: err.rowNum, email: err.email, status: 'parse_error', reason: err.reason });
+  }
+
+  const summary = resultRows.reduce((acc, r) => {
+    acc[r.status] = (acc[r.status] || 0) + 1;
+    return acc;
+  }, {});
+  summary.total = resultRows.length;
+  summary.ready = readyRows.length;
+
+  const matchToken = require('crypto').randomUUID();
+  await cacheBulkMatchRows(matchToken, readyRows);
+
+  return { matchToken, rows: resultRows, summary };
+}
+
+/**
+ * Kicks off the actual bulk upload — badge-stamp + R2 upload + DB update per matched row,
+ * reusing uploadCustomCertificate() unchanged (see bulkUpload.service.js worker) so this
+ * produces exactly the same result as uploading each file one at a time.
+ */
+async function startBulkCertificateUpload({ batchId, matchToken }) {
+  const rows = await getCachedBulkMatchRows(matchToken);
+  if (!rows) {
+    throw Object.assign(new Error('Match session expired — re-run matching and try again'), { statusCode: 400 });
+  }
+  if (!rows.length) {
+    throw Object.assign(new Error('No matched rows to upload'), { statusCode: 400 });
+  }
+  const { addBulkUploadJob } = require('../certificate/bulkUpload.service');
+  const outcome = await addBulkUploadJob({ batchId, rows });
+  return { total: rows.length, ...outcome };
+}
+
+async function getBulkCertificateUploadStatus(jobId) {
+  const { getBulkUploadJobStatus } = require('../certificate/bulkUpload.service');
+  return getBulkUploadJobStatus(jobId);
+}
+
+/**
+ * Builds a preview of the account-access + verification-link email without sending it. With
+ * an orderId, uses that order's real data (so what the admin previews is exactly what that
+ * person would receive). Without one, uses placeholder sample data so the template can still
+ * be reviewed before picking a specific recipient or sending to the whole batch.
+ */
+async function previewBatchAccessEmail({ batchId, orderId }) {
+  const { buildBatchAccessEmailContent } = require('../../utils/email');
+
+  const batch = await db.batch.findUnique({
+    where: { id: batchId },
+    select: {
+      name: true, role: true, start_date: true, end_date: true,
+      program: { select: { type: true } },
+      company: { select: { name: true } },
+    },
+  });
+  if (!batch) throw Object.assign(new Error('Batch not found'), { statusCode: 404 });
+
+  let userName = 'Participant';
+  let userEmail = 'participant@example.com';
+  let verificationUrl = `${env.FRONTEND_URL}/verify/SAMPLE1234`;
+  let sample = true;
+
+  if (orderId) {
+    const order = await db.order.findUnique({
+      where: { id: orderId },
+      include: { user: { select: { name: true, email: true } }, certificate: { select: { is_issued: true, verification_code: true, verification_hash: true } } },
+    });
+    if (!order || order.batch_id !== batchId) throw Object.assign(new Error('Order not found in this batch'), { statusCode: 404 });
+    userName = order.user.name;
+    userEmail = order.user.email;
+    const code = order.certificate?.verification_code || order.certificate?.verification_hash;
+    verificationUrl = order.certificate?.is_issued && code ? `${env.FRONTEND_URL}/verify/${code}` : null;
+    sample = false;
+  }
+
+  const { subject, html } = buildBatchAccessEmailContent({
+    userName, userEmail,
+    companyName: batch.company.name,
+    programType: batch.program.type,
+    batchName: batch.name,
+    role: batch.role,
+    startDate: batch.start_date,
+    endDate: batch.end_date,
+    verificationUrl,
+    loginUrl: `${env.FRONTEND_URL}/auth/user/login`,
+  });
+
+  return { subject, html, sample };
+}
+
+/**
+ * Sends the account-access + verification-link email to a specific list of orders, or to
+ * every PAID order in the batch when `sendAll` is set. Kicks off the same async-job pattern
+ * as bulk certificate upload (queue + progress polling) since a batch can have 1000+ orders —
+ * sending that many emails synchronously in one request would time out.
+ */
+async function sendBatchAccessEmails({ batchId, orderIds, sendAll }) {
+  const batch = await db.batch.findUnique({ where: { id: batchId }, select: { id: true } });
+  if (!batch) throw Object.assign(new Error('Batch not found'), { statusCode: 404 });
+
+  let targetOrderIds = orderIds;
+  if (sendAll) {
+    const orders = await db.order.findMany({ where: { batch_id: batchId, status: 'PAID' }, select: { id: true } });
+    targetOrderIds = orders.map((o) => o.id);
+  }
+  if (!targetOrderIds?.length) {
+    throw Object.assign(new Error('No recipients to send to'), { statusCode: 400 });
+  }
+
+  const { addBatchEmailJob } = require('./batchEmailJob.service');
+  const outcome = await addBatchEmailJob({ batchId, orderIds: targetOrderIds });
+  return { total: targetOrderIds.length, ...outcome };
+}
+
+async function getBatchAccessEmailStatus(jobId) {
+  const { getBatchEmailJobStatus } = require('./batchEmailJob.service');
+  return getBatchEmailJobStatus(jobId);
 }
 
 /**
@@ -1987,6 +2209,12 @@ module.exports = {
   getCertificateBadgeConfig,
   updateCertificateBadgeConfig,
   previewCertificateBadge,
+  matchBulkCertificates,
+  startBulkCertificateUpload,
+  getBulkCertificateUploadStatus,
+  previewBatchAccessEmail,
+  sendBatchAccessEmails,
+  getBatchAccessEmailStatus,
   registerUserForBatch,
   bulkUploadUsers,
   importPayuButtonCustomers,

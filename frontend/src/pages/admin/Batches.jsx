@@ -5,7 +5,7 @@ import { useGetAdminBatchesQuery, useUpdateAdminCompanyBatchMutation, useGetAdmi
 import { PageSpinner } from '../../components/ui/Spinner'
 import { Pagination } from '../../components/ui/Pagination'
 import { formatDate, formatCurrency } from '../../utils/formatDate'
-import { Layers, Search, ChevronRight } from 'lucide-react'
+import { Layers, Search, ChevronRight, Award } from 'lucide-react'
 
 const BATCH_STATUSES = ['DRAFT', 'ACTIVE', 'HOLD', 'COMPLETED']
 
@@ -66,6 +66,7 @@ export default function AdminBatches() {
 
   const batches = data?.batches || []
   const pagination = data?.pagination || {}
+  const issuedTotal = data?.totals?.issued_certificates || 0
 
   if (isLoading) return <PageSpinner />
 
@@ -74,6 +75,14 @@ export default function AdminBatches() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Batches</h1>
         <p className="text-sm text-slate-500">All certificate batches across companies</p>
+      </div>
+
+      <div className="inline-flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <div className="rounded-lg bg-violet-50 p-2 text-violet-600"><Award className="h-4 w-4" /></div>
+        <div>
+          <p className="text-xl font-bold text-slate-900">{issuedTotal.toLocaleString()}</p>
+          <p className="text-xs text-slate-500">Total Certificates Issued{search || status ? ' (matching filters)' : ''}</p>
+        </div>
       </div>
 
       <div className="flex gap-3 flex-wrap">
@@ -119,7 +128,12 @@ export default function AdminBatches() {
                 {batches.map((b) => (
                   <tr key={b.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3">
-                      <p className="text-sm font-medium text-slate-900">{b.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-slate-900">{b.name}</p>
+                        <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                          {b._count?.certificates || 0} issued
+                        </span>
+                      </div>
                       <p className="text-xs text-slate-400">{b.program?.name}</p>
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-600">{b.company?.name}</td>

@@ -203,6 +203,30 @@ export const adminApi = baseApi.injectEndpoints({
       query: (formData) => ({ url: '/admin/certificate-badge-config/preview', method: 'POST', body: formData }),
       transformResponse: (r) => r.data,
     }),
+    matchBulkCertificates: b.mutation({
+      query: ({ batchId, formData }) => ({ url: `/admin/batches/${batchId}/bulk-certificate-upload/match`, method: 'POST', body: formData }),
+      transformResponse: (r) => r.data,
+    }),
+    startBulkCertificateUpload: b.mutation({
+      query: ({ batchId, match_token }) => ({ url: `/admin/batches/${batchId}/bulk-certificate-upload/start`, method: 'POST', body: { match_token } }),
+      transformResponse: (r) => r.data,
+    }),
+    getBulkCertificateUploadStatus: b.query({
+      query: ({ batchId, jobId }) => `/admin/batches/${batchId}/bulk-certificate-upload/status/${jobId}`,
+      transformResponse: (r) => r.data,
+    }),
+    previewBatchAccessEmail: b.query({
+      query: ({ batchId, orderId }) => ({ url: `/admin/batches/${batchId}/access-email/preview`, params: orderId ? { order_id: orderId } : {} }),
+      transformResponse: (r) => r.data,
+    }),
+    sendBatchAccessEmails: b.mutation({
+      query: ({ batchId, order_ids, all }) => ({ url: `/admin/batches/${batchId}/access-email/send`, method: 'POST', body: { order_ids, all } }),
+      transformResponse: (r) => r.data,
+    }),
+    getBatchAccessEmailStatus: b.query({
+      query: ({ batchId, jobId }) => `/admin/batches/${batchId}/access-email/status/${jobId}`,
+      transformResponse: (r) => r.data,
+    }),
   }),
 })
 
@@ -226,4 +250,6 @@ export const {
   useGetAdminOrderLogQuery, useGetAdminOrderDetailQuery, useResolveAdminQueryMutation,
   useResendUserPasswordMutation, useResendCertificateEmailMutation, usePreviewCertificateEmailMutation, useUploadAdminCertificateMutation,
   useGetCertificateBadgeConfigQuery, useUpdateCertificateBadgeConfigMutation, usePreviewCertificateBadgeMutation,
+  useMatchBulkCertificatesMutation, useStartBulkCertificateUploadMutation, useGetBulkCertificateUploadStatusQuery,
+  usePreviewBatchAccessEmailQuery, useSendBatchAccessEmailsMutation, useGetBatchAccessEmailStatusQuery,
 } = adminApi

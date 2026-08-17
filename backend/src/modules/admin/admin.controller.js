@@ -346,6 +346,77 @@ async function previewCertificateBadge(req, res) {
   }
 }
 
+async function matchBulkCertificates(req, res) {
+  try {
+    if (!req.file) {
+      return sendError(res, 'No Excel/CSV file uploaded', 400);
+    }
+    const result = await adminService.matchBulkCertificates({
+      batchId: req.params.id,
+      fileBuffer: req.file.buffer,
+      folderPath: req.body.folder_path,
+    });
+    return sendSuccess(res, result, 'Match preview generated');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function startBulkCertificateUpload(req, res) {
+  try {
+    if (!req.body.match_token) {
+      return sendError(res, 'match_token is required', 400);
+    }
+    const result = await adminService.startBulkCertificateUpload({
+      batchId: req.params.id,
+      matchToken: req.body.match_token,
+    });
+    return sendSuccess(res, result, 'Bulk certificate upload started');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function getBulkCertificateUploadStatus(req, res) {
+  try {
+    const result = await adminService.getBulkCertificateUploadStatus(req.params.jobId);
+    return sendSuccess(res, result, 'Job status retrieved');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function previewBatchAccessEmail(req, res) {
+  try {
+    const result = await adminService.previewBatchAccessEmail({ batchId: req.params.id, orderId: req.query.order_id });
+    return sendSuccess(res, result, 'Preview generated');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function sendBatchAccessEmails(req, res) {
+  try {
+    const result = await adminService.sendBatchAccessEmails({
+      batchId: req.params.id,
+      orderIds: req.body.order_ids,
+      sendAll: !!req.body.all,
+    });
+    return sendSuccess(res, result, 'Batch email send started');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function getBatchAccessEmailStatus(req, res) {
+  try {
+    const result = await adminService.getBatchAccessEmailStatus(req.params.jobId);
+    return sendSuccess(res, result, 'Job status retrieved');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
 async function createUser(req, res) {
   try {
     const result = await adminService.registerUserForBatch(req.body);
@@ -538,6 +609,12 @@ module.exports = {
   getCertificateBadgeConfig,
   updateCertificateBadgeConfig,
   previewCertificateBadge,
+  matchBulkCertificates,
+  startBulkCertificateUpload,
+  getBulkCertificateUploadStatus,
+  previewBatchAccessEmail,
+  sendBatchAccessEmails,
+  getBatchAccessEmailStatus,
   createUser,
   bulkUploadUsers,
   importPayuButtonCustomers,

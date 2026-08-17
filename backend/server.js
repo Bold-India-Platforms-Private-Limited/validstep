@@ -25,6 +25,22 @@ async function start() {
       console.warn('[Worker] Certificate worker not started:', err.message);
     }
 
+    // Start BullMQ bulk certificate upload worker (only if Redis is available)
+    try {
+      const { startBulkUploadWorker } = require('./src/modules/certificate/bulkUpload.service');
+      startBulkUploadWorker();
+    } catch (err) {
+      console.warn('[Worker] Bulk certificate upload worker not started:', err.message);
+    }
+
+    // Start BullMQ batch access-email worker (only if Redis is available)
+    try {
+      const { startBatchEmailWorker } = require('./src/modules/admin/batchEmailJob.service');
+      startBatchEmailWorker();
+    } catch (err) {
+      console.warn('[Worker] Batch email worker not started:', err.message);
+    }
+
     server = app.listen(PORT, () => {
       // Keep-alive must exceed nginx's keepalive_timeout (default 75s).
       // 65s ensures nginx closes first, preventing 502s on idle connections.

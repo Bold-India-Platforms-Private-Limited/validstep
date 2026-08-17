@@ -8,7 +8,7 @@ const masterAccountingRoutes = require('../master-accounting/masterAccounting.ro
 const { validate } = require('../../middleware/validate');
 const { requireSuperAdmin } = require('../../middleware/auth');
 const { generalLimiter } = require('../../middleware/rateLimiter');
-const { uploadUserImportFile, uploadCustomCertificate, previewCertificateBadgeUpload } = require('../../middleware/upload');
+const { uploadUserImportFile, uploadCustomCertificate, previewCertificateBadgeUpload, uploadBulkCertificateMatchFile } = require('../../middleware/upload');
 const { enforceReviewReadOnly, blockReviewFromMasterAccounting, maskSensitiveDataForReview } = require('../../middleware/reviewAccountGuard');
 
 const router = Router();
@@ -45,6 +45,7 @@ const batchOrdersQuerySchema = z.object({
   page: z.string().optional().transform(v => v ? parseInt(v) : 1),
   limit: z.string().optional().transform(v => v ? Math.min(parseInt(v), 100) : 100),
   status: z.enum(['PENDING', 'PAID', 'FAILED', 'REFUNDED']).optional(),
+  certificate_status: z.enum(['ISSUED', 'PENDING']).optional(),
 });
 
 const issueCertsSchema = z.object({
@@ -198,6 +199,12 @@ router.get('/batches/:id/orders', validate({ query: batchOrdersQuerySchema }), c
 router.get('/batches/:id/orders/export', controller.exportAdminBatchOrders);
 router.get('/batches/:id/certificates', controller.getAdminBatchCertificates);
 router.post('/batches/:id/issue', validate({ body: issueCertsSchema }), controller.issueCertificatesAdmin);
+router.post('/batches/:id/bulk-certificate-upload/match', uploadBulkCertificateMatchFile, controller.matchBulkCertificates);
+router.post('/batches/:id/bulk-certificate-upload/start', controller.startBulkCertificateUpload);
+router.get('/batches/:id/bulk-certificate-upload/status/:jobId', controller.getBulkCertificateUploadStatus);
+router.get('/batches/:id/access-email/preview', controller.previewBatchAccessEmail);
+router.post('/batches/:id/access-email/send', controller.sendBatchAccessEmails);
+router.get('/batches/:id/access-email/status/:jobId', controller.getBatchAccessEmailStatus);
 router.get('/payments', validate({ query: paymentsQuerySchema }), controller.getAllPayments);
 router.get('/invoices', validate({ query: invoicesQuerySchema }), controller.getAdminInvoices);
 router.get('/orders/:orderId/invoice', controller.downloadInvoice);

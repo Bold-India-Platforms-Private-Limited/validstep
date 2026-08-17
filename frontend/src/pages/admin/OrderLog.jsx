@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   useGetAdminOrderLogQuery, useGetAdminOrderDetailQuery, useResolveAdminQueryMutation, useGetAdminCompaniesQuery, useGetAdminBatchesQuery,
   useResendUserPasswordMutation, useResendCertificateEmailMutation, usePreviewCertificateEmailMutation, useUploadAdminCertificateMutation, useGetAdminWhoamiQuery,
@@ -114,7 +115,7 @@ function RestrictedPanel({ label }) {
   )
 }
 
-function OrderDetailModal({ orderId, onClose }) {
+function OrderDetailModal({ orderId, initialTab, onClose }) {
   const { data, isLoading } = useGetAdminOrderDetailQuery(orderId, { skip: !orderId })
   const { data: whoami } = useGetAdminWhoamiQuery()
   const isReview = whoami?.access_level === 'review'
@@ -124,7 +125,7 @@ function OrderDetailModal({ orderId, onClose }) {
   const [previewCertEmail, { isLoading: loadingEmailPreview }] = usePreviewCertificateEmailMutation()
   const [uploadCertificate, { isLoading: uploadingCertificate }] = useUploadAdminCertificateMutation()
   const [downloading, setDownloading] = useState(false)
-  const [tab, setTab] = useState('overview')
+  const [tab, setTab] = useState(initialTab || 'overview')
   const [loadingPreview, setLoadingPreview] = useState(false)
   const [uploadResult, setUploadResult] = useState(null)
   const [adjustFile, setAdjustFile] = useState(null)
@@ -140,7 +141,7 @@ function OrderDetailModal({ orderId, onClose }) {
   const queries = data?.queries || []
 
   useEffect(() => {
-    setTab('overview')
+    setTab(initialTab || 'overview')
     setUploadResult(null)
     setEmailPreview(null)
     setShowContact(false)
@@ -818,6 +819,7 @@ function CertificateBadgeAdjustModal({ file, orderId, onClose, onConfirmed }) {
 }
 
 export default function AdminOrderLog() {
+  const [searchParams] = useSearchParams()
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(20)
   const [search, setSearch] = useState('')
@@ -826,7 +828,12 @@ export default function AdminOrderLog() {
   const [batchFilter, setBatchFilter] = useState('')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
-  const [detailOrderId, setDetailOrderId] = useState(null)
+  // Deep-link support (e.g. from a batch's Orders table): ?order=<id>&tab=certificate
+  // opens straight into that order's modal on the given tab. initialTab is cleared once a
+  // row is clicked normally so later opens fall back to the default Overview tab.
+  const [detailOrderId, setDetailOrderId] = useState(() => searchParams.get('order') || null)
+  const [initialTab, setInitialTab] = useState(() => searchParams.get('tab') || undefined)
+  const openOrder = (orderId) => { setInitialTab(undefined); setDetailOrderId(orderId) }
   const { data, isLoading } = useGetAdminOrderLogQuery({
     page, limit,
     ...(search && { search }),
@@ -940,7 +947,7 @@ export default function AdminOrderLog() {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {orderLog.map((o) => (
-                  <tr key={o.id} onClick={() => setDetailOrderId(o.id)} className="cursor-pointer hover:bg-slate-50 transition-colors">
+                  <tr key={o.id} onClick={() => openOrder(o.id)} className="cursor-pointer hover:bg-slate-50 transition-colors">
                     <td className="px-3 py-3">
                       <p className="text-sm font-medium text-slate-900">{o.user?.name}</p>
                       <p className="text-xs text-slate-500">{o.user?.email}</p>
@@ -964,7 +971,7 @@ export default function AdminOrderLog() {
                     <td className="px-3 py-3">
                       <div className="flex flex-col items-start gap-1.5">
                         <button
-                          onClick={() => setDetailOrderId(o.id)}
+                          onClick={() => openOrder(o.id)}
                           className="flex items-center gap-1 text-xs font-medium text-primary-600 hover:underline"
                         >
                           <Eye className="h-3.5 w-3.5" />
@@ -995,7 +1002,7 @@ export default function AdminOrderLog() {
         </div>
       )}
 
-      {detailOrderId && <OrderDetailModal orderId={detailOrderId} onClose={() => setDetailOrderId(null)} />}
+      {detailOrderId && <OrderDetailModal orderId={detailOrderId} initialTab={initialTab} onClose={() => setDetailOrderId(null)} />}
     </div>
   )
 }

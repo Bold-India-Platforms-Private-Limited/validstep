@@ -367,6 +367,94 @@ async function sendSystemGeneratedPasswordEmail({ name, email, password, loginUr
   });
 }
 
+const PROGRAM_TYPE_LABELS = {
+  INTERNSHIP: 'Internship / Fellowship',
+  COURSE: 'Course',
+  PARTICIPATION: 'Participation',
+  HACKATHON: 'Hackathon',
+  OTHER: 'Program',
+};
+
+/**
+ * Builds the "account access + verification link" reminder email's subject/html/text without
+ * sending anything — shared by the actual bulk send (batchEmailJob.service.js) and the admin
+ * preview endpoint, so what the admin previews is exactly what gets sent. Kept deliberately
+ * plain and low-pressure (no urgency language, one clear action) since this goes out to whole
+ * batches at once and inbox providers weigh that kind of copy heavily for spam scoring.
+ */
+function buildBatchAccessEmailContent({ userName, userEmail, companyName, programType, batchName, role, startDate, endDate, verificationUrl, loginUrl }) {
+  const typeLabel = PROGRAM_TYPE_LABELS[programType] || 'Program';
+  const subject = `Your certificate & account access — ${batchName}`;
+
+  const verifySection = verificationUrl ? `
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 18px;margin:20px 0;font-size:13px;color:#475569;">
+      <strong>Your Public Verification Link:</strong><br>
+      <a href="${verificationUrl}" style="color:#4F46E5;word-break:break-all;">${verificationUrl}</a>
+    </div>` : '';
+
+  const html = baseLayout(`
+    <h2 style="margin:0 0 8px;color:#1e293b;">Dear ${userName},</h2>
+    <p style="color:#64748b;margin:0 0 20px;">You can also download your certificate anytime from the Validstep platform.</p>
+
+    <div class="info-box">
+      <div class="info-row"><span class="label">Organization</span><span class="value">${companyName}</span></div>
+      <div class="info-row"><span class="label">Program Type</span><span class="value">${typeLabel}</span></div>
+      <div class="info-row"><span class="label">Batch</span><span class="value">${batchName}</span></div>
+      ${role ? `<div class="info-row"><span class="label">Role</span><span class="value">${role}</span></div>` : ''}
+      <div class="info-row"><span class="label">Duration</span><span class="value">${formatDate(startDate)} – ${formatDate(endDate)}</span></div>
+    </div>
+
+    ${verifySection}
+
+    <p style="color:#1e293b;margin:24px 0 8px;font-weight:600;">Login Details:</p>
+    <ul style="color:#475569;font-size:14px;line-height:1.8;margin:0 0 20px;padding-left:20px;">
+      <li>Login URL: <a href="${loginUrl}" style="color:#4F46E5;">${loginUrl}</a></li>
+      <li>Username: Your registered email address (${userEmail})</li>
+      <li>Password: Your registered email address</li>
+    </ul>
+
+    <p style="color:#1e293b;margin:0 0 8px;font-weight:600;">After logging in, you can:</p>
+    <ul style="color:#475569;font-size:14px;line-height:1.8;margin:0 0 20px;padding-left:20px;">
+      <li>Download your certificate.</li>
+      <li>Copy your Public Verification Link, which you can share with your college, recruiters, or add to your LinkedIn profile for easy certificate verification.</li>
+    </ul>
+
+    <div style="text-align:center;margin:28px 0;">
+      <a href="${loginUrl}" class="btn">Log In to My Dashboard</a>
+    </div>
+
+    <p style="font-size:13px;color:#64748b;">If you face any issues accessing your account, please reply to this email.</p>
+    <p style="font-size:13px;color:#64748b;margin-top:20px;">Best regards,<br>Validstep.com</p>
+  `);
+
+  const text = `Dear ${userName},\n\n` +
+    `You can also download your certificate anytime from the Validstep platform.\n\n` +
+    `Organization: ${companyName}\n` +
+    `Program Type: ${typeLabel}\n` +
+    `Batch: ${batchName}\n` +
+    (role ? `Role: ${role}\n` : '') +
+    `Duration: ${formatDate(startDate)} - ${formatDate(endDate)}\n\n` +
+    (verificationUrl ? `Your Public Verification Link: ${verificationUrl}\n\n` : '') +
+    `Login Details:\n` +
+    `- Login URL: ${loginUrl}\n` +
+    `- Username: Your registered email address (${userEmail})\n` +
+    `- Password: Your registered email address\n\n` +
+    `After logging in, you can:\n` +
+    `- Download your certificate.\n` +
+    `- Copy your Public Verification Link, which you can share with your college, recruiters, or add to your LinkedIn profile for easy certificate verification.\n\n` +
+    `If you face any issues accessing your account, please reply to this email.\n\n` +
+    `Best regards,\nValidstep.com`;
+
+  return { subject, html, text };
+}
+
+async function sendBatchAccessEmail({ userName, userEmail, companyName, programType, batchName, role, startDate, endDate, verificationUrl, loginUrl }) {
+  const { subject, html, text } = buildBatchAccessEmailContent({
+    userName, userEmail, companyName, programType, batchName, role, startDate, endDate, verificationUrl, loginUrl,
+  });
+  return sendEmail({ to: userEmail, subject, html, text });
+}
+
 module.exports = {
   sendEmail,
   sendCertificateIssuedEmail,
@@ -377,4 +465,6 @@ module.exports = {
   sendBatchEnrollmentEmail,
   sendCompanyWelcomeEmail,
   sendSystemGeneratedPasswordEmail,
+  buildBatchAccessEmailContent,
+  sendBatchAccessEmail,
 };

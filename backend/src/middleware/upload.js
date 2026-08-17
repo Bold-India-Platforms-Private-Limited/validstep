@@ -97,4 +97,19 @@ const previewCertificateBadgeUpload = multer({
   limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB
 }).single('certificate');
 
-module.exports = { uploadTemplateBackground, uploadAccountingFile, uploadUserImportFile, uploadCustomCertificate, previewCertificateBadgeUpload };
+// Bulk certificate-matching sheet (Name/Email/ID/Duration/Date). Memory storage — only the
+// buffer is needed to parse it and cache the match result, nothing is kept on disk.
+function bulkCertificateMatchFileFilter(req, file, cb) {
+  const allowedExt = ['.xlsx', '.xls', '.csv'];
+  const ext = path.extname(file.originalname).toLowerCase();
+  if (allowedExt.includes(ext)) return cb(null, true);
+  cb(Object.assign(new Error('Only .xlsx, .xls, or .csv files allowed'), { statusCode: 400 }));
+}
+
+const uploadBulkCertificateMatchFile = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: bulkCertificateMatchFileFilter,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+}).single('file');
+
+module.exports = { uploadTemplateBackground, uploadAccountingFile, uploadUserImportFile, uploadCustomCertificate, previewCertificateBadgeUpload, uploadBulkCertificateMatchFile };
