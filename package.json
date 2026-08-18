@@ -1,0 +1,9 @@
+{
+  "name": "validstep",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "frontend",
+    "workspace/frontend"
+  ]
+}

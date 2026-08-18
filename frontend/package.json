@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --port 3000",
     "build": "vite build",
+    "postbuild": "npm run build --workspace=workspace-frontend && rm -rf dist/workspace && cp -r ../workspace/frontend/dist dist/workspace",
     "preview": "vite preview"
   },
   "dependencies": {

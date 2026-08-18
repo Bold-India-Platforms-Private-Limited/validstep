@@ -227,19 +227,25 @@ Companies can customize: background color, accent color, font, show/hide logo & 
 ## 11. Workspace Module (Interns/Projects) — `validstep.com/workspace/`
 
 A separate, self-contained app living at `workspace/frontend` and `workspace/backend` —
-its own `package.json`/dependencies/Prisma schema (targets a different database, `pm-db`),
-nothing shared with the main app above. Mounted under `/workspace/` so it can be split
-back out into its own repo later by moving one directory.
+its own `package.json` and Prisma schema (targets a different database, `pm-db`) — the
+frontend's dependencies are hoisted into the repo root's shared `node_modules` via npm
+workspaces (see root `package.json`) purely to save install size/time, but nothing about
+the module's own code or data depends on that. Mounted under `/workspace/` so it can be
+split back out into its own repo later by moving one directory (and adding back its own
+lockfile).
 
 ### Local dev
 ```bash
+# One-time: installs both frontends' deps into the shared root node_modules (npm workspaces)
+npm install
+
 # Backend (own port, own .env — copy the one that was already on this machine, or
 # provision fresh: DATABASE_URL/DIRECT_URL for pm-db, JWT_SECRET, ADMIN_EMAIL/PASSWORD,
 # SMTP_*, CLOUDFLARE_R2_* — see workspace/backend/src/config for the full list read)
 cd workspace/backend && npm install && npm run dev   # :5050
 
-# Frontend
-cd workspace/frontend && npm install && npm run dev  # :5175 in .claude/launch.json, or default 5173
+# Frontend (deps already installed by the root `npm install` above)
+cd workspace/frontend && npm run dev  # :5175 in .claude/launch.json, or default 5173
 ```
 Local dev serves at plain `/` (no `/workspace` prefix) — the prefix only applies to
 production builds, see `vite.config.js`.
@@ -266,15 +272,21 @@ things still need a human, because neither can be done from inside this repo:
    message either way, never touches the validstep deploy that already succeeded in the
    same run).
 
-**2. Point Cloudflare Pages' build command at the new script**
-   In the Pages project settings, change the build command to `bash scripts/build-with-workspace.sh`
-   (output directory stays `frontend/dist`, root directory stays repo root). It builds both
-   frontends and nests the workspace one under `frontend/dist/workspace/` — no new Pages
-   project, no DNS change.
+Cloudflare Pages needs **no configuration change at all**. The repo root now has a
+`package.json` with an npm `workspaces` field (`frontend`, `workspace/frontend`) — Pages
+already installs from the repo root (root directory was already `.`), so its automatic
+install step now hoists both frontends' shared dependencies into one `node_modules`
+without anyone touching a Pages setting. Building the workspace module into
+`frontend/dist/workspace/` happens via a `postbuild` script on `frontend/package.json`,
+which npm runs automatically right after `frontend`'s own `build` script — i.e. whatever
+the existing Pages build command already is (as long as it ends up running `npm run build`
+in `frontend`, which it must, since that's what produces `frontend/dist`), this now also
+builds `workspace/frontend` and nests its `dist` underneath, with zero command changes.
 
-Until both of those happen, the workspace module's code ships with every deploy but stays
-inert in production (no crash, no effect on validstep) — the backend step no-ops without
-the secret, and the frontend keeps serving only the main app until Pages builds it in.
+Until the GitHub secret above is added, the workspace module's code ships with every
+deploy but stays inert in production (no crash, no effect on validstep) — only the
+backend step no-ops without the secret; the frontend builds and serves `/workspace/*`
+regardless.
 
 ### Routes
 Everything under `/workspace/*` — `/workspace/login`, `/workspace/admin`, `/workspace/app`, etc.
