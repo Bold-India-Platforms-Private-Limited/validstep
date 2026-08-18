@@ -13,11 +13,11 @@ dist-ssr
 *.local
 
 # Environment
-.env
 .env.*
-# .env.production holds only public API/socket URLs (no secrets) and is committed so
-# local builds and CI both produce the same result without needing dashboard config.
-!.env.production
+# .env holds only public API/socket URLs (no secrets), always pointed at the production
+# API — the same values are used in local dev and in the build, so it's committed instead
+# of gitignored like a normal .env would be.
+!.env
 
 # Editor directories and files
 .vscode/*

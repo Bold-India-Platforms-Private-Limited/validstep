@@ -247,6 +247,11 @@ cd workspace/backend && npm install && npm run dev   # :5050
 # Frontend (deps already installed by the root `npm install` above)
 cd workspace/frontend && npm run dev  # :5175 in .claude/launch.json, or default 5173
 ```
+The frontend's `.env` is committed (it holds only public API/socket URLs, no secrets)
+and always points at the production API — `npm run dev` talks to the live workspace
+backend at `api.validstep.com/workspace` rather than a local one, same as the build.
+If you need to point it at a locally-running `workspace/backend` instead, override
+`VITE_API_URL`/`VITE_SOCKET_URL` in an uncommitted `.env.local` for that session only.
 Local dev serves at plain `/` (no `/workspace` prefix) — the prefix only applies to
 production builds, see `vite.config.js`.
 
