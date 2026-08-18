@@ -244,23 +244,37 @@ cd workspace/frontend && npm install && npm run dev  # :5175 in .claude/launch.j
 Local dev serves at plain `/` (no `/workspace` prefix) — the prefix only applies to
 production builds, see `vite.config.js`.
 
-### One-time production setup (manual — not automated from here)
+### One-time production setup
 
-**EC2 (backend)**
-1. Place the workspace backend's env file at `/home/ec2-user/.secrets/.env.workspace` on
-   the EC2 host (same pattern as `.env.validstep`). Once present, `.github/workflows/deploy.yml`
-   picks it up automatically on every push to `main` — installs, runs `prisma migrate deploy`,
-   and starts/reloads a `workspace-backend` PM2 process alongside the existing `validstep` one.
-2. Copy the updated `backend/api.validstep.com.conf` to the server's nginx sites directory
-   and reload nginx (`sudo nginx -t && sudo systemctl reload nginx`) — adds `/workspace/`
-   and `/workspace/socket.io/` location blocks proxying to the new PM2 process on :5050.
-   Validstep's own `/` traffic is untouched.
+Everything below is driven by the existing `deploy.yml` / EC2 SSH pipeline and existing
+Cloudflare Pages project — no new server access, no new pipeline, no new domain. Two
+things still need a human, because neither can be done from inside this repo:
 
-**Cloudflare Pages (frontend)**
-1. Change the Pages project's build command to `bash scripts/build-with-workspace.sh`
-   (output directory stays `frontend/dist`) — it builds both frontends and nests the
-   workspace build under `frontend/dist/workspace/`.
-2. No new Pages project or DNS entry needed — same deployment, same domain.
+**1. Add one GitHub repo secret** (Settings → Secrets and variables → Actions → New repository secret)
+   - Name: `WORKSPACE_ENV`
+   - Value: the full contents of a workspace-backend `.env` file — `DATABASE_URL`/`DIRECT_URL`
+     for the `pm-db` database, `JWT_SECRET`, `ADMIN_EMAIL`/`ADMIN_PASSWORD`, `SMTP_*`,
+     `CLOUDFLARE_R2_*`, `FRONTEND_URL=https://validstep.com/workspace` (see
+     `workspace/backend/src/config` for the full list the code reads)
+
+   Once that secret exists, the *next* push to `main` automatically writes it to
+   `workspace/backend/.env` on the EC2 host, runs `prisma migrate deploy`, and starts/reloads
+   a `workspace-backend` PM2 process alongside the existing `validstep` one. It also
+   attempts to copy the updated `backend/api.validstep.com.conf` into
+   `/etc/nginx/conf.d/` and reload nginx for the new `/workspace/` routes — best-effort
+   (only applies if `ec2-user` has passwordless sudo and the path matches; logs a clear
+   message either way, never touches the validstep deploy that already succeeded in the
+   same run).
+
+**2. Point Cloudflare Pages' build command at the new script**
+   In the Pages project settings, change the build command to `bash scripts/build-with-workspace.sh`
+   (output directory stays `frontend/dist`, root directory stays repo root). It builds both
+   frontends and nests the workspace one under `frontend/dist/workspace/` — no new Pages
+   project, no DNS change.
+
+Until both of those happen, the workspace module's code ships with every deploy but stays
+inert in production (no crash, no effect on validstep) — the backend step no-ops without
+the secret, and the frontend keeps serving only the main app until Pages builds it in.
 
 ### Routes
 Everything under `/workspace/*` — `/workspace/login`, `/workspace/admin`, `/workspace/app`, etc.
