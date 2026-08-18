@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --port 3000",
     "build": "vite build",
-    "postbuild": "npm install --workspace=workspace-frontend --no-audit --no-fund --progress=false && npm run build --workspace=workspace-frontend && rm -rf dist/workspace && cp -r ../workspace/frontend/dist dist/workspace",
+    "postbuild": "npm install --workspace=workspace-frontend --no-audit --no-fund --progress=false && VITE_API_URL=https://api.validstep.com/workspace VITE_SOCKET_URL=https://api.validstep.com VITE_SOCKET_PATH=/workspace/socket.io npm run build --workspace=workspace-frontend && rm -rf dist/workspace && cp -r ../workspace/frontend/dist dist/workspace",
     "preview": "vite preview"
   },
   "dependencies": {

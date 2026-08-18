@@ -15,6 +15,9 @@ dist-ssr
 # Environment
 .env
 .env.*
+# .env.production holds only public API/socket URLs (no secrets) and is committed so
+# local builds and CI both produce the same result without needing dashboard config.
+!.env.production
 
 # Editor directories and files
 .vscode/*
