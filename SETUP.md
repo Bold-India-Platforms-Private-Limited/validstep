@@ -221,3 +221,62 @@ Companies can customize: background color, accent color, font, show/hide logo & 
 - [ ] Set up file storage for certificates (S3 + CloudFront) — update `certificate_url` logic
 - [ ] Configure reverse proxy (nginx) with SSL
 - [ ] Register PayU webhook URL: `https://yourdomain.com/api/payment/webhook`
+
+---
+
+## 11. Workspace Module (Interns/Projects) — `validstep.com/workspace/`
+
+A separate, self-contained app living at `workspace/frontend` and `workspace/backend` —
+its own `package.json`/dependencies/Prisma schema (targets a different database, `pm-db`),
+nothing shared with the main app above. Mounted under `/workspace/` so it can be split
+back out into its own repo later by moving one directory.
+
+### Local dev
+```bash
+# Backend (own port, own .env — copy the one that was already on this machine, or
+# provision fresh: DATABASE_URL/DIRECT_URL for pm-db, JWT_SECRET, ADMIN_EMAIL/PASSWORD,
+# SMTP_*, CLOUDFLARE_R2_* — see workspace/backend/src/config for the full list read)
+cd workspace/backend && npm install && npm run dev   # :5050
+
+# Frontend
+cd workspace/frontend && npm install && npm run dev  # :5175 in .claude/launch.json, or default 5173
+```
+Local dev serves at plain `/` (no `/workspace` prefix) — the prefix only applies to
+production builds, see `vite.config.js`.
+
+### One-time production setup
+
+Everything below is driven by the existing `deploy.yml` / EC2 SSH pipeline and existing
+Cloudflare Pages project — no new server access, no new pipeline, no new domain. Two
+things still need a human, because neither can be done from inside this repo:
+
+**1. Add one GitHub repo secret** (Settings → Secrets and variables → Actions → New repository secret)
+   - Name: `WORKSPACE_ENV`
+   - Value: the full contents of a workspace-backend `.env` file — `DATABASE_URL`/`DIRECT_URL`
+     for the `pm-db` database, `JWT_SECRET`, `ADMIN_EMAIL`/`ADMIN_PASSWORD`, `SMTP_*`,
+     `CLOUDFLARE_R2_*`, `FRONTEND_URL=https://validstep.com/workspace` (see
+     `workspace/backend/src/config` for the full list the code reads)
+
+   Once that secret exists, the *next* push to `main` automatically writes it to
+   `workspace/backend/.env` on the EC2 host, runs `prisma migrate deploy`, and starts/reloads
+   a `workspace-backend` PM2 process alongside the existing `validstep` one. It also
+   attempts to copy the updated `backend/api.validstep.com.conf` into
+   `/etc/nginx/conf.d/` and reload nginx for the new `/workspace/` routes — best-effort
+   (only applies if `ec2-user` has passwordless sudo and the path matches; logs a clear
+   message either way, never touches the validstep deploy that already succeeded in the
+   same run).
+
+**2. Point Cloudflare Pages' build command at the new script**
+   In the Pages project settings, change the build command to `bash scripts/build-with-workspace.sh`
+   (output directory stays `frontend/dist`, root directory stays repo root). It builds both
+   frontends and nests the workspace one under `frontend/dist/workspace/` — no new Pages
+   project, no DNS change.
+
+Until both of those happen, the workspace module's code ships with every deploy but stays
+inert in production (no crash, no effect on validstep) — the backend step no-ops without
+the secret, and the frontend keeps serving only the main app until Pages builds it in.
+
+### Routes
+Everything under `/workspace/*` — `/workspace/login`, `/workspace/admin`, `/workspace/app`, etc.
+Admin/super-admin credentials are separate from validstep's own (`ADMIN_EMAIL`/`ADMIN_PASSWORD`
+in the workspace backend's `.env`, bootstraps the super-admin account on first login).

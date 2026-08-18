@@ -38,3 +38,54 @@ jobs:
             pm2 save
 
             echo "✅ Validstep deployed at $(date)"
+
+            # ── Workspace module (interns/projects) ──────────────────────
+            # Everything below is deliberately outside `set -e`'s blast radius for the
+            # block above: nothing here can take down the validstep deploy that already
+            # succeeded, no matter what goes wrong.
+
+            # Env comes from the WORKSPACE_ENV repo secret (Settings → Secrets → Actions),
+            # not a file placed on the server by hand — quoted heredoc so odd characters in
+            # secret values (quotes, $, backticks) are written literally, never
+            # shell-interpreted. A no-op if that secret has never been set.
+            cat > /home/ec2-user/validstep/workspace/backend/.env.new <<'WORKSPACE_ENV_EOF'
+            ${{ secrets.WORKSPACE_ENV }}
+            WORKSPACE_ENV_EOF
+
+            if [ -s /home/ec2-user/validstep/workspace/backend/.env.new ] && \
+               [ -n "$(tr -d '[:space:]' < /home/ec2-user/validstep/workspace/backend/.env.new)" ]; then
+              (
+                set -e
+                mv /home/ec2-user/validstep/workspace/backend/.env.new /home/ec2-user/validstep/workspace/backend/.env
+                cd /home/ec2-user/validstep/workspace/backend
+                npm install --omit=dev
+                npx prisma generate
+                npx prisma migrate deploy
+
+                if pm2 describe workspace-backend > /dev/null 2>&1; then
+                  pm2 reload workspace-backend --update-env
+                else
+                  pm2 start ecosystem.config.cjs
+                fi
+                pm2 save
+                echo "✅ Workspace backend deployed at $(date)"
+              ) || echo "⚠️  Workspace backend deploy step failed — validstep itself is unaffected, see log above"
+            else
+              rm -f /home/ec2-user/validstep/workspace/backend/.env.new
+              echo "ℹ️  Skipping workspace backend deploy — WORKSPACE_ENV repo secret is not set"
+            fi
+
+            # nginx: best-effort — only touches /workspace/* routing, and only reloads if
+            # the new config actually passes `nginx -t`, so a wrong assumption about the
+            # server's layout here can never take nginx down.
+            if sudo -n true 2>/dev/null; then
+              if sudo cp /home/ec2-user/validstep/backend/api.validstep.com.conf /etc/nginx/conf.d/api.validstep.com.conf 2>/dev/null \
+                && sudo nginx -t 2>/dev/null \
+                && sudo systemctl reload nginx 2>/dev/null; then
+                echo "✅ nginx reloaded with /workspace/ routes"
+              else
+                echo "⚠️  Could not auto-apply nginx config (path differs from /etc/nginx/conf.d/, or nginx -t failed) — copy backend/api.validstep.com.conf to the right place and reload manually"
+              fi
+            else
+              echo "ℹ️  ec2-user has no passwordless sudo — copy backend/api.validstep.com.conf to nginx's config and reload manually"
+            fi

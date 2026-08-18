@@ -1,0 +1,8 @@
+node_modules/
+.env
+.env.*
+logs/
+*.log
+
+# Nginx (server config reference, not a live-applied file)
+*.conf
