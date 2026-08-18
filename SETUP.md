@@ -221,3 +221,48 @@ Companies can customize: background color, accent color, font, show/hide logo & 
 - [ ] Set up file storage for certificates (S3 + CloudFront) — update `certificate_url` logic
 - [ ] Configure reverse proxy (nginx) with SSL
 - [ ] Register PayU webhook URL: `https://yourdomain.com/api/payment/webhook`
+
+---
+
+## 11. Workspace Module (Interns/Projects) — `validstep.com/workspace/`
+
+A separate, self-contained app living at `workspace/frontend` and `workspace/backend` —
+its own `package.json`/dependencies/Prisma schema (targets a different database, `pm-db`),
+nothing shared with the main app above. Mounted under `/workspace/` so it can be split
+back out into its own repo later by moving one directory.
+
+### Local dev
+```bash
+# Backend (own port, own .env — copy the one that was already on this machine, or
+# provision fresh: DATABASE_URL/DIRECT_URL for pm-db, JWT_SECRET, ADMIN_EMAIL/PASSWORD,
+# SMTP_*, CLOUDFLARE_R2_* — see workspace/backend/src/config for the full list read)
+cd workspace/backend && npm install && npm run dev   # :5050
+
+# Frontend
+cd workspace/frontend && npm install && npm run dev  # :5175 in .claude/launch.json, or default 5173
+```
+Local dev serves at plain `/` (no `/workspace` prefix) — the prefix only applies to
+production builds, see `vite.config.js`.
+
+### One-time production setup (manual — not automated from here)
+
+**EC2 (backend)**
+1. Place the workspace backend's env file at `/home/ec2-user/.secrets/.env.workspace` on
+   the EC2 host (same pattern as `.env.validstep`). Once present, `.github/workflows/deploy.yml`
+   picks it up automatically on every push to `main` — installs, runs `prisma migrate deploy`,
+   and starts/reloads a `workspace-backend` PM2 process alongside the existing `validstep` one.
+2. Copy the updated `backend/api.validstep.com.conf` to the server's nginx sites directory
+   and reload nginx (`sudo nginx -t && sudo systemctl reload nginx`) — adds `/workspace/`
+   and `/workspace/socket.io/` location blocks proxying to the new PM2 process on :5050.
+   Validstep's own `/` traffic is untouched.
+
+**Cloudflare Pages (frontend)**
+1. Change the Pages project's build command to `bash scripts/build-with-workspace.sh`
+   (output directory stays `frontend/dist`) — it builds both frontends and nests the
+   workspace build under `frontend/dist/workspace/`.
+2. No new Pages project or DNS entry needed — same deployment, same domain.
+
+### Routes
+Everything under `/workspace/*` — `/workspace/login`, `/workspace/admin`, `/workspace/app`, etc.
+Admin/super-admin credentials are separate from validstep's own (`ADMIN_EMAIL`/`ADMIN_PASSWORD`
+in the workspace backend's `.env`, bootstraps the super-admin account on first login).

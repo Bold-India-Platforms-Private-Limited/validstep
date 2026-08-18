@@ -38,3 +38,28 @@ jobs:
             pm2 save
 
             echo "✅ Validstep deployed at $(date)"
+
+            # ── Workspace module (interns/projects) ──────────────────────
+            # A no-op until /home/ec2-user/.secrets/.env.workspace exists — deliberately
+            # not under `set -e`'s blast radius for the block above: a problem here must
+            # never take down the validstep deploy that already succeeded.
+            if [ -f /home/ec2-user/.secrets/.env.workspace ]; then
+              (
+                set -e
+                cd /home/ec2-user/validstep/workspace/backend
+                cp --remove-destination /home/ec2-user/.secrets/.env.workspace .env
+                npm install --omit=dev
+                npx prisma generate
+                npx prisma migrate deploy
+
+                if pm2 describe workspace-backend > /dev/null 2>&1; then
+                  pm2 reload workspace-backend --update-env
+                else
+                  pm2 start ecosystem.config.cjs
+                fi
+                pm2 save
+                echo "✅ Workspace backend deployed at $(date)"
+              ) || echo "⚠️  Workspace backend deploy step failed — validstep itself is unaffected, see log above"
+            else
+              echo "ℹ️  Skipping workspace backend deploy — /home/ec2-user/.secrets/.env.workspace not set up yet"
+            fi
