@@ -64,7 +64,7 @@ export default function UserLogin() {
             <Input label="Password" type="password" leftIcon={<Lock className="h-4 w-4" />}
               error={errors.password?.message} {...register('password')} />
             <div className="flex justify-end">
-              <Link to="/auth/forgot-password" className="text-xs text-primary-600 hover:underline">Forgot password?</Link>
+              <Link to="/auth/forgot-password?type=user" className="text-xs text-primary-600 hover:underline">Forgot password?</Link>
             </div>
             <Button type="submit" size="lg" className="mt-2 w-full rounded-full md:rounded-lg" isLoading={isLoading}>Sign In</Button>
           </form>

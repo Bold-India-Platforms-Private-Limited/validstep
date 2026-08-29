@@ -8,6 +8,7 @@ import {
   useGetAssignableTransactionsQuery, useAssignTransactionsToBatchMutation, useGetAdminWhoamiQuery,
   useMatchBulkCertificatesMutation, useStartBulkCertificateUploadMutation, useGetBulkCertificateUploadStatusQuery,
   usePreviewBatchAccessEmailQuery, useSendBatchAccessEmailsMutation, useGetBatchAccessEmailStatusQuery,
+  usePreviewBatchLoginDetailsEmailQuery, useSendBatchLoginDetailsEmailsMutation, useGetBatchLoginDetailsEmailStatusQuery,
 } from '../../store/api/adminApi'
 import { PageSpinner } from '../../components/ui/Spinner'
 import { StatusBadge } from '../../components/ui/Badge'
@@ -16,7 +17,7 @@ import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { formatDate, formatCurrency } from '../../utils/formatDate'
-import { ArrowLeft, Award, ShoppingBag, CreditCard, RefreshCw, CheckSquare, UserPlus, Search, Receipt, UploadCloud, Mail, Copy } from 'lucide-react'
+import { ArrowLeft, Award, ShoppingBag, CreditCard, RefreshCw, CheckSquare, UserPlus, Search, Receipt, UploadCloud, Mail, Copy, KeyRound } from 'lucide-react'
 
 function EnrollUsersModal({ open, onClose, companyId, batchId, onEnrolled }) {
   const [search, setSearch] = useState('')
@@ -691,6 +692,169 @@ function SendBatchEmailModal({ open, onClose, batchId, selectedOrderIds, totalUs
   )
 }
 
+function SendLoginDetailsModal({ open, onClose, batchId, selectedOrderIds, totalUsers, onDone }) {
+  const [target, setTarget] = useState('selected') // 'selected' | 'all'
+  const [step, setStep] = useState('compose') // compose | progress | done
+  const [jobId, setJobId] = useState(null)
+  const [finalResult, setFinalResult] = useState(null)
+
+  const hasSelection = selectedOrderIds.length > 0
+  const effectiveTarget = hasSelection ? target : 'all'
+  const previewOrderId = effectiveTarget === 'selected' ? selectedOrderIds[0] : undefined
+
+  const { data: preview, isFetching: isPreviewing } = usePreviewBatchLoginDetailsEmailQuery(
+    { batchId, orderId: previewOrderId },
+    { skip: !open }
+  )
+  const [sendEmails, { isLoading: isSending }] = useSendBatchLoginDetailsEmailsMutation()
+  const { data: statusData } = useGetBatchLoginDetailsEmailStatusQuery(
+    { batchId, jobId },
+    { skip: !jobId || step !== 'progress', pollingInterval: 2000 }
+  )
+
+  useEffect(() => {
+    if (step === 'progress' && statusData && (statusData.state === 'completed' || statusData.state === 'failed')) {
+      setFinalResult(statusData.result || statusData.progress)
+      setStep('done')
+    }
+  }, [statusData, step])
+
+  const reset = () => { setTarget('selected'); setStep('compose'); setJobId(null); setFinalResult(null) }
+  const handleClose = () => { reset(); onClose() }
+  const handleDone = () => { const cb = onDone; reset(); onClose(); cb?.() }
+
+  const handleSend = async () => {
+    try {
+      const res = await sendEmails({
+        batchId,
+        all: effectiveTarget === 'all',
+        order_ids: effectiveTarget === 'selected' ? selectedOrderIds : undefined,
+      }).unwrap()
+      if (res.sync) {
+        setFinalResult(res.result)
+        setStep('done')
+      } else {
+        setJobId(res.jobId)
+        setStep('progress')
+      }
+    } catch (err) {
+      toast.error(err?.data?.message || 'Failed to send emails')
+    }
+  }
+
+  const progress = statusData?.progress
+  const recipientCount = effectiveTarget === 'selected' ? selectedOrderIds.length : totalUsers
+
+  return (
+    <Modal open={open} onClose={handleClose} title="Send Login Details" size="xl">
+      {step === 'compose' && (
+        <div className="space-y-4">
+          <p className="text-xs text-slate-500">
+            Generates a brand new system password for each recipient, saves it, and emails their login
+            email + new password + login URL. Their previous password stops working once this is sent.
+          </p>
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="radio"
+                checked={effectiveTarget === 'selected'}
+                disabled={!hasSelection}
+                onChange={() => setTarget('selected')}
+              />
+              Selected users ({selectedOrderIds.length})
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="radio" checked={effectiveTarget === 'all'} onChange={() => setTarget('all')} />
+              All users in this batch ({totalUsers ?? 0})
+            </label>
+          </div>
+
+          <div>
+            <p className="mb-1 text-xs font-medium text-slate-500">
+              Preview {preview?.sample ? '(sample data — pick a selected user to preview their real details)' : ''}
+            </p>
+            {isPreviewing || !preview ? (
+              <div className="flex h-[420px] items-center justify-center rounded-lg border border-slate-200 text-sm text-slate-400">
+                Loading preview…
+              </div>
+            ) : (
+              <iframe title="Email preview" srcDoc={preview.html} className="h-[420px] w-full rounded-lg border border-slate-200 bg-white" />
+            )}
+          </div>
+
+          <div className="flex justify-end gap-3">
+            <Button variant="secondary" type="button" onClick={handleClose}>Cancel</Button>
+            <Button onClick={handleSend} isLoading={isSending}>
+              Send {recipientCount !== null ? `to ${recipientCount} User${recipientCount === 1 ? '' : 's'}` : 'to All Users'}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {step === 'progress' && (
+        <div className="space-y-4 py-4 text-center">
+          <p className="text-sm text-slate-600">Sending login details…</p>
+          <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100">
+            <div
+              className="h-full bg-primary-600 transition-all"
+              style={{ width: `${progress?.total ? Math.round((progress.processed / progress.total) * 100) : 0}%` }}
+            />
+          </div>
+          <p className="text-xs text-slate-500">
+            {progress?.processed || 0} / {progress?.total || 0} processed
+            {progress ? ` · ${progress.succeeded} sent · ${progress.failed} skipped/failed` : ''}
+          </p>
+          {progress?.pacing?.cooling_down ? (
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
+              Pausing ~{Math.max(0, Math.round((new Date(progress.pacing.resume_at).getTime() - Date.now()) / 1000))}s before the next batch — sending is throttled to 40–100 emails/min with periodic pauses to avoid spam flags.
+            </p>
+          ) : (
+            <p className="text-xs text-slate-400">Throttled to 40–100 emails/min, with a longer pause every 80 sends.</p>
+          )}
+        </div>
+      )}
+
+      {step === 'done' && finalResult && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3 text-center">
+            <div className="rounded-lg bg-emerald-50 p-3">
+              <p className="text-2xl font-bold text-emerald-700">{finalResult.succeeded ?? 0}</p>
+              <p className="text-xs text-emerald-600">Sent</p>
+            </div>
+            <div className="rounded-lg bg-red-50 p-3">
+              <p className="text-2xl font-bold text-red-700">{finalResult.failed ?? 0}</p>
+              <p className="text-xs text-red-600">Skipped / Failed</p>
+            </div>
+          </div>
+          {(finalResult.errors || []).length > 0 && (
+            <div className="max-h-56 overflow-y-auto rounded-lg border border-slate-200">
+              <table className="min-w-full text-xs">
+                <thead className="bg-slate-50 sticky top-0">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-semibold text-slate-500">Email</th>
+                    <th className="px-3 py-2 text-left font-semibold text-slate-500">Reason</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {finalResult.errors.map((e, i) => (
+                    <tr key={i}>
+                      <td className="px-3 py-2 text-slate-700">{e.email}</td>
+                      <td className="px-3 py-2 text-red-600">{e.reason}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <div className="flex justify-end">
+            <Button onClick={handleDone}>Done</Button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  )
+}
+
 export default function AdminBatchDetail() {
   const { id } = useParams()
   const [page, setPage] = useState(1)
@@ -701,6 +865,7 @@ export default function AdminBatchDetail() {
   const [showAssignTxns, setShowAssignTxns] = useState(false)
   const [showBulkUpload, setShowBulkUpload] = useState(false)
   const [showSendEmail, setShowSendEmail] = useState(false)
+  const [showLoginDetails, setShowLoginDetails] = useState(false)
   const { data: batchData, isLoading } = useGetAdminBatchQuery(id)
   const { data: statsData, refetch: refetchStats } = useGetAdminBatchStatsQuery(id)
   const { data: ordersData, refetch: refetchOrders } = useGetAdminBatchOrdersQuery({
@@ -803,6 +968,9 @@ export default function AdminBatchDetail() {
               </Button>
               <Button variant="secondary" size="sm" onClick={() => setShowSendEmail(true)} leftIcon={<Mail className="h-3.5 w-3.5" />}>
                 Send Email
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => setShowLoginDetails(true)} leftIcon={<KeyRound className="h-3.5 w-3.5" />}>
+                Login Details
               </Button>
               <Button variant="secondary" size="sm" onClick={() => setShowBulkUpload(true)} leftIcon={<UploadCloud className="h-3.5 w-3.5" />}>
                 Bulk Upload Certificates
@@ -928,6 +1096,14 @@ export default function AdminBatchDetail() {
         selectedOrderIds={selected}
         totalUsers={stats.orders?.TOTAL}
         issuedUsers={stats.certificates_issued}
+        onDone={() => { refetchOrders(); refetchStats(); }}
+      />
+      <SendLoginDetailsModal
+        open={showLoginDetails}
+        onClose={() => setShowLoginDetails(false)}
+        batchId={id}
+        selectedOrderIds={selected}
+        totalUsers={stats.orders?.TOTAL}
         onDone={() => { refetchOrders(); refetchStats(); }}
       />
     </div>

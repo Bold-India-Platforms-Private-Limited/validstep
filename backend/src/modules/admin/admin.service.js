@@ -1099,6 +1099,11 @@ async function resendUserPassword(userId) {
     password: newPassword,
     loginUrl: `${env.FRONTEND_URL}/auth/user/login`,
   });
+
+  // Log every send — the Order Timeline distinguishes the first send (displayed on the
+  // payment-captured date) from later resends (displayed on their actual send date) by
+  // ordinal position among a user's SYSTEM_PASSWORD_SENT events, so every occurrence needs
+  // its own row here.
   logDeliveryEvent(userId, 'SYSTEM_PASSWORD_SENT');
 
   return { success: true };
@@ -1520,6 +1525,71 @@ async function sendBatchAccessEmails({ batchId, orderIds, sendAll }) {
 async function getBatchAccessEmailStatus(jobId) {
   const { getBatchEmailJobStatus } = require('./batchEmailJob.service');
   return getBatchEmailJobStatus(jobId);
+}
+
+/**
+ * Builds a preview of the "Login Details" (system-generated password) email without sending
+ * it or generating/saving a real password. With an orderId, uses that order's real name/email;
+ * without one, uses placeholder sample data. The password shown is always a placeholder here —
+ * a real one is only generated at actual send time — so previewing never invalidates a login.
+ */
+async function previewBatchLoginDetailsEmail({ batchId, orderId }) {
+  const { buildLoginDetailsEmailContent } = require('../../utils/email');
+
+  const batch = await db.batch.findUnique({ where: { id: batchId }, select: { id: true } });
+  if (!batch) throw Object.assign(new Error('Batch not found'), { statusCode: 404 });
+
+  let userName = 'Participant';
+  let userEmail = 'participant@example.com';
+  let sample = true;
+
+  if (orderId) {
+    const order = await db.order.findUnique({
+      where: { id: orderId },
+      include: { user: { select: { name: true, email: true } } },
+    });
+    if (!order || order.batch_id !== batchId) throw Object.assign(new Error('Order not found in this batch'), { statusCode: 404 });
+    userName = order.user.name;
+    userEmail = order.user.email;
+    sample = false;
+  }
+
+  const { subject, html } = buildLoginDetailsEmailContent({
+    name: userName,
+    email: userEmail,
+    password: 'sample-generated-password',
+    loginUrl: `${env.FRONTEND_URL}/auth/user/login`,
+  });
+
+  return { subject, html, sample };
+}
+
+/**
+ * Sends a fresh system-generated password + login details email to a specific list of orders,
+ * or to every PAID order in the batch when `sendAll` is set. Same async-job pattern as the
+ * account-access batch send.
+ */
+async function sendBatchLoginDetailsEmails({ batchId, orderIds, sendAll }) {
+  const batch = await db.batch.findUnique({ where: { id: batchId }, select: { id: true } });
+  if (!batch) throw Object.assign(new Error('Batch not found'), { statusCode: 404 });
+
+  let targetOrderIds = orderIds;
+  if (sendAll) {
+    const orders = await db.order.findMany({ where: { batch_id: batchId, status: 'PAID' }, select: { id: true } });
+    targetOrderIds = orders.map((o) => o.id);
+  }
+  if (!targetOrderIds?.length) {
+    throw Object.assign(new Error('No recipients to send to'), { statusCode: 400 });
+  }
+
+  const { addBatchLoginDetailsJob } = require('./batchLoginDetailsJob.service');
+  const outcome = await addBatchLoginDetailsJob({ batchId, orderIds: targetOrderIds });
+  return { total: targetOrderIds.length, ...outcome };
+}
+
+async function getBatchLoginDetailsEmailStatus(jobId) {
+  const { getBatchLoginDetailsJobStatus } = require('./batchLoginDetailsJob.service');
+  return getBatchLoginDetailsJobStatus(jobId);
 }
 
 /**
@@ -2215,6 +2285,9 @@ module.exports = {
   previewBatchAccessEmail,
   sendBatchAccessEmails,
   getBatchAccessEmailStatus,
+  previewBatchLoginDetailsEmail,
+  sendBatchLoginDetailsEmails,
+  getBatchLoginDetailsEmailStatus,
   registerUserForBatch,
   bulkUploadUsers,
   importPayuButtonCustomers,

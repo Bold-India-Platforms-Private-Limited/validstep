@@ -343,7 +343,14 @@ async function sendCompanyWelcomeEmail({ name, email, setPasswordUrl }) {
  * log in immediately. Used when a customer says they never got/lost their original
  * login email.
  */
-async function sendSystemGeneratedPasswordEmail({ name, email, password, loginUrl }) {
+/**
+ * Builds the "here's your login details" email's subject/html/text without sending anything —
+ * shared by the single-user resend action and the batch login-details send/preview so what the
+ * admin previews is exactly what gets sent.
+ */
+function buildLoginDetailsEmailContent({ name, email, password, loginUrl }) {
+  const subject = `🔑 Your Validstep.com password`;
+
   const html = baseLayout(`
     <h2 style="margin:0 0 8px;color:#1e293b;">🔑 Your Validstep.com login details</h2>
     <p style="color:#64748b;margin:0 0 24px;">Hi <strong>${name}</strong>, here's a new system-generated password for your account.</p>
@@ -360,11 +367,19 @@ async function sendSystemGeneratedPasswordEmail({ name, email, password, loginUr
     <p style="font-size:13px;color:#64748b;">For your security, we recommend logging in and keeping this email somewhere safe. Contact us if you didn't request this.</p>
   `);
 
-  return sendEmail({
-    to: email,
-    subject: `🔑 Your Validstep.com password`,
-    html,
-  });
+  const text = `Hi ${name},\n\n` +
+    `Here's a new system-generated password for your account.\n\n` +
+    `Login Email: ${email}\n` +
+    `Password: ${password}\n\n` +
+    `Log in now: ${loginUrl}\n\n` +
+    `For your security, we recommend logging in and keeping this email somewhere safe. Contact us if you didn't request this.`;
+
+  return { subject, html, text };
+}
+
+async function sendSystemGeneratedPasswordEmail({ name, email, password, loginUrl }) {
+  const { subject, html, text } = buildLoginDetailsEmailContent({ name, email, password, loginUrl });
+  return sendEmail({ to: email, subject, html, text });
 }
 
 const PROGRAM_TYPE_LABELS = {
@@ -465,6 +480,7 @@ module.exports = {
   sendBatchEnrollmentEmail,
   sendCompanyWelcomeEmail,
   sendSystemGeneratedPasswordEmail,
+  buildLoginDetailsEmailContent,
   buildBatchAccessEmailContent,
   sendBatchAccessEmail,
 };

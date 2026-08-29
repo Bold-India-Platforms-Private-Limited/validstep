@@ -17,14 +17,16 @@ export default function ResetPassword() {
   const [params] = useSearchParams()
   const navigate = useNavigate()
   const token = params.get('token')
+  const type = params.get('type') === 'company' ? 'company' : 'user'
+  const loginPath = type === 'company' ? '/auth/company/login' : '/auth/user/login'
   const [resetPassword, { isLoading }] = useResetPasswordMutation()
   const { register, handleSubmit, formState: { errors } } = useForm({ resolver: zodResolver(schema) })
 
   const onSubmit = async ({ password }) => {
     try {
-      await resetPassword({ token, password }).unwrap()
+      await resetPassword({ token, password, type }).unwrap()
       toast.success('Password reset successfully!')
-      navigate('/auth/company/login')
+      navigate(loginPath)
     } catch (err) {
       toast.error(err?.data?.message || 'Reset failed')
     }

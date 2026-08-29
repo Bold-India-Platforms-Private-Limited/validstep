@@ -41,6 +41,14 @@ async function start() {
       console.warn('[Worker] Batch email worker not started:', err.message);
     }
 
+    // Start BullMQ batch login-details-email worker (only if Redis is available)
+    try {
+      const { startBatchLoginDetailsWorker } = require('./src/modules/admin/batchLoginDetailsJob.service');
+      startBatchLoginDetailsWorker();
+    } catch (err) {
+      console.warn('[Worker] Batch login-details worker not started:', err.message);
+    }
+
     server = app.listen(PORT, () => {
       // Keep-alive must exceed nginx's keepalive_timeout (default 75s).
       // 65s ensures nginx closes first, preventing 502s on idle connections.

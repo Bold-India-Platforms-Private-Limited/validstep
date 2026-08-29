@@ -1,7 +1,7 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useState } from 'react'
 import toast from 'react-hot-toast'
 import { Mail, CheckCircle2 } from 'lucide-react'
@@ -12,13 +12,16 @@ import { Button } from '../../components/ui/Button'
 const schema = z.object({ email: z.string().email() })
 
 export default function ForgotPassword() {
+  const [params] = useSearchParams()
+  const type = params.get('type') === 'company' ? 'company' : 'user'
+  const loginPath = type === 'company' ? '/auth/company/login' : '/auth/user/login'
   const [sent, setSent] = useState(false)
   const [forgotPassword, { isLoading }] = useForgotPasswordMutation()
   const { register, handleSubmit, formState: { errors } } = useForm({ resolver: zodResolver(schema) })
 
   const onSubmit = async (data) => {
     try {
-      await forgotPassword(data).unwrap()
+      await forgotPassword({ ...data, type }).unwrap()
       setSent(true)
     } catch (err) {
       toast.error(err?.data?.message || 'Failed to send reset email')
@@ -31,7 +34,7 @@ export default function ForgotPassword() {
         <CheckCircle2 className="mx-auto mb-4 h-12 w-12 text-emerald-500" />
         <h2 className="text-xl font-bold text-slate-900">Check your email</h2>
         <p className="mt-2 text-sm text-slate-500">A password reset link has been sent if that email is registered.</p>
-        <Link to="/auth/company/login" className="mt-6 inline-block text-sm text-primary-600 hover:underline">Back to login</Link>
+        <Link to={loginPath} className="mt-6 inline-block text-sm text-primary-600 hover:underline">Back to login</Link>
       </div>
     </div>
   )
@@ -50,7 +53,7 @@ export default function ForgotPassword() {
             <Button type="submit" className="w-full" isLoading={isLoading}>Send Reset Link</Button>
           </form>
           <p className="mt-4 text-center text-sm text-slate-500">
-            <Link to="/auth/company/login" className="text-primary-600 hover:underline">Back to login</Link>
+            <Link to={loginPath} className="text-primary-600 hover:underline">Back to login</Link>
           </p>
         </div>
       </div>

@@ -227,6 +227,18 @@ export const adminApi = baseApi.injectEndpoints({
       query: ({ batchId, jobId }) => `/admin/batches/${batchId}/access-email/status/${jobId}`,
       transformResponse: (r) => r.data,
     }),
+    previewBatchLoginDetailsEmail: b.query({
+      query: ({ batchId, orderId }) => ({ url: `/admin/batches/${batchId}/login-details-email/preview`, params: orderId ? { order_id: orderId } : {} }),
+      transformResponse: (r) => r.data,
+    }),
+    sendBatchLoginDetailsEmails: b.mutation({
+      query: ({ batchId, order_ids, all }) => ({ url: `/admin/batches/${batchId}/login-details-email/send`, method: 'POST', body: { order_ids, all } }),
+      transformResponse: (r) => r.data,
+    }),
+    getBatchLoginDetailsEmailStatus: b.query({
+      query: ({ batchId, jobId }) => `/admin/batches/${batchId}/login-details-email/status/${jobId}`,
+      transformResponse: (r) => r.data,
+    }),
   }),
 })
 
@@ -252,4 +264,5 @@ export const {
   useGetCertificateBadgeConfigQuery, useUpdateCertificateBadgeConfigMutation, usePreviewCertificateBadgeMutation,
   useMatchBulkCertificatesMutation, useStartBulkCertificateUploadMutation, useGetBulkCertificateUploadStatusQuery,
   usePreviewBatchAccessEmailQuery, useSendBatchAccessEmailsMutation, useGetBatchAccessEmailStatusQuery,
+  usePreviewBatchLoginDetailsEmailQuery, useSendBatchLoginDetailsEmailsMutation, useGetBatchLoginDetailsEmailStatusQuery,
 } = adminApi

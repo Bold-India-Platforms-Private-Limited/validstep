@@ -417,6 +417,37 @@ async function getBatchAccessEmailStatus(req, res) {
   }
 }
 
+async function previewBatchLoginDetailsEmail(req, res) {
+  try {
+    const result = await adminService.previewBatchLoginDetailsEmail({ batchId: req.params.id, orderId: req.query.order_id });
+    return sendSuccess(res, result, 'Preview generated');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function sendBatchLoginDetailsEmails(req, res) {
+  try {
+    const result = await adminService.sendBatchLoginDetailsEmails({
+      batchId: req.params.id,
+      orderIds: req.body.order_ids,
+      sendAll: !!req.body.all,
+    });
+    return sendSuccess(res, result, 'Batch login details email send started');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function getBatchLoginDetailsEmailStatus(req, res) {
+  try {
+    const result = await adminService.getBatchLoginDetailsEmailStatus(req.params.jobId);
+    return sendSuccess(res, result, 'Job status retrieved');
+  } catch (err) {
+    return sendError(res, err.message, err.statusCode || 500);
+  }
+}
+
 async function createUser(req, res) {
   try {
     const result = await adminService.registerUserForBatch(req.body);
@@ -615,6 +646,9 @@ module.exports = {
   previewBatchAccessEmail,
   sendBatchAccessEmails,
   getBatchAccessEmailStatus,
+  previewBatchLoginDetailsEmail,
+  sendBatchLoginDetailsEmails,
+  getBatchLoginDetailsEmailStatus,
   createUser,
   bulkUploadUsers,
   importPayuButtonCustomers,

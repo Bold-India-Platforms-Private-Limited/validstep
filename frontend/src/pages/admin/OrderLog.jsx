@@ -70,7 +70,8 @@ const EVENT_LABELS = {
   BATCH_ASSIGNED: 'Order created / enrolled in batch',
   WELCOME_EMAIL_SENT: 'Login details emailed to customer',
   ENROLLMENT_EMAIL_SENT: 'Enrollment confirmation emailed',
-  SYSTEM_PASSWORD_SENT: 'Login email sent to customer',
+  SYSTEM_PASSWORD_SENT: 'System Generated Login Credential has sent',
+  SYSTEM_PASSWORD_RESENT: 'Login Credential has been Forgot / Resent mail',
   CERTIFICATE_GENERATED: 'Certificate generated',
   CERTIFICATE_ISSUED_EMAIL_SENT: 'Certificate email sent to customer',
   CERTIFICATE_DOWNLOADED: 'Certificate downloaded by customer',
@@ -380,7 +381,22 @@ function OrderDetailModal({ orderId, initialTab, onClose }) {
                         (which can trail the actual payment by days on a bulk/imported order). */}
                     {[
                       ...CORE_FLOW_LABELS.map((label) => ({ key: label, label, date: orderCreatedDate })),
-                      ...otherEvents.map((e) => ({ key: e.id, label: EVENT_LABELS[e.event] || e.event, date: e.created_at })),
+                      ...(() => {
+                        // The first login-credential send is tied to the payment (the account
+                        // is provisioned as part of that flow), so it's dated to the payment
+                        // date rather than whenever this DeliveryEvent row happened to be
+                        // inserted. Every later resend is its own distinct, actually-dated event.
+                        let passwordSentCount = 0
+                        return otherEvents.map((e) => {
+                          if (e.event === 'SYSTEM_PASSWORD_SENT') {
+                            passwordSentCount += 1
+                            return passwordSentCount === 1
+                              ? { key: e.id, label: EVENT_LABELS.SYSTEM_PASSWORD_SENT, date: orderCreatedDate }
+                              : { key: e.id, label: EVENT_LABELS.SYSTEM_PASSWORD_RESENT, date: e.created_at }
+                          }
+                          return { key: e.id, label: EVENT_LABELS[e.event] || e.event, date: e.created_at }
+                        })
+                      })(),
                     ].map((item, i, arr) => (
                       <div key={item.key} className="relative flex items-start gap-3 pb-3.5 last:pb-0">
                         {i < arr.length - 1 && (

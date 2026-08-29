@@ -205,6 +205,9 @@ router.get('/batches/:id/bulk-certificate-upload/status/:jobId', controller.getB
 router.get('/batches/:id/access-email/preview', controller.previewBatchAccessEmail);
 router.post('/batches/:id/access-email/send', controller.sendBatchAccessEmails);
 router.get('/batches/:id/access-email/status/:jobId', controller.getBatchAccessEmailStatus);
+router.get('/batches/:id/login-details-email/preview', controller.previewBatchLoginDetailsEmail);
+router.post('/batches/:id/login-details-email/send', controller.sendBatchLoginDetailsEmails);
+router.get('/batches/:id/login-details-email/status/:jobId', controller.getBatchLoginDetailsEmailStatus);
 router.get('/payments', validate({ query: paymentsQuerySchema }), controller.getAllPayments);
 router.get('/invoices', validate({ query: invoicesQuerySchema }), controller.getAdminInvoices);
 router.get('/orders/:orderId/invoice', controller.downloadInvoice);
