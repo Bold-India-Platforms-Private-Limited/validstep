@@ -6,7 +6,7 @@ import { clearCredentials, selectUser } from '../../store/authSlice'
 import {
   LayoutDashboard, Building2, Layers, DollarSign,
   CreditCard, LogOut, Menu, X, FileText, ShieldCheck, Users,
-  PanelLeftClose, PanelLeftOpen, Clock, ClipboardList, BarChart3, Globe, Wifi, Eye, Lock,
+  PanelLeftClose, PanelLeftOpen, Clock, ClipboardList, BarChart3, Globe, Wifi, Eye, Lock, Archive,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { SystemStatusBadge } from '../shared/SystemStatusBadge'
@@ -19,6 +19,7 @@ const nav = [
   { to: '/admin/batches', icon: Layers, label: 'Batches', scopeKey: 'batches' },
   { to: '/admin/users', icon: Users, label: 'Users', scopeKey: 'users' },
   { to: '/admin/order-log', icon: ClipboardList, label: 'Order', scopeKey: 'orders' },
+  { to: '/admin/certificate-repo', icon: Archive, label: 'Cert Repository', hideForReview: true },
   { to: '/admin/payments', icon: CreditCard, label: 'Payments', hideForReview: true },
   { to: '/admin/invoices', icon: FileText, label: 'Invoices', hideForReview: true },
   { to: '/admin/pricing', icon: DollarSign, label: 'Pricing' },

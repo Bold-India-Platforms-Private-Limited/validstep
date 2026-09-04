@@ -10,7 +10,7 @@ import {
   Building2, Users, FileCheck, QrCode, Mail,
   Lock, Layers, Sparkles, MoveRight,
   Check, TrendingUp, Clock, ExternalLink,
-  Search, Upload, AlertCircle, ChevronUp,
+  Search, Upload, AlertCircle, ChevronUp, Download,
 } from 'lucide-react'
 
 /* ─────────────────────────────────────────────
@@ -92,6 +92,11 @@ function Navbar() {
             <Link to="/contact"
               className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
               Contact
+            </Link>
+            <Link to="/certificate-download"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
+              <Download className="w-3.5 h-3.5" />
+              Download Certificate
             </Link>
 
             {/* Employer Verification dropdown */}
@@ -327,6 +332,11 @@ function Navbar() {
             <Link to="/contact" onClick={() => setMobileOpen(false)}
               className="block rounded-2xl px-4 py-3.5 text-[15px] font-medium text-gray-700 active:bg-gray-100">
               Contact
+            </Link>
+            <Link to="/certificate-download" onClick={() => setMobileOpen(false)}
+              className="flex items-center gap-2 rounded-2xl px-4 py-3.5 text-[15px] font-medium text-gray-700 active:bg-gray-100">
+              <Download className="w-4 h-4" />
+              Download Certificate
             </Link>
           </div>
 
@@ -2105,7 +2115,7 @@ function Footer() {
   const cols = [
     { heading: 'Platform', links: [{ label:'Features', href:'#features' },{ label:'How it Works', href:'#how-it-works' },{ label:'Pricing', href:'#pricing' }] },
     { heading: 'Organizations', links: [{ label:'Register', to:'/auth/company/register' },{ label:'Login', to:'/auth/company/login' }] },
-    { heading: 'Participants', links: [{ label:'Login', to:'/auth/user/login' },{ label:'Register', to:'/auth/user/register' },{ label:'Verify Certificate', to:'/verify/demo' }] },
+    { heading: 'Participants', links: [{ label:'Login', to:'/auth/user/login' },{ label:'Register', to:'/auth/user/register' },{ label:'Verify Certificate', to:'/verify/demo' },{ label:'Download Certificate', to:'/certificate-download' }] },
     { heading: 'Company', links: [{ label:'About', to:'/about' },{ label:'Contact', to:'/contact' }] },
     { heading: 'Legal', links: [{ label:'Terms & Conditions', to:'/terms' },{ label:'Privacy Policy', to:'/privacy' },{ label:'Refund Policy', to:'/refund' },{ label:'Delivery Policy', to:'/delivery' }] },
   ]

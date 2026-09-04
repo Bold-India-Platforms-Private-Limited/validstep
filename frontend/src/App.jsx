@@ -17,6 +17,7 @@ import PrivacyPolicy from './pages/public/PrivacyPolicy'
 import RefundPolicy from './pages/public/RefundPolicy'
 import DeliveryPolicy from './pages/public/DeliveryPolicy'
 import VerifyCertificate from './pages/public/VerifyCertificate'
+import CertificateDownload from './pages/public/CertificateDownload'
 import NotFound from './pages/public/NotFound'
 import About from './pages/public/About'
 import Contact from './pages/public/Contact'
@@ -58,6 +59,7 @@ import AdminBatchDetail from './pages/admin/BatchDetail'
 import AdminInvoices from './pages/admin/Invoices'
 import AdminUsers from './pages/admin/Users'
 import AdminOrderLog from './pages/admin/OrderLog'
+import AdminCertificateRepo from './pages/admin/CertificateRepo'
 
 // Master Accounting pages
 import MasterAccountingDashboard from './pages/admin/master-accounting/Dashboard'
@@ -165,6 +167,7 @@ export default function App() {
 
       {/* Public */}
       <Route path="/verify/:hash" element={<VerifyCertificate />} />
+      <Route path="/certificate-download" element={<CertificateDownload />} />
 
       {/* Auth */}
       <Route path="/auth/company/login" element={<CompanyLogin />} />
@@ -233,6 +236,7 @@ export default function App() {
                 <Route path="batches" element={<AdminBatches />} />
                 <Route path="users" element={<AdminUsers />} />
                 <Route path="order-log" element={<AdminOrderLog />} />
+                <Route path="certificate-repo" element={<AdminCertificateRepo />} />
                 <Route path="pricing" element={<AdminPricing />} />
                 <Route path="payments" element={<AdminPayments />} />
                 <Route path="invoices" element={<AdminInvoices />} />

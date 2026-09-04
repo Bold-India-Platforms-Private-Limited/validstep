@@ -20,6 +20,7 @@ const { companyRouter: batchCompanyRoutes } = require('./modules/batch/batch.rou
 const { publicRouter: certPublicRoutes, userRouter: certUserRoutes } = require('./modules/certificate/certificate.routes');
 const userRoutes = require('./modules/user/user.routes');
 const adminRoutes = require('./modules/admin/admin.routes');
+const { publicRouter: publicCertRepoRoutes } = require('./modules/public-cert-repo/publicCertRepo.routes');
 
 const app = express();
 
@@ -101,6 +102,7 @@ app.use('/api/company/batches', batchCompanyRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/user/certificates', certUserRoutes);
 app.use('/api/public', certPublicRoutes);
+app.use('/api/public-certs', publicCertRepoRoutes);
 app.use('/api/admin', adminRoutes);
 
 // ─── Error Handling ──────────────────────────────────────────────────────────

@@ -934,3 +934,77 @@ model CustomerInvoiceNumber {
   @@unique([brand, seq])
   @@map("master_customer_invoice_numbers")
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LEGACY / ORPHAN TABLE — do not use in code.
+// `public_certificates` was created by 20260803000000_add_public_certificate_records
+// for an earlier one-off bulk load (~293 rows, email + offer_id only; its R2 files
+// are missing). No application code references it. This model exists ONLY so Prisma
+// keeps the table in its schema and never proposes dropping it. The Certificate
+// Repository feature uses its own table, `CertificateRepoEntry` below.
+// ─────────────────────────────────────────────────────────────────────────────
+model PublicCertificate {
+  id                    String   @id @default(uuid())
+  email                 String
+  offer_id              String   @unique
+  certificate_url       String
+  certificate_r2_key    String   @unique
+  certificate_file_name String?
+  certificate_mime_type String?
+  certificate_size      Int?
+  uploaded_at           DateTime @default(now())
+  updated_at            DateTime @default(now()) @updatedAt
+
+  @@index([email])
+  @@index([offer_id])
+  @@map("public_certificates")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Public Certificate Repository — a fully self-contained module, unrelated to the
+// company/batch/order/certificate pipeline AND to the legacy `public_certificates`
+// table above. Its own table, its own data. A super-admin bulk-imports
+// offer-letter certificates from a local Excel sheet + local image folder; each
+// image is pushed to R2 under the `public-certificate-repo/` prefix by a
+// background queue. The public then looks up and downloads their own certificate
+// by registered email or offer-letter ID, with no login.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum CertRepoUploadStatus {
+  PENDING
+  UPLOADED
+  FAILED
+}
+
+model CertificateRepoEntry {
+  id                    String   @id @default(uuid())
+  email                 String
+  offer_id              String   @unique
+  certificate_url       String?
+  certificate_r2_key    String?  @unique
+  certificate_file_name String?
+  certificate_mime_type String?
+  certificate_size      Int?
+  uploaded_at           DateTime @default(now())
+  updated_at            DateTime @default(now()) @updatedAt
+
+  // Delivery-log metadata (from the imported Excel) + upload lifecycle.
+  name               String?
+  mail_address       String?
+  mobile_no          String?
+  duration           String?
+  issue_date_text    String?
+  delivery_status    String?
+  delivered_at       DateTime?
+  break_taken        String?
+  source_label       String?
+  upload_status      CertRepoUploadStatus @default(PENDING)
+  upload_error       String?
+  download_count     Int      @default(0)
+  last_downloaded_at DateTime?
+
+  @@index([email])
+  @@index([offer_id])
+  @@index([upload_status])
+  @@map("certificate_repo_entries")
+}

@@ -10,7 +10,12 @@ export const publicApi = baseApi.injectEndpoints({
       query: (hash) => `/public/verify/${hash}`,
       transformResponse: (r) => r.data,
     }),
+    // Public Certificate Repository — no-auth lookup by registered email or offer-letter ID.
+    lookupPublicCertificate: b.query({
+      query: (q) => ({ url: '/public-certs/lookup', params: { q } }),
+      transformResponse: (r) => r.data,
+    }),
   }),
 })
 
-export const { useGetBatchBySlugQuery, useVerifyCertificateQuery } = publicApi
+export const { useGetBatchBySlugQuery, useVerifyCertificateQuery, useLazyLookupPublicCertificateQuery } = publicApi

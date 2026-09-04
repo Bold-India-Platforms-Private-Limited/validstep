@@ -80,6 +80,16 @@ const strictLimiter = createRateLimiter({
   prefix: 'rl:strict',
 });
 
+// Public certificate lookup: 40 / 15 min per IP — enough for a person trying a few
+// email/ID variants, low enough to blunt enumeration of the repo.
+const publicCertLookupLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 40,
+  message: 'Too many certificate lookups, please try again in a few minutes',
+  keyGenerator: (req) => req.ip,
+  prefix: 'rl:pubcert',
+});
+
 module.exports = {
   createRateLimiter,
   generalLimiter,
@@ -87,4 +97,5 @@ module.exports = {
   paymentLimiter,
   webhookLimiter,
   strictLimiter,
+  publicCertLookupLimiter,
 };

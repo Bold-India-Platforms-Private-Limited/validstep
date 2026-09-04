@@ -49,6 +49,14 @@ async function start() {
       console.warn('[Worker] Batch login-details worker not started:', err.message);
     }
 
+    // Start BullMQ public certificate repo upload worker (only if Redis is available)
+    try {
+      const { startPublicCertRepoWorker } = require('./src/modules/public-cert-repo/publicCertRepo.worker');
+      startPublicCertRepoWorker();
+    } catch (err) {
+      console.warn('[Worker] Public certificate repo worker not started:', err.message);
+    }
+
     server = app.listen(PORT, () => {
       // Keep-alive must exceed nginx's keepalive_timeout (default 75s).
       // 65s ensures nginx closes first, preventing 502s on idle connections.

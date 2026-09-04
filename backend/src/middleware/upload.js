@@ -112,4 +112,13 @@ const uploadBulkCertificateMatchFile = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
 }).single('file');
 
-module.exports = { uploadTemplateBackground, uploadAccountingFile, uploadUserImportFile, uploadCustomCertificate, previewCertificateBadgeUpload, uploadBulkCertificateMatchFile };
+// Public certificate repo import sheet (name/email/id/duration/date/...). Memory storage —
+// the sheet is parsed to extract rows and then discarded; it is never written to disk or
+// uploaded anywhere, only the extracted column values are persisted.
+const uploadPublicCertSheet = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: bulkCertificateMatchFileFilter,
+  limits: { fileSize: 15 * 1024 * 1024 }, // 15 MB — ~2k rows fits comfortably
+}).single('file');
+
+module.exports = { uploadTemplateBackground, uploadAccountingFile, uploadUserImportFile, uploadCustomCertificate, previewCertificateBadgeUpload, uploadBulkCertificateMatchFile, uploadPublicCertSheet };

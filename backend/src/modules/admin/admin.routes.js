@@ -5,6 +5,7 @@ const { z } = require('zod');
 const controller = require('./admin.controller');
 const accountingRoutes = require('../accounting/accounting.routes');
 const masterAccountingRoutes = require('../master-accounting/masterAccounting.routes');
+const { adminRouter: publicCertRepoAdminRoutes } = require('../public-cert-repo/publicCertRepo.routes');
 const { validate } = require('../../middleware/validate');
 const { requireSuperAdmin } = require('../../middleware/auth');
 const { generalLimiter } = require('../../middleware/rateLimiter');
@@ -23,6 +24,7 @@ router.use(maskSensitiveDataForReview);
 
 router.use('/accounting', accountingRoutes);
 router.use('/master-accounting', blockReviewFromMasterAccounting, masterAccountingRoutes);
+router.use('/certificate-repo', publicCertRepoAdminRoutes);
 
 // Validation schemas
 const listQuerySchema = z.object({

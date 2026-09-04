@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Download } from 'lucide-react'
 
 export function PublicLayout({ children, mainClassName = '', showBackToHome = false, hideFooter = false }) {
   return (
@@ -10,15 +10,24 @@ export function PublicLayout({ children, mainClassName = '', showBackToHome = fa
             <Link to="/" className="flex items-center">
               <img src="/logo.webp" alt="Validstep" className="h-8 w-auto" />
             </Link>
-            {showBackToHome && (
+            <div className="flex items-center gap-4">
               <Link
-                to="/"
-                className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-violet-600 transition-colors"
+                to="/certificate-download"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-violet-600 transition-colors"
               >
-                <ArrowLeft className="w-4 h-4" />
-                Back to Home
+                <Download className="w-4 h-4" />
+                Download Certificate
               </Link>
-            )}
+              {showBackToHome && (
+                <Link
+                  to="/"
+                  className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-violet-600 transition-colors"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Back to Home
+                </Link>
+              )}
+            </div>
           </div>
         </div>
       </header>
