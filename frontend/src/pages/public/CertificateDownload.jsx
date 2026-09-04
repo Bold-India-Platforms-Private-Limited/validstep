@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import {
   Search, Download, FileText, XCircle, Award, Calendar, Clock, Hash, User, Maximize2, X,
 } from 'lucide-react'
@@ -11,7 +10,7 @@ import { Spinner } from '../../components/ui/Spinner'
 export default function CertificateDownload() {
   const [query, setQuery] = useState('')
   const [fullscreen, setFullscreen] = useState(false)
-  const [trigger, { data: cert, error, isFetching, isUninitialized }] = useLazyLookupPublicCertificateQuery()
+  const [trigger, { data: cert, error, isFetching }] = useLazyLookupPublicCertificateQuery()
 
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -168,13 +167,6 @@ export default function CertificateDownload() {
                 </div>
               </div>
             </div>
-          )}
-
-          {isUninitialized && !isFetching && (
-            <p className="mt-8 text-center text-xs text-slate-400">
-              Looking to verify someone else's certificate instead?{' '}
-              <Link to="/verify/demo" className="text-primary-600 hover:underline">Verify a certificate</Link>
-            </p>
           )}
         </div>
       </div>

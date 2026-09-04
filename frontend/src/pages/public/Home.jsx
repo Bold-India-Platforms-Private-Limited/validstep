@@ -94,7 +94,7 @@ function Navbar() {
               Contact
             </Link>
             <Link to="/certificate-download"
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-violet-700 border border-violet-200 bg-violet-50 hover:bg-violet-100 rounded-lg transition-colors">
               <Download className="w-3.5 h-3.5" />
               Download Certificate
             </Link>
@@ -111,10 +111,10 @@ function Navbar() {
               </button>
 
               {verifyOpen && (
-                <div className="absolute left-1/2 -translate-x-1/2 mt-3 w-[520px] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50">
+                <div className="absolute left-1/2 -translate-x-1/2 mt-3 w-[640px] max-w-[92vw] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50">
 
                   {/* Top banner */}
-                  <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-4 flex items-center gap-3">
+                  <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-7 py-5 flex items-center gap-3">
                     <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
                       <Shield className="w-5 h-5 text-white" />
                     </div>
@@ -127,7 +127,7 @@ function Navbar() {
                     </button>
                   </div>
 
-                  <div className="p-6">
+                  <div className="p-7">
                     {/* Search by ID */}
                     <div className="mb-5">
                       <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2.5">
@@ -217,6 +217,25 @@ function Navbar() {
                       <span className="text-[10px] text-gray-300 font-medium">Powered by Validstep.com</span>
                     </div>
                   </div>
+
+                  {/* Certificate-holder band — download your own certificate */}
+                  <Link
+                    to="/certificate-download"
+                    onClick={() => setVerifyOpen(false)}
+                    className="flex items-center gap-4 border-t border-gray-100 bg-violet-50/70 px-7 py-4 hover:bg-violet-100/70 transition-colors group"
+                  >
+                    <div className="w-10 h-10 bg-violet-100 group-hover:bg-violet-200 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors">
+                      <Download className="w-5 h-5 text-violet-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-violet-900">Are you the certificate holder?</p>
+                      <p className="text-xs text-violet-500 mt-0.5">Download your certificate with your registered email or offer-letter ID</p>
+                    </div>
+                    <span className="inline-flex items-center gap-1.5 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white group-hover:bg-violet-700 transition-colors whitespace-nowrap shadow-sm shadow-violet-200">
+                      Download Certificate
+                      <ArrowRight className="w-4 h-4" />
+                    </span>
+                  </Link>
                 </div>
               )}
             </div>
@@ -333,12 +352,14 @@ function Navbar() {
               className="block rounded-2xl px-4 py-3.5 text-[15px] font-medium text-gray-700 active:bg-gray-100">
               Contact
             </Link>
-            <Link to="/certificate-download" onClick={() => setMobileOpen(false)}
-              className="flex items-center gap-2 rounded-2xl px-4 py-3.5 text-[15px] font-medium text-gray-700 active:bg-gray-100">
-              <Download className="w-4 h-4" />
-              Download Certificate
-            </Link>
           </div>
+
+          {/* Mobile: download your certificate */}
+          <Link to="/certificate-download" onClick={() => setMobileOpen(false)}
+            className="mx-3 mt-3 flex items-center gap-3 rounded-2xl bg-violet-600 px-4 py-3.5 text-[15px] font-semibold text-white active:bg-violet-700">
+            <Download className="w-5 h-5" />
+            Download Certificate
+          </Link>
 
           {/* Mobile verify section */}
           <div className="mx-3 mt-3 rounded-2xl bg-emerald-50/60 p-4">
